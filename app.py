@@ -10,6 +10,7 @@ from datetime import date, datetime
 import os
 from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
+from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -54,13 +55,13 @@ def clean_markdown_for_display(text: str) -> str:
 # IMPORTANT: Set GEMINI_API_KEY in .env file, do NOT hardcode API keys!
 DEFAULT_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-DEFAULT_MODEL = "gemini-2.0-flash-exp"
+DEFAULT_MODEL = "gemini-3-flash-preview"
 
-# Predefined AI providers
+# Predefined AI providers (updated 2026-01)
 AI_PROVIDERS = {
     "默认 (Gemini)": {
         "base_url": DEFAULT_BASE_URL,
-        "models": ["gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash"]
+        "models": ["gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-pro"]
     },
     "DeepSeek": {
         "base_url": "https://api.deepseek.com",
@@ -68,23 +69,23 @@ AI_PROVIDERS = {
     },
     "OpenAI": {
         "base_url": "https://api.openai.com/v1",
-        "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+        "models": ["gpt-4.5-preview", "gpt-4o", "gpt-4o-mini", "o1", "o1-mini"]
     },
     "Anthropic (Claude)": {
         "base_url": "https://api.anthropic.com/v1",
-        "models": ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+        "models": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
     },
     "Google Gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "models": ["gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash"]
+        "models": ["gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-pro"]
     },
     "Moonshot (月之暗面)": {
         "base_url": "https://api.moonshot.cn/v1",
-        "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
+        "models": ["moonshot-v1-128k", "moonshot-v1-32k", "moonshot-v1-8k"]
     },
     "Zhipu (智谱)": {
         "base_url": "https://open.bigmodel.cn/api/paas/v4",
-        "models": ["glm-4-plus", "glm-4", "glm-4-flash"]
+        "models": ["glm-4-plus", "glm-4-0520", "glm-4-flash"]
     },
     "自定义 (Custom)": {
         "base_url": "",
@@ -135,6 +136,8 @@ if "default_api_usage_count" not in st.session_state:
     st.session_state.default_api_usage_count = 0
 if "using_default_api" not in st.session_state:
     st.session_state.using_default_api = True
+if "calendar_mode" not in st.session_state:
+    st.session_state.calendar_mode = "solar"  # "solar" or "lunar"
 
 # Check query parameters for localStorage data
 query_params = st.query_params
@@ -170,6 +173,7 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap');
     
+    /* ===== Base Styles ===== */
     .main {
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     }
@@ -184,6 +188,7 @@ st.markdown("""
         color: #ffd700;
         text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
         margin-bottom: 30px;
+        font-size: 2.2rem;
     }
     
     .bazi-display {
@@ -219,6 +224,8 @@ st.markdown("""
         padding: 20px;
         margin-top: 10px;
         margin-bottom: 20px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
     .topic-header {
@@ -243,6 +250,7 @@ st.markdown("""
         cursor: pointer;
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+        min-height: 44px; /* Touch-friendly tap target */
     }
     
     .stButton > button:hover {
@@ -293,6 +301,240 @@ st.markdown("""
         border-radius: 8px;
         margin: 10px 0;
     }
+    
+    /* ===== SVG Chart Responsive Container ===== */
+    .bazi-chart-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .bazi-chart-container svg {
+        max-width: 100%;
+        height: auto;
+    }
+    
+    /* ===== Mobile Responsive Styles ===== */
+    @media screen and (max-width: 768px) {
+        /* Title */
+        h1 {
+            font-size: 1.6rem;
+            margin-bottom: 20px;
+            padding: 0 10px;
+        }
+        
+        /* Main container padding */
+        .main .block-container {
+            padding: 1rem 0.5rem !important;
+        }
+        
+        /* Bazi display */
+        .bazi-display {
+            font-size: 1.4rem;
+            padding: 15px 10px;
+            margin: 10px 0;
+        }
+        
+        /* Time info */
+        .time-info {
+            font-size: 0.75rem;
+            padding: 0 5px;
+            line-height: 1.5;
+        }
+        
+        /* Fortune text */
+        .fortune-text {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            padding: 15px 12px;
+        }
+        
+        /* Topic header */
+        .topic-header {
+            font-size: 1.1rem;
+            padding-left: 10px;
+            margin-top: 15px;
+        }
+        
+        /* Section labels */
+        .section-label {
+            font-size: 0.9rem;
+        }
+        
+        /* Buttons - make them full width on mobile */
+        .stButton > button {
+            font-size: 0.9rem;
+            padding: 12px 10px;
+            min-height: 48px; /* Larger tap target for mobile */
+            width: 100%;
+        }
+        
+        /* Select boxes */
+        .stSelectbox > div > div {
+            font-size: 0.9rem;
+        }
+        
+        /* Radio buttons - make horizontal options wrap nicely */
+        .stRadio > div {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .stRadio > div > label {
+            font-size: 0.9rem;
+            padding: 8px 12px;
+        }
+        
+        /* Hide sidebar by default on mobile */
+        [data-testid="stSidebar"] {
+            min-width: 0px;
+        }
+        
+        /* Columns - stack vertically on mobile */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
+        
+        /* Expander */
+        .streamlit-expanderHeader {
+            font-size: 0.9rem;
+        }
+        
+        /* Date input */
+        .stDateInput > div {
+            max-width: 100%;
+        }
+        
+        /* API settings */
+        .api-section {
+            padding: 10px;
+        }
+    }
+    
+    /* ===== Small Mobile (iPhone SE, etc.) ===== */
+    @media screen and (max-width: 375px) {
+        h1 {
+            font-size: 1.4rem;
+        }
+        
+        .bazi-display {
+            font-size: 1.2rem;
+            padding: 12px 8px;
+        }
+        
+        .fortune-text {
+            font-size: 0.9rem;
+            padding: 12px 10px;
+        }
+        
+        .topic-header {
+            font-size: 1rem;
+        }
+        
+        .stButton > button {
+            font-size: 0.85rem;
+            padding: 10px 8px;
+        }
+    }
+    
+    /* ===== Tablet Landscape ===== */
+    @media screen and (min-width: 769px) and (max-width: 1024px) {
+        .main .block-container {
+            padding: 2rem 1.5rem !important;
+        }
+        
+        h1 {
+            font-size: 1.9rem;
+        }
+        
+        .fortune-text {
+            font-size: 1rem;
+        }
+    }
+    
+    /* ===== Improve touch scrolling ===== */
+    .main {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* ===== Fix button grid on mobile ===== */
+    @media screen and (max-width: 768px) {
+        /* Make button rows 2x2 grid instead of 4 columns */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+        }
+        
+        [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+            flex: 1 1 45% !important;
+            min-width: 45% !important;
+            max-width: 48% !important;
+        }
+    }
+    
+    /* ===== Improve radio button appearance on mobile ===== */
+    @media screen and (max-width: 768px) {
+        div[data-testid="stRadio"] > div {
+            gap: 4px;
+        }
+        
+        div[data-testid="stRadio"] label {
+            padding: 10px 16px !important;
+            border-radius: 20px;
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            color: #FFFFFF !important;
+        }
+        
+        div[data-testid="stRadio"] label:has(input:checked) {
+            background: rgba(255, 215, 0, 0.3);
+            border-color: #ffd700;
+        }
+    }
+    
+    /* ===== Radio button text contrast (all screens) ===== */
+    div[data-testid="stRadio"] label span {
+        color: #FFFFFF !important;
+    }
+    
+    div[data-testid="stRadio"] label p {
+        color: #FFFFFF !important;
+    }
+    
+    /* ===== Expander header contrast ===== */
+    .streamlit-expanderHeader {
+        color: #FFFFFF !important;
+    }
+    
+    .streamlit-expanderHeader p {
+        color: #FFFFFF !important;
+    }
+    
+    details summary span {
+        color: #FFFFFF !important;
+    }
+    
+    /* ===== Mobile-friendly select dropdowns ===== */
+    @media screen and (max-width: 768px) {
+        .stSelectbox [data-baseweb="select"] {
+            min-height: 44px;
+        }
+        
+        .stSelectbox [data-baseweb="select"] > div {
+            font-size: 1rem;
+        }
+    }
+    
+    /* ===== Viewport meta optimization ===== */
+    @viewport {
+        width: device-width;
+        zoom: 1;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -311,6 +553,7 @@ with st.sidebar:
         st.session_state.show_custom_input = False
         st.session_state.custom_question_count = 0
         st.session_state.time_mode = "exact"
+        st.session_state.calendar_mode = "solar"
         st.session_state.is_first_response = True
         st.session_state.scroll_to_topic = None
         st.rerun()
@@ -326,6 +569,7 @@ with st.sidebar:
         st.session_state.show_custom_input = False
         st.session_state.custom_question_count = 0
         st.session_state.time_mode = "exact"
+        st.session_state.calendar_mode = "solar"
         st.session_state.is_first_response = True
         st.session_state.scroll_to_topic = None
         st.session_state.clear_storage_requested = True
@@ -354,7 +598,7 @@ if st.session_state.clear_storage_requested:
     st.session_state.clear_storage_requested = False
 
 # Title
-st.markdown("<h1>🔮 八字算命大师 🔮</h1>", unsafe_allow_html=True)
+st.markdown("<h1>🔮 命理大师</h1>", unsafe_allow_html=True)
 
 # Only show input form if Bazi not yet calculated
 if not st.session_state.bazi_calculated:
@@ -369,13 +613,95 @@ if not st.session_state.bazi_calculated:
 
     # Birth Date Input
     st.markdown('<p class="section-label">📅 出生日期</p>', unsafe_allow_html=True)
-    birthday = st.date_input(
-        "出生日期",
-        value=date(1990, 1, 1),
-        min_value=date(1900, 1, 1),
-        max_value=date.today(),
+    
+    # Calendar type radio button (similar to time mode)
+    calendar_mode = st.radio(
+        "日历类型",
+        options=["阳历", "农历"],
+        index=0 if st.session_state.calendar_mode == "solar" else 1,
+        horizontal=True,
         label_visibility="collapsed"
     )
+    
+    # Update session state based on radio selection
+    if calendar_mode == "阳历" and st.session_state.calendar_mode != "solar":
+        st.session_state.calendar_mode = "solar"
+        st.rerun()
+    elif calendar_mode == "农历" and st.session_state.calendar_mode != "lunar":
+        st.session_state.calendar_mode = "lunar"
+        st.rerun()
+    
+    # Show appropriate date input based on calendar mode
+    if st.session_state.calendar_mode == "solar":
+        # Solar calendar - use date picker
+        birthday = st.date_input(
+            "出生日期",
+            value=date(1990, 1, 1),
+            min_value=date(1900, 1, 1),
+            max_value=date.today(),
+            label_visibility="collapsed"
+        )
+    else:
+        # Lunar calendar - use dropdowns
+        lunar_col1, lunar_col2, lunar_col3 = st.columns(3)
+        
+        # Year selection (1900-current year)
+        current_year = date.today().year
+        with lunar_col1:
+            lunar_year = st.selectbox(
+                "农历年",
+                options=list(range(current_year, 1899, -1)),  # Descending order
+                index=current_year - 1990  # Default to 1990
+            )
+        
+        # Check if this lunar year has a leap month
+        lunar_year_obj = LunarYear.fromYear(lunar_year)
+        leap_month = lunar_year_obj.getLeapMonth()  # 0 if no leap month
+        
+        # Build month options
+        month_options = []
+        for m in range(1, 13):
+            month_options.append(f"{m}月")
+            if leap_month == m:
+                month_options.append(f"闰{m}月")
+        
+        with lunar_col2:
+            lunar_month_str = st.selectbox(
+                "农历月",
+                options=month_options,
+                index=0
+            )
+        
+        # Parse the selected month
+        if lunar_month_str.startswith("闰"):
+            is_leap_month = True
+            lunar_month = int(lunar_month_str[1:-1])  # Extract number from "闰X月"
+        else:
+            is_leap_month = False
+            lunar_month = int(lunar_month_str[:-1])  # Extract number from "X月"
+        
+        # Day selection (1-30, lunar months have max 30 days)
+        with lunar_col3:
+            lunar_day = st.selectbox(
+                "农历日",
+                options=list(range(1, 31)),
+                index=0,
+                format_func=lambda x: f"初{x}" if x <= 10 else (f"十{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][x-11]}" if x <= 20 else (f"廿{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][x-21]}" if x < 30 else "三十"))
+            )
+        
+        # Convert lunar date to solar date
+        try:
+            # Use negative month number for leap months
+            lunar_month_param = -lunar_month if is_leap_month else lunar_month
+            lunar_date = Lunar.fromYmd(lunar_year, lunar_month_param, lunar_day)
+            solar_date = lunar_date.getSolar()
+            birthday = date(solar_date.getYear(), solar_date.getMonth(), solar_date.getDay())
+            
+            # Show the converted solar date
+            st.caption(f"📅 对应阳历: {birthday.year}年{birthday.month}月{birthday.day}日")
+        except Exception as e:
+            st.error(f"农历日期无效: {str(e)}")
+            birthday = date(1990, 1, 1)  # Fallback
 
     # Time Input Section with radio button toggle
     st.markdown('<p class="section-label">⏰ 出生时间</p>', unsafe_allow_html=True)
@@ -600,11 +926,13 @@ if not st.session_state.bazi_calculated:
 
 # Show results if Bazi is calculated
 else:
-    # Display SVG Chart if available (centered)
+    # Display SVG Chart if available (centered, mobile-responsive)
     if hasattr(st.session_state, 'bazi_svg') and st.session_state.bazi_svg:
         centered_svg = f'''
-        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 20px;">
-            {st.session_state.bazi_svg}
+        <div class="bazi-chart-container" style="display: flex; justify-content: center; align-items: center; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 10px 0;">
+            <div style="transform-origin: center; max-width: 100%;">
+                {st.session_state.bazi_svg}
+            </div>
         </div>
         '''
         st.markdown(centered_svg, unsafe_allow_html=True)

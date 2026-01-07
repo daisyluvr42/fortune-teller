@@ -28,7 +28,7 @@ fortune_teller_agent/
 | 项目 | 说明 |
 |------|------|
 | 性别 | 男/女 下拉框 |
-| 出生日期 | 日期选择器 |
+| 出生日期 | 阳历 (日期选择器) 或 农历 (年/月/日下拉框，支持闰月)，使用单选按钮切换 |
 | 出生时间 | 精确时间 (时:分) 或 时辰 (子时-亥时)，使用单选按钮切换 |
 | 出生地点 | 350+ 中国城市，用于真太阳时计算 |
 | AI 模型 | 可选，默认 Gemini API |
@@ -222,21 +222,35 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 ## 更新日志
 
 ### 2026-01-07
+- ⭐ **移动端 UI 优化** - 全面适配手机屏幕
+  - 响应式 CSS 媒体查询 (768px/375px 断点)
+  - 按钮布局自适应 (2x2 网格)
+  - SVG 排盘 viewBox 自适应缩放
+  - 触摸友好的按钮尺寸 (min-height: 48px)
+  - Radio 按钮和 Expander 文字改为白色，提高对比度
+  - 标题缩短为「命理大师」适配小屏幕
+- ⭐ **农历日期输入** - 支持阳历/农历切换，使用单选按钮
+  - 农历年月日下拉框选择
+  - 自动检测闰月并显示闰月选项
+  - 中文农历日期显示 (初一、十五、廿三等)
+  - 自动转换为阳历用于八字计算
+- ⭐ **LLM 模型更新** - 切换至最新模型
+  - 默认模型: `gemini-3-flash-preview`
+  - OpenAI: 新增 `gpt-4.5-preview`, `o1`, `o1-mini`
+  - Claude: 新增 `claude-3-5-haiku`, `claude-3-opus`
+  - Moonshot: 默认使用 `moonshot-v1-128k`
 - ⭐ **SVG 排盘视觉升级** - 高级精致版设计
   - 深棕色标题栏 + 米白色字体
   - 徽章样式十神标签（圆角背景框）
   - 藏干水平排列 + 十神小字在下方
   - 虚线分隔 + 居中标题（移除左侧标签）
-  - 更大字体：天干/地支 36px，藏干 18px
-  - 阴影效果增加立体感
-- ⭐ **修复 SVG 居中显示** - 使用单一 markdown 调用包裹 flexbox
 - ⭐ **部署配置完成** - Streamlit Cloud 一键部署
   - 新增 `requirements.txt` - 依赖清单
   - 新增 `README.md` - 项目说明 + 部署指南
   - 新增 `.env.example` - 环境变量模板
-  - 更新 `.gitignore` - 保护 API Key 安全
-- ✅ 代码已推送至 GitHub: `daisyluvr42/fortune-teller`
-- ✅ 可通过 Streamlit Cloud 部署分享
+- 🐛 修复 SVG 居中显示
+- 🐛 修复 svgwrite 高度参数错误
+- ✅ 代码同步至 GitHub
 
 ### 2026-01-06 (晚间更新)
 - ⭐ 新增 `TiaoHouCalculator` - 调候用神计算器 (冬暖夏凉)

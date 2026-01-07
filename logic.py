@@ -998,11 +998,15 @@ class BaziChartGenerator:
 
     def generate_chart(self, bazi_data, filename="bazi_chart.svg"):
         """
-        生成高级精致的排盘 SVG
+        生成高级精致的排盘 SVG (支持移动端响应式)
         """
         width = 480
         height = 380
-        dwg = svgwrite.Drawing(filename, size=(width, height))
+        # Create SVG with fixed size, then add viewBox for responsive scaling
+        dwg = svgwrite.Drawing(filename, size=(f"{width}px", f"{height}px"))
+        dwg['viewBox'] = f"0 0 {width} {height}"
+        dwg['preserveAspectRatio'] = "xMidYMid meet"
+        # CSS will handle responsive sizing via container
         
         # ========== 1. 背景与边框 ==========
         # 外边框阴影效果 (用浅色矩形模拟)
