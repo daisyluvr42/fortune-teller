@@ -250,6 +250,8 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
   - 新增 `.env.example` - 环境变量模板
 - 🐛 修复 SVG 居中显示
 - 🐛 修复 svgwrite 高度参数错误
+- 🐛 修复手机端 SVG 图表溢出屏幕问题 (使用 width:100% + max-width 响应式约束)
+- 🐛 修复手机端重复点击按钮无法自动跳转到对应内容的问题 (添加时间戳强制执行滚动)
 - ✅ 代码同步至 GitHub
 
 ### 2026-01-06 (晚间更新)

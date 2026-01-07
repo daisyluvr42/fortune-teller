@@ -304,17 +304,33 @@ st.markdown("""
     
     /* ===== SVG Chart Responsive Container ===== */
     .bazi-chart-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        display: block;
+        width: 100%;
         margin-bottom: 20px;
         overflow-x: auto;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
+        text-align: center;
     }
     
     .bazi-chart-container svg {
-        max-width: 100%;
+        display: block;
+        margin: 0 auto;
+        width: 100%;
+        max-width: 480px;
         height: auto;
+    }
+    
+    /* Mobile SVG - ensure it fits screen */
+    @media screen and (max-width: 500px) {
+        .bazi-chart-container {
+            padding: 0 5px;
+        }
+        
+        .bazi-chart-container svg {
+            width: 100%;
+            max-width: 100%;
+        }
     }
     
     /* ===== Mobile Responsive Styles ===== */
@@ -929,10 +945,8 @@ else:
     # Display SVG Chart if available (centered, mobile-responsive)
     if hasattr(st.session_state, 'bazi_svg') and st.session_state.bazi_svg:
         centered_svg = f'''
-        <div class="bazi-chart-container" style="display: flex; justify-content: center; align-items: center; margin-bottom: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 10px 0;">
-            <div style="transform-origin: center; max-width: 100%;">
-                {st.session_state.bazi_svg}
-            </div>
+        <div class="bazi-chart-container">
+            {st.session_state.bazi_svg}
         </div>
         '''
         st.markdown(centered_svg, unsafe_allow_html=True)
@@ -958,8 +972,9 @@ else:
             button_label = f"✓ {topic}" if is_clicked else topic
             if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
                 if topic in st.session_state.clicked_topics:
-                    # Already clicked - scroll to existing response
+                    # Already clicked - scroll to existing response (add timestamp to force re-scroll)
                     st.session_state.scroll_to_topic = topic
+                    st.session_state.scroll_timestamp = datetime.now().timestamp()
                     st.rerun()
                 else:
                     # First click - request new analysis
@@ -980,7 +995,9 @@ else:
                 button_label = f"✓ {topic}" if is_clicked else topic
                 if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
                     if topic in st.session_state.clicked_topics:
+                        # Already clicked - scroll to existing response (add timestamp to force re-scroll)
                         st.session_state.scroll_to_topic = topic
+                        st.session_state.scroll_timestamp = datetime.now().timestamp()
                         st.rerun()
                     else:
                         st.session_state.clicked_topics.add(topic)
@@ -1126,16 +1143,25 @@ else:
         
         # Use components.html to execute JavaScript for scrolling
         if scroll_anchor_id:
+            # Add timestamp to make each script unique and force execution
+            scroll_ts = getattr(st.session_state, 'scroll_timestamp', 0)
             components.html(f'''
                 <script>
-                    const targetElement = window.parent.document.getElementById("{scroll_anchor_id}");
-                    if (targetElement) {{
-                        targetElement.scrollIntoView({{behavior: "smooth", block: "start"}});
-                    }}
+                    // Timestamp: {scroll_ts} - ensures fresh execution on repeated clicks
+                    (function() {{
+                        const targetElement = window.parent.document.getElementById("{scroll_anchor_id}");
+                        if (targetElement) {{
+                            // Small delay to ensure DOM is ready
+                            setTimeout(function() {{
+                                targetElement.scrollIntoView({{behavior: "smooth", block: "start"}});
+                            }}, 100);
+                        }}
+                    }})();
                 </script>
             ''', height=0)
             # Clear scroll target after rendering
             st.session_state.scroll_to_topic = None
+            st.session_state.scroll_timestamp = None
 
 # Save data to localStorage whenever we have responses
 if st.session_state.bazi_calculated and st.session_state.responses:
