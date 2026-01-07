@@ -1231,7 +1231,7 @@ SYSTEM_INSTRUCTION = """
 
 # 3. Search Grounding Strategy (搜索增强策略)
 你拥有 Google Search 工具。请勿搜索"万年历"等基础数据，你的搜索能力必须用于**"建议落地"**：
-* **行业与搞钱**：分析事业时，**必须**搜索当前（2025-2026年）该五行属性下的高增长赛道或新兴职业。
+* **行业与搞钱**：分析事业时，**必须**搜索当前（{this_year}-{next_year}年）该五行属性下的高增长赛道或新兴职业。
 * **生活与开运**：推荐方位、饰品时，**必须**搜索当下的流行趋势或旅游热点。
 * **自然融合**：禁止直接复制粘贴搜索到的原文，必须消化后用自然流畅的语言讲出来。
 * **隐匿搜索痕迹（重要）**：
@@ -1241,8 +1241,8 @@ SYSTEM_INSTRUCTION = """
         * "经过搜索/查询..."、"我找到了以下信息..."
     * ✅ **正确做法**：将搜索到的信息**自然融入**你的分析，仿佛这些见解是你**本就了然于胸**的行业洞察。
     * 💡 **示例转换**：
-        * ❌ "我为你搜索了2025年的热门行业，发现新能源很火。"
-        * ✅ "说到事业方向，2025年新能源储能的势头相当猛，这恰好跟你命里喜火的特质非常契合。"
+        * ❌ "我为你搜索了{this_year}年的热门行业，发现新能源很火。"
+        * ✅ "说到事业方向，{this_year}年新能源储能的势头相当猛，这恰好跟你命里喜火的特质非常契合。"
 
 # 4. Output Constraints (输出限制)
 * **结构要求**：必须使用 Markdown 格式（Bold, Headers）让阅读体验舒适。
@@ -1312,7 +1312,7 @@ SYSTEM_INSTRUCTION = """
 
 ## 2. 行业与职场定位 (Niche & Positioning)
 * **结合搜索 (Search Grounding)**：
-    * 依据喜用神五行，结合**当前（2025-2026）的经济趋势**给出建议。
+    * 依据喜用神五行，结合**当前（{this_year}-{next_year}）的经济趋势**给出建议。
     * *例如*：喜火，不要只说"能源"，要建议"新能源储能、AI算力中心、短视频直播"。
 * **职场建议**：
     * 明确告诉用户：适合**单打独斗**（Freelancer/Boss）还是**团队协作**（Manager/Team Player）？
@@ -1443,7 +1443,7 @@ ANALYSIS_PROMPTS = {
 ## 2. 🚀 黄金赛道与行业（需联网检索）
 * **五行喜忌转化**：明确指出用户适合的五行行业。
 * **具体赛道建议**：
-    * 请搜索 **2025-2026年** 具有高增长潜力的细分领域。
+    * 请搜索 **{this_year}-{next_year}年** 具有高增长潜力的细分领域。
     * *❌ 错误示范*："你喜水，适合做物流。"
     * *✅ 正确示范*："你喜水，结合当下趋势，建议关注**跨境电商供应链**或**冷链物流智能化**方向。"
 
@@ -1523,7 +1523,7 @@ ANALYSIS_PROMPTS = {
 ## 4. 🎨 今年生活开运方案（需联网检索）
 *请利用搜索工具，将喜用神转化为具象的生活建议：*
 * **幸运色与穿搭**：
-    * 不要只说"红色"。请搜索 **2025-2026 流行色**，推荐符合你喜用五行的具体色号（如：焦糖色、勃艮第红、薄荷绿）。
+    * 不要只说"红色"。请搜索 **{this_year}-{next_year} 流行色**，推荐符合你喜用五行的具体色号（如：焦糖色、勃艮第红、薄荷绿）。
 * **能量补给地（方位/旅行）**：
     * 结合喜用方位，推荐 1-2 个适合短期旅行或居住的**具体城市/国家**。
     * *（例如：喜火去南方，推荐"三亚"或"泰国"；喜水去北方，推荐"北海道"或"哈尔滨"。）*
@@ -1596,7 +1596,7 @@ ANALYSIS_PROMPTS = {
     * *（例如：喜水推荐"海蓝宝"或"黑曜石"；喜木推荐"绿幽灵"或木质手串。）*
 * **造型建议**：推荐适合的几何形状（如：圆形属金，长条形属木）。
 * **流行配饰推荐**：
-    * 请搜索并推荐 **2025-2026 年流行**的配饰风格中，符合该五行属性的单品（如："极简银饰"、"巴洛克珍珠"）。
+    * 请搜索并推荐 **{this_year}-{next_year} 年流行**的配饰风格中，符合该五行属性的单品（如："极简银饰"、"巴洛克珍珠"）。
 
 ## 3. 🖥 搞钱工位风水（办公室微调）
 * **左青龙右白虎**：教用户如何摆放电脑、水杯、文件，以形成最强气场。
@@ -1919,7 +1919,7 @@ def build_user_context(bazi_text: str, gender: str, birthplace: str, current_tim
 八字四柱：{bazi_text}
 性别：{gender}
 出生地：{birthplace}{birth_info}
-当前时间：{current_time}
+当前基准时间 (已与网络同步)：{current_time}
 {pattern_section}
 
 ---
@@ -2061,7 +2061,16 @@ def get_fortune_analysis(
 3. 回复时只给出概率最大的相关结果，不要过于模棱两可或穷举所有可能。
 4. 注意与之前分析的连贯性，可以适当引用之前的结论，但避免重复。"""
     
-    system_prompt = SYSTEM_INSTRUCTION + response_rules
+    # Calculate current and next year for dynamic prompts
+    current_yr = datetime.now().year
+    this_yr = str(current_yr)
+    next_yr = str(current_yr + 1)
+    
+    # Format system prompt and user message with dynamic years
+    system_prompt = (SYSTEM_INSTRUCTION + response_rules).format(
+        this_year=this_yr, 
+        next_year=next_yr
+    )
     
     # Build user message based on topic
     if topic == "深聊一下" and custom_question:
@@ -2101,12 +2110,12 @@ def get_fortune_analysis(
 {custom_prompt}
 
 用户的问题：{custom_question}
-"""
+""".format(this_year=this_yr, next_year=next_yr)
     else:
         topic_prompt = ANALYSIS_PROMPTS.get(topic, "请进行综合命理分析。")
         user_message = f"""{user_context}{history_summary}
 
-{topic_prompt}"""
+{topic_prompt}""".format(this_year=this_yr, next_year=next_yr)
 
     try:
         # Check if we should enable tool use (for non-Gemini models with Tavily configured)
