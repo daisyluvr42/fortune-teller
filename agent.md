@@ -17,6 +17,7 @@
 fortune_teller_agent/
 ├── app.py           # Streamlit 主应用
 ├── logic.py         # 八字计算 & LLM 调用 & 格局/调候/图表计算器
+├── pdf_generator.py # PDF 报告生成器 (ReportLab)
 ├── china_cities.py  # 350+ 中国城市经度数据
 ├── .env             # 环境变量 (API Key)
 └── pyproject.toml   # 项目配置
@@ -227,7 +228,20 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 ## 更新日志
 
-### 2026-01-07
+### 2026-01-07 (下午更新)
+- ⭐ **UI 文字清晰度优化** - 提升标题和标签可读性
+  - 标题颜色调整为 #FFDD44 (更亮的金色)
+  - 增强文字阴影效果 (双层阴影)
+  - 标签颜色改为 #FFF5CC (奶油白)
+  - 增加字重和字间距
+- ⭐ **PDF 报告下载功能** - 一键保存分析结果
+  - 新增 `pdf_generator.py` - ReportLab PDF 生成器
+  - 使用 STSong-Light CID 字体 (无需外部字体文件)
+  - 包含基本信息、八字排盘、所有分析记录
+  - 下载按钮位于分析记录下方
+- 📦 新增依赖: `reportlab>=4.0.0`
+
+### 2026-01-07 (早间更新)
 - ⭐ **移动端 UI 优化** - 全面适配手机屏幕
   - 响应式 CSS 媒体查询 (768px/375px 断点)
   - 按钮布局自适应 (2x2 网格)

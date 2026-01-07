@@ -9,9 +9,11 @@ import re
 from datetime import date, datetime
 import os
 from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator
+from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
+from pdf_generator import generate_report_pdf
 
 load_dotenv()
 
@@ -138,6 +140,14 @@ if "using_default_api" not in st.session_state:
     st.session_state.using_default_api = True
 if "calendar_mode" not in st.session_state:
     st.session_state.calendar_mode = "solar"  # "solar" or "lunar"
+if "compatibility_mode" not in st.session_state:
+    st.session_state.compatibility_mode = False
+if "partner_bazi" not in st.session_state:
+    st.session_state.partner_bazi = None
+if "partner_info" not in st.session_state:
+    st.session_state.partner_info = None
+if "compatibility_result" not in st.session_state:
+    st.session_state.compatibility_result = None
 
 # Check query parameters for localStorage data
 query_params = st.query_params
@@ -185,10 +195,12 @@ st.markdown("""
     h1 {
         font-family: 'Noto Serif SC', serif;
         text-align: center;
-        color: #ffd700;
-        text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        color: #FFDD44;
+        text-shadow: 0 0 10px rgba(255, 230, 100, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
         margin-bottom: 30px;
         font-size: 2.2rem;
+        font-weight: 700;
+        letter-spacing: 2px;
     }
     
     .bazi-display {
@@ -281,9 +293,10 @@ st.markdown("""
     
     .section-label {
         font-family: 'Noto Serif SC', serif;
-        color: #ffd700;
+        color: #FFF5CC;
         font-size: 1rem;
         margin-bottom: 5px;
+        font-weight: 500;
     }
     
     .api-section {
@@ -618,6 +631,30 @@ st.markdown("<h1>🔮 命理大师</h1>", unsafe_allow_html=True)
 
 # Only show input form if Bazi not yet calculated
 if not st.session_state.bazi_calculated:
+    # Mode Toggle (Single vs Compatibility)
+    st.markdown('<p class="section-label">💫 分析模式</p>', unsafe_allow_html=True)
+    mode_selection = st.radio(
+        "分析模式",
+        options=["单人模式", "合盘模式 💕"],
+        index=1 if st.session_state.compatibility_mode else 0,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    # Update session state based on mode selection
+    if mode_selection == "合盘模式 💕" and not st.session_state.compatibility_mode:
+        st.session_state.compatibility_mode = True
+        st.rerun()
+    elif mode_selection == "单人模式" and st.session_state.compatibility_mode:
+        st.session_state.compatibility_mode = False
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # Show form label based on mode
+    if st.session_state.compatibility_mode:
+        st.markdown("### 👤 甲方 (我的信息)")
+    
     # Gender Selection
     st.markdown('<p class="section-label">👤 性别</p>', unsafe_allow_html=True)
     gender = st.selectbox(
@@ -626,6 +663,7 @@ if not st.session_state.bazi_calculated:
         index=0,
         label_visibility="collapsed"
     )
+
 
     # Birth Date Input
     st.markdown('<p class="section-label">📅 出生日期</p>', unsafe_allow_html=True)
@@ -848,11 +886,190 @@ if not st.session_state.bazi_calculated:
         }
         st.session_state.using_default_api = False
 
+    # ========== Partner Input Form (Compatibility Mode Only) ==========
+    if st.session_state.compatibility_mode:
+        st.markdown("---")
+        st.markdown("### 💕 乙方 (Ta的信息)")
+        
+        # Partner Gender
+        st.markdown('<p class="section-label">👤 性别</p>', unsafe_allow_html=True)
+        partner_gender = st.selectbox(
+            "对方性别",
+            options=["男", "女"],
+            index=1,  # Default to opposite
+            label_visibility="collapsed",
+            key="partner_gender"
+        )
+        
+        # Partner Calendar Mode
+        st.markdown('<p class="section-label">📅 出生日期</p>', unsafe_allow_html=True)
+        
+        # Initialize partner calendar mode
+        if "partner_calendar_mode" not in st.session_state:
+            st.session_state.partner_calendar_mode = "solar"
+        
+        partner_calendar_mode = st.radio(
+            "乙方日历类型",
+            options=["阳历", "农历"],
+            index=0 if st.session_state.partner_calendar_mode == "solar" else 1,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="partner_cal_radio"
+        )
+        
+        # Update session state
+        if partner_calendar_mode == "阳历" and st.session_state.partner_calendar_mode != "solar":
+            st.session_state.partner_calendar_mode = "solar"
+            st.rerun()
+        elif partner_calendar_mode == "农历" and st.session_state.partner_calendar_mode != "lunar":
+            st.session_state.partner_calendar_mode = "lunar"
+            st.rerun()
+        
+        # Partner Birth Date based on calendar mode
+        if st.session_state.partner_calendar_mode == "solar":
+            partner_birthday = st.date_input(
+                "对方出生日期",
+                value=date(1992, 1, 1),
+                min_value=date(1900, 1, 1),
+                max_value=date.today(),
+                label_visibility="collapsed",
+                key="partner_birthday"
+            )
+        else:
+            # Lunar calendar - use dropdowns
+            p_lunar_col1, p_lunar_col2, p_lunar_col3 = st.columns(3)
+            
+            current_year = date.today().year
+            with p_lunar_col1:
+                p_lunar_year = st.selectbox(
+                    "乙方农历年",
+                    options=list(range(current_year, 1899, -1)),
+                    index=current_year - 1992,
+                    key="partner_lunar_year"
+                )
+            
+            # Check for leap month
+            p_lunar_year_obj = LunarYear.fromYear(p_lunar_year)
+            p_leap_month = p_lunar_year_obj.getLeapMonth()
+            
+            p_month_options = []
+            for m in range(1, 13):
+                p_month_options.append(f"{m}月")
+                if p_leap_month == m:
+                    p_month_options.append(f"闰{m}月")
+            
+            with p_lunar_col2:
+                p_lunar_month_str = st.selectbox(
+                    "乙方农历月",
+                    options=p_month_options,
+                    index=0,
+                    key="partner_lunar_month"
+                )
+            
+            # Parse month
+            if p_lunar_month_str.startswith("闰"):
+                p_is_leap = True
+                p_lunar_month = int(p_lunar_month_str[1:-1])
+            else:
+                p_is_leap = False
+                p_lunar_month = int(p_lunar_month_str[:-1])
+            
+            with p_lunar_col3:
+                p_lunar_day = st.selectbox(
+                    "乙方农历日",
+                    options=list(range(1, 31)),
+                    index=0,
+                    format_func=lambda x: f"初{x}" if x <= 10 else (f"十{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][x-11]}" if x <= 20 else (f"廿{['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][x-21]}" if x < 30 else "三十")),
+                    key="partner_lunar_day"
+                )
+            
+            # Convert to solar
+            try:
+                p_lunar_month_param = -p_lunar_month if p_is_leap else p_lunar_month
+                p_lunar_date = Lunar.fromYmd(p_lunar_year, p_lunar_month_param, p_lunar_day)
+                p_solar_date = p_lunar_date.getSolar()
+                partner_birthday = date(p_solar_date.getYear(), p_solar_date.getMonth(), p_solar_date.getDay())
+                st.caption(f"📅 对应阳历: {partner_birthday.year}年{partner_birthday.month}月{partner_birthday.day}日")
+            except Exception as e:
+                st.error(f"乙方农历日期无效: {str(e)}")
+                partner_birthday = date(1992, 1, 1)
+        
+        # Partner Birth Time - with shichen option
+        st.markdown('<p class="section-label">⏰ 出生时间</p>', unsafe_allow_html=True)
+        
+        if "partner_time_mode" not in st.session_state:
+            st.session_state.partner_time_mode = "exact"
+        
+        partner_time_mode = st.radio(
+            "乙方时间类型",
+            options=["精确时间", "时辰"],
+            index=0 if st.session_state.partner_time_mode == "exact" else 1,
+            horizontal=True,
+            label_visibility="collapsed",
+            key="partner_time_radio"
+        )
+        
+        if partner_time_mode == "精确时间" and st.session_state.partner_time_mode != "exact":
+            st.session_state.partner_time_mode = "exact"
+            st.rerun()
+        elif partner_time_mode == "时辰" and st.session_state.partner_time_mode != "shichen":
+            st.session_state.partner_time_mode = "shichen"
+            st.rerun()
+        
+        if st.session_state.partner_time_mode == "exact":
+            partner_time_col_h, partner_time_col_m = st.columns(2)
+            with partner_time_col_h:
+                partner_birth_hour = st.selectbox(
+                    "对方小时",
+                    options=list(range(24)),
+                    index=12,
+                    format_func=lambda x: f"{x:02d}",
+                    key="partner_hour"
+                )
+            with partner_time_col_m:
+                partner_birth_minute = st.selectbox(
+                    "对方分钟",
+                    options=list(range(0, 60, 5)),
+                    index=0,
+                    format_func=lambda x: f"{x:02d}",
+                    key="partner_minute"
+                )
+            partner_final_hour = partner_birth_hour
+            partner_final_minute = partner_birth_minute
+        else:
+            # Shichen mode
+            partner_shichen = st.selectbox(
+                "乙方时辰",
+                options=list(SHICHEN_HOURS.keys()),
+                index=6,
+                key="partner_shichen"
+            )
+            partner_final_hour = get_shichen_mid_hour(partner_shichen)
+            partner_final_minute = 0
+        
+        # Partner Birthplace
+        st.markdown('<p class="section-label">📍 出生地点</p>', unsafe_allow_html=True)
+        partner_birthplace = st.selectbox(
+            "对方出生城市",
+            options=city_list,
+            index=0,
+            label_visibility="collapsed",
+            key="partner_birthplace"
+        )
+        
+        if partner_birthplace != "不选择 (使用北京时间)":
+            partner_longitude = CHINA_CITIES[partner_birthplace]
+        else:
+            partner_longitude = None
+
+
     # Calculate button
     st.markdown("")
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        start_button = st.button("🎴 开始算命", use_container_width=True)
+        button_label = "💕 开始合盘分析" if st.session_state.compatibility_mode else "🎴 开始算命"
+        start_button = st.button(button_label, use_container_width=True)
+
 
     if start_button:
         # Calculate Bazi (now returns pattern_info as well)
@@ -938,64 +1155,222 @@ if not st.session_state.bazi_calculated:
         }
         st.session_state.bazi_svg = chart_generator.generate_chart(chart_data)
         
+        # ========== Compatibility Mode: Calculate Partner's Bazi ==========
+        if st.session_state.compatibility_mode:
+            # Calculate partner's Bazi
+            partner_bazi_result, partner_time_info, partner_pattern_info = calculate_bazi(
+                partner_birthday.year,
+                partner_birthday.month,
+                partner_birthday.day,
+                partner_final_hour,
+                partner_final_minute,
+                partner_longitude
+            )
+            
+            # Store partner info
+            st.session_state.partner_bazi = partner_bazi_result
+            st.session_state.partner_pattern_info = partner_pattern_info
+            st.session_state.stored_partner_gender = partner_gender
+            
+            # Build partner chart data for couple chart
+            partner_chart_data = {
+                "year_pillar": (partner_pattern_info.get("year_pillar", "??")[0], partner_pattern_info.get("year_pillar", "??")[1]),
+                "month_pillar": (partner_pattern_info.get("month_pillar", "??")[0], partner_pattern_info.get("month_pillar", "??")[1]),
+                "day_pillar": (partner_pattern_info.get("day_pillar", "??")[0], partner_pattern_info.get("day_pillar", "??")[1]),
+                "hour_pillar": (partner_pattern_info.get("hour_pillar", "??")[0], partner_pattern_info.get("hour_pillar", "??")[1]),
+            }
+            
+            # Build my chart data for couple chart
+            my_chart_data = {
+                "year_pillar": (pattern_info.get("year_pillar", "??")[0], pattern_info.get("year_pillar", "??")[1]),
+                "month_pillar": (pattern_info.get("month_pillar", "??")[0], pattern_info.get("month_pillar", "??")[1]),
+                "day_pillar": (pattern_info.get("day_pillar", "??")[0], pattern_info.get("day_pillar", "??")[1]),
+                "hour_pillar": (pattern_info.get("hour_pillar", "??")[0], pattern_info.get("hour_pillar", "??")[1]),
+            }
+            
+            # Generate couple chart SVG
+            st.session_state.couple_svg = chart_generator.generate_couple_chart(my_chart_data, partner_chart_data)
+            
+            # Run compatibility analysis
+            compatibility_calc = BaziCompatibilityCalculator()
+            compat_result = compatibility_calc.analyze_compatibility(my_chart_data, partner_chart_data)
+            st.session_state.compatibility_result = compat_result
+            
+            # Build combined user context for LLM
+            partner_birth_dt = f"{partner_birthday.year}年{partner_birthday.month}月{partner_birthday.day}日 {partner_final_hour:02d}:{partner_final_minute:02d}"
+            
+            # Add compatibility info to user context
+            compatibility_context = f"""
+【双人合盘信息】
+
+**甲方 (我)：**
+{bazi_result}
+性别：{gender}
+
+**乙方 (Ta)：**
+{partner_bazi_result}
+性别：{partner_gender}
+
+**后端计算的日柱关系：**
+"""
+            for detail in compat_result['details']:
+                compatibility_context += f"- {detail}\n"
+            
+            compatibility_context += f"\n**初步匹配分数：** {compat_result['base_score']}/100\n"
+            
+            # Append compatibility context to user context
+            st.session_state.user_context += compatibility_context
+        
         st.rerun()
+
 
 # Show results if Bazi is calculated
 else:
-    # Display SVG Chart if available (centered, mobile-responsive)
-    if hasattr(st.session_state, 'bazi_svg') and st.session_state.bazi_svg:
+    # Display chart based on mode
+    if st.session_state.compatibility_mode and hasattr(st.session_state, 'couple_svg') and st.session_state.couple_svg:
+        # Show couple chart in compatibility mode
+        st.markdown("### 💕 双人排盘")
+        couple_svg_container = f'''
+        <div class="bazi-chart-container" style="max-width: 800px;">
+            {st.session_state.couple_svg}
+        </div>
+        '''
+        st.markdown(couple_svg_container, unsafe_allow_html=True)
+        
+        # Show compatibility score preview
+        if st.session_state.compatibility_result:
+            compat = st.session_state.compatibility_result
+            st.markdown(f"""
+            <div style="text-align: center; margin: 15px 0; padding: 15px; background: rgba(255, 182, 193, 0.2); border-radius: 10px; border: 1px solid #FFB6C1;">
+                <span style="font-size: 1.5rem; color: #FFB6C1;">💕</span>
+                <span style="font-size: 1.2rem; color: #fff; margin-left: 10px;">初步匹配分数: <strong style="color: #FFD700;">{compat['base_score']}/100</strong></span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Show quick compatibility insights
+            if compat['details']:
+                for detail in compat['details']:
+                    st.markdown(f"<p style='color: #e0e0e0; margin: 5px 0;'>{detail}</p>", unsafe_allow_html=True)
+        
+        # Show both genders
+        st.markdown(f'<div class="time-info">👤 甲方: {st.session_state.gender} | 👤 乙方: {getattr(st.session_state, "stored_partner_gender", "未知")}</div>', unsafe_allow_html=True)
+        
+    elif hasattr(st.session_state, 'bazi_svg') and st.session_state.bazi_svg:
+        # Single person mode - show individual chart
         centered_svg = f'''
         <div class="bazi-chart-container">
             {st.session_state.bazi_svg}
         </div>
         '''
         st.markdown(centered_svg, unsafe_allow_html=True)
+        
+        if st.session_state.time_info:
+            st.markdown(f'<div class="time-info">📐 {st.session_state.time_info} | 出生地: {st.session_state.birthplace} | 性别: {st.session_state.gender}</div>', unsafe_allow_html=True)
     else:
         # Fallback to text display
         st.markdown(f'<div class="bazi-display">{st.session_state.bazi_result}</div>', unsafe_allow_html=True)
     
-    if st.session_state.time_info:
-        st.markdown(f'<div class="time-info">📐 {st.session_state.time_info} | 出生地: {st.session_state.birthplace} | 性别: {st.session_state.gender}</div>', unsafe_allow_html=True)
-    
+
     st.markdown("---")
-    st.markdown("### 🌟 选择想要了解的内容")
     
     # Check if currently generating
     is_generating = st.session_state.is_generating
     
-    # Button array - buttons are disabled during generation
-    cols = st.columns(4)
-    
-    for i, topic in enumerate(ANALYSIS_TOPICS[:4]):
-        with cols[i]:
-            is_clicked = topic in st.session_state.clicked_topics
-            button_label = f"✓ {topic}" if is_clicked else topic
-            if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
-                if topic in st.session_state.clicked_topics:
-                    # Already clicked - scroll to existing response (add timestamp to force re-scroll)
-                    st.session_state.scroll_to_topic = topic
-                    st.session_state.scroll_timestamp = datetime.now().timestamp()
-                    st.rerun()
-                else:
-                    # First click - request new analysis
-                    st.session_state.clicked_topics.add(topic)
-                    st.session_state.pending_topic = topic
-                    st.session_state.is_generating = True
-                    st.rerun()
-    
-    cols2 = st.columns(3)
-    for i, topic in enumerate(ANALYSIS_TOPICS[4:]):
-        with cols2[i]:
-            if topic == "深聊一下":
-                if st.button(topic, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
-                    st.session_state.show_custom_input = True
-                    st.rerun()
+    # ========== Different Button Layout for Single vs Compatibility Mode ==========
+    if st.session_state.compatibility_mode:
+        # Compatibility Mode - 4 focused analysis buttons in 2x2 layout
+        st.markdown("### 🤔 你想问什么？")
+        
+        # Define focused prompt templates for each topic
+        COUPLE_PROMPTS = {
+            "缘分契合度": "请重点从【性格互补】和【灵魂羁绊】的角度分析。判断两人是正缘还是孽缘，用唯美的比喻描述这段关系。",
+            "婚姻前景": "请重点分析【未来5年的流年走势】。判断两人结婚的概率，最佳结婚年份，以及未来可能遇到的感情危机年份。",
+            "避雷指南": "请重点分析两人的【矛盾引爆点】。例如一方冷战一方暴躁。请给出具体的、心理学层面的沟通建议和哄人技巧。",
+            "对方旺我吗": "请重点分析【五行能量的相互影响】。判断乙方是否能补足甲方的喜用神。和对方在一起，甲方的财运、事业运是会提升还是被消耗？"
+        }
+        
+        # 2x2 button layout
+        col1, col2 = st.columns(2)
+        with col1:
+            is_clicked_soul = "缘分契合度" in st.session_state.clicked_topics
+            btn_soul = st.button(
+                f"{'✓' if is_clicked_soul else '💖'} 缘分契合度", 
+                key="btn_compat_soul", 
+                use_container_width=True, 
+                disabled=is_generating
+            )
+            is_clicked_conflict = "避雷指南" in st.session_state.clicked_topics
+            btn_conflict = st.button(
+                f"{'✓' if is_clicked_conflict else '💣'} 避雷指南", 
+                key="btn_compat_conflict", 
+                use_container_width=True, 
+                disabled=is_generating
+            )
+        with col2:
+            is_clicked_marriage = "婚姻前景" in st.session_state.clicked_topics
+            btn_marriage = st.button(
+                f"{'✓' if is_clicked_marriage else '💍'} 婚姻前景", 
+                key="btn_compat_marriage", 
+                use_container_width=True, 
+                disabled=is_generating
+            )
+            is_clicked_wealth = "对方旺我吗" in st.session_state.clicked_topics
+            btn_wealth = st.button(
+                f"{'✓' if is_clicked_wealth else '💰'} 对方旺我吗", 
+                key="btn_compat_wealth", 
+                use_container_width=True, 
+                disabled=is_generating
+            )
+        
+        # "深聊一下" button below the 2x2 grid
+        st.markdown("")
+        if st.button("💬 深聊一下", key="btn_compat_custom", use_container_width=True, disabled=is_generating):
+            st.session_state.show_custom_input = True
+            st.rerun()
+        
+        # Determine which button was clicked and set the focus instruction
+        selected_topic = None
+        selected_focus = ""
+        
+        if btn_soul:
+            selected_topic = "缘分契合度"
+            selected_focus = COUPLE_PROMPTS["缘分契合度"]
+        elif btn_marriage:
+            selected_topic = "婚姻前景"
+            selected_focus = COUPLE_PROMPTS["婚姻前景"]
+        elif btn_conflict:
+            selected_topic = "避雷指南"
+            selected_focus = COUPLE_PROMPTS["避雷指南"]
+        elif btn_wealth:
+            selected_topic = "对方旺我吗"
+            selected_focus = COUPLE_PROMPTS["对方旺我吗"]
+        
+        if selected_topic:
+            if selected_topic in st.session_state.clicked_topics:
+                # Already clicked - scroll to existing result
+                st.session_state.scroll_to_topic = selected_topic
+                st.session_state.scroll_timestamp = datetime.now().timestamp()
+                st.rerun()
             else:
+                # New click - trigger analysis
+                st.session_state.clicked_topics.add(selected_topic)
+                st.session_state.pending_topic = selected_topic
+                st.session_state.pending_focus_instruction = selected_focus  # Store focus instruction
+                st.session_state.is_generating = True
+                st.rerun()
+    else:
+        # Single Mode - Regular 7 buttons
+        st.markdown("### 🌟 选择想要了解的内容")
+        
+        # Button array - buttons are disabled during generation
+        cols = st.columns(4)
+        
+        for i, topic in enumerate(ANALYSIS_TOPICS[:4]):
+            with cols[i]:
                 is_clicked = topic in st.session_state.clicked_topics
                 button_label = f"✓ {topic}" if is_clicked else topic
                 if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
                     if topic in st.session_state.clicked_topics:
-                        # Already clicked - scroll to existing response (add timestamp to force re-scroll)
                         st.session_state.scroll_to_topic = topic
                         st.session_state.scroll_timestamp = datetime.now().timestamp()
                         st.rerun()
@@ -1004,6 +1379,28 @@ else:
                         st.session_state.pending_topic = topic
                         st.session_state.is_generating = True
                         st.rerun()
+        
+        cols2 = st.columns(3)
+        for i, topic in enumerate(ANALYSIS_TOPICS[4:]):
+            with cols2[i]:
+                if topic == "深聊一下":
+                    if st.button(topic, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
+                        st.session_state.show_custom_input = True
+                        st.rerun()
+                else:
+                    is_clicked = topic in st.session_state.clicked_topics
+                    button_label = f"✓ {topic}" if is_clicked else topic
+                    if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
+                        if topic in st.session_state.clicked_topics:
+                            st.session_state.scroll_to_topic = topic
+                            st.session_state.scroll_timestamp = datetime.now().timestamp()
+                            st.rerun()
+                        else:
+                            st.session_state.clicked_topics.add(topic)
+                            st.session_state.pending_topic = topic
+                            st.session_state.is_generating = True
+                            st.rerun()
+    
     
     # Custom question input
     if st.session_state.show_custom_input:
@@ -1062,6 +1459,74 @@ else:
                 st.error("⚠️ 服务器未配置默认 API Key。请在「AI 模型设置」中配置您自己的 API Key。")
                 st.session_state.is_generating = False
                 st.rerun()
+        
+        # ========== Special handling for Compatibility Mode topics ==========
+        COUPLE_TOPICS = ["缘分契合度", "婚姻前景", "避雷指南", "对方旺我吗"]
+        if topic in COUPLE_TOPICS and st.session_state.compatibility_mode:
+            # Build person_a data (甲方)
+            pattern_a = st.session_state.pattern_info
+            person_a = {
+                "gender": st.session_state.gender,
+                "year_pillar": pattern_a.get("year_pillar", "??"),
+                "month_pillar": pattern_a.get("month_pillar", "??"),
+                "day_pillar": pattern_a.get("day_pillar", "??"),
+                "hour_pillar": pattern_a.get("hour_pillar", "??"),
+                "pattern_name": pattern_a.get("pattern_name", "普通格局"),
+                "strength": pattern_a.get("strength_result", {}).get("strength", "未知"),
+                "joy_elements": ", ".join(pattern_a.get("strength_result", {}).get("joy_elements", [])) or "未知"
+            }
+            
+            # Build person_b data (乙方)
+            pattern_b = st.session_state.partner_pattern_info
+            person_b = {
+                "gender": st.session_state.stored_partner_gender,
+                "year_pillar": pattern_b.get("year_pillar", "??"),
+                "month_pillar": pattern_b.get("month_pillar", "??"),
+                "day_pillar": pattern_b.get("day_pillar", "??"),
+                "hour_pillar": pattern_b.get("hour_pillar", "??"),
+                "pattern_name": pattern_b.get("pattern_name", "普通格局"),
+                "strength": pattern_b.get("strength_result", {}).get("strength", "未知"),
+                "joy_elements": ", ".join(pattern_b.get("strength_result", {}).get("joy_elements", [])) or "未知"
+            }
+            
+            # Get compatibility result
+            comp_data = st.session_state.compatibility_result
+            
+            # Get focus instruction (stored when button was clicked)
+            focus_instruction = getattr(st.session_state, 'pending_focus_instruction', "")
+            st.session_state.pending_focus_instruction = ""  # Clear after use
+            
+            # Build special couple prompt with focus instruction
+            couple_prompt = build_couple_prompt(person_a, person_b, comp_data, focus_instruction)
+            
+            # Use couple prompt instead of generic user_context
+            with st.spinner("正在解析二人的红线羁绊..."):
+                response_placeholder = st.empty()
+                try:
+                    for chunk in get_fortune_analysis(
+                        topic,
+                        couple_prompt,  # Use couple prompt instead of user_context
+                        custom_question=None,
+                        api_key=api_config['api_key'],
+                        base_url=api_config['base_url'],
+                        model=api_config['model'],
+                        is_first_response=st.session_state.is_first_response,
+                        conversation_history=conversation_history if not st.session_state.is_first_response else None
+                    ):
+                        response_text += chunk
+                        response_placeholder.markdown(response_text)
+                        
+                except Exception as e:
+                    response_text = f"分析时出错: {str(e)}"
+                    response_placeholder.error(response_text)
+            
+            # Store response and update state
+            st.session_state.responses.append((topic_key, topic_display, response_text))
+            st.session_state.is_first_response = False
+            st.session_state.is_generating = False
+            if st.session_state.using_default_api:
+                st.session_state.default_api_usage_count += 1
+            st.rerun()
         
         with st.spinner(f"正在分析 {topic}..."):
             response_placeholder = st.empty()
@@ -1162,6 +1627,33 @@ else:
             # Clear scroll target after rendering
             st.session_state.scroll_to_topic = None
             st.session_state.scroll_timestamp = None
+        
+        # ========== PDF Download Button ==========
+        st.markdown("---")
+        st.markdown("### 📥 保存报告")
+        
+        # Generate PDF on button click
+        try:
+            pdf_bytes = generate_report_pdf(
+                bazi_result=st.session_state.bazi_result,
+                time_info=st.session_state.time_info,
+                gender=getattr(st.session_state, 'gender', '未知'),
+                birthplace=getattr(st.session_state, 'birthplace', '未指定'),
+                responses=st.session_state.responses,
+                birth_datetime=getattr(st.session_state, 'birth_datetime', None),
+            )
+            
+            col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
+            with col_dl2:
+                st.download_button(
+                    label="📄 下载 PDF 报告",
+                    data=pdf_bytes,
+                    file_name=f"命理报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+        except Exception as e:
+            st.error(f"生成 PDF 时出错: {str(e)}")
 
 # Save data to localStorage whenever we have responses
 if st.session_state.bazi_calculated and st.session_state.responses:
