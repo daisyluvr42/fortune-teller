@@ -221,6 +221,23 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 ## 更新日志
 
+### 2026-01-07
+- ⭐ **SVG 排盘视觉升级** - 高级精致版设计
+  - 深棕色标题栏 + 米白色字体
+  - 徽章样式十神标签（圆角背景框）
+  - 藏干水平排列 + 十神小字在下方
+  - 虚线分隔 + 居中标题（移除左侧标签）
+  - 更大字体：天干/地支 36px，藏干 18px
+  - 阴影效果增加立体感
+- ⭐ **修复 SVG 居中显示** - 使用单一 markdown 调用包裹 flexbox
+- ⭐ **部署配置完成** - Streamlit Cloud 一键部署
+  - 新增 `requirements.txt` - 依赖清单
+  - 新增 `README.md` - 项目说明 + 部署指南
+  - 新增 `.env.example` - 环境变量模板
+  - 更新 `.gitignore` - 保护 API Key 安全
+- ✅ 代码已推送至 GitHub: `daisyluvr42/fortune-teller`
+- ✅ 可通过 Streamlit Cloud 部署分享
+
 ### 2026-01-06 (晚间更新)
 - ⭐ 新增 `TiaoHouCalculator` - 调候用神计算器 (冬暖夏凉)
 - ⭐ 新增 `BaziChartGenerator` - SVG 可视化排盘 (五行配色+十神+藏干)
@@ -231,6 +248,7 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 - 新增 `svgwrite` 依赖 - SVG 图表生成
 - 集成调候分析到 user prompt - 冬夏季自动给出调候建议
 - SVG 图表集成到前端 - 排盘结果可视化展示
+
 
 ### 2026-01-06 (傍晚更新)
 - 新增 `clean_markdown_for_display()` - 将 Markdown 格式转换为 HTML 样式显示
