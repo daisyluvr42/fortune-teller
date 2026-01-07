@@ -67,6 +67,12 @@ uv run streamlit run app.py
 
 访问 http://localhost:8501
 
+## 在线访问
+
+🌐 **Streamlit Cloud**: https://fortune-teller-bazi.streamlit.app
+
+📦 **GitHub**: https://github.com/daisyluvr42/fortune-teller
+
 ## API 配置
 
 默认使用环境变量中的 Gemini API。如需自定义：
@@ -252,7 +258,8 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 - 🐛 修复 svgwrite 高度参数错误
 - 🐛 修复手机端 SVG 图表溢出屏幕问题 (使用 width:100% + max-width 响应式约束)
 - 🐛 修复手机端重复点击按钮无法自动跳转到对应内容的问题 (添加时间戳强制执行滚动)
-- ✅ 代码同步至 GitHub
+- ✅ 代码同步至 GitHub (commit b0d7903)
+- ✅ Streamlit Cloud 自动部署
 
 ### 2026-01-06 (晚间更新)
 - ⭐ 新增 `TiaoHouCalculator` - 调候用神计算器 (冬暖夏凉)
