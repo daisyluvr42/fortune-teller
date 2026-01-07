@@ -901,6 +901,16 @@ if not st.session_state.bazi_calculated:
             key="partner_gender"
         )
         
+        # Relationship Type
+        st.markdown('<p class="section-label">💑 二位是什么关系？</p>', unsafe_allow_html=True)
+        relation_type = st.selectbox(
+            "关系类型",
+            options=["恋人/伴侣", "事业合伙人", "知己好友", "尚未确定"],
+            index=0,
+            label_visibility="collapsed",
+            key="relation_type"
+        )
+        
         # Partner Calendar Mode
         st.markdown('<p class="section-label">📅 出生日期</p>', unsafe_allow_html=True)
         
@@ -1171,6 +1181,7 @@ if not st.session_state.bazi_calculated:
             st.session_state.partner_bazi = partner_bazi_result
             st.session_state.partner_pattern_info = partner_pattern_info
             st.session_state.stored_partner_gender = partner_gender
+            st.session_state.stored_relation_type = relation_type
             
             # Build partner chart data for couple chart
             partner_chart_data = {
@@ -1496,8 +1507,17 @@ else:
             focus_instruction = getattr(st.session_state, 'pending_focus_instruction', "")
             st.session_state.pending_focus_instruction = ""  # Clear after use
             
-            # Build special couple prompt with focus instruction
-            couple_prompt = build_couple_prompt(person_a, person_b, comp_data, focus_instruction)
+            # Retrieve stored relation type
+            relation_type = getattr(st.session_state, 'stored_relation_type', "恋人/伴侣")
+            
+            # Build special couple prompt with focus instruction and relation type
+            couple_prompt = build_couple_prompt(
+                person_a, 
+                person_b, 
+                comp_data, 
+                relation_type=relation_type, 
+                focus_instruction=focus_instruction
+            )
             
             # Use couple prompt instead of generic user_context
             with st.spinner("正在解析二人的红线羁绊..."):

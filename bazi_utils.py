@@ -70,15 +70,57 @@ class BaziCompatibilityCalculator:
         }
 
 
-def build_couple_prompt(person_a, person_b, comp_data, focus_instruction=""):
+def build_couple_prompt(person_a, person_b, comp_data, relation_type="恋人/伴侣", focus_instruction=""):
     """
     构建双人合盘的最终 Prompt
     
     :param person_a: 甲方数据 (包含四柱、格局、强弱、喜用神)
     :param person_b: 乙方数据 (包含四柱、格局、强弱、喜用神)
     :param comp_data: Python算出的合盘硬指标 (包含 'details' 列表, 'base_score' 等)
+    :param relation_type: 关系类型 (恋人/伴侣, 事业合伙人, 知己好友, 尚未确定)
     :param focus_instruction: 用户的核心诉求，如有则重点回答
     """
+    
+    # 1. 检测性别组合
+    is_same_sex = (person_a.get('gender', '未知') == person_b.get('gender', '未知'))
+    
+    # 2. 定制化 Role 指令
+    role_instruction = ""
+    
+    if is_same_sex and relation_type == "恋人/伴侣":
+        # 同性恋人：去性别化，强调角色互动
+        role_instruction = """
+    **⚠️ 特殊指令（同性伴侣分析）**：
+    1.  **严禁使用**"丈夫"、"妻子"、"克妻"、"旺夫"等传统异性恋术语。
+    2.  请使用"甲方/乙方"、"伴侣"、"对方"或"另一半"来称呼。
+    3.  分析重点在于**阴阳能量的互补**（如一方阳刚一方阴柔，或双方都很强势），而非生理性别。
+        """
+    elif relation_type == "事业合伙人":
+        # 事业伙伴：完全不谈感情，只谈钱和协作
+        role_instruction = """
+    **⚠️ 特殊指令（事业合伙分析）**：
+    1.  这是商业合伙关系，**严禁提及**婚恋、桃花、夫妻宫等情感术语。
+    2.  请将"日支合"解读为"协作默契"，将"日支冲"解读为"经营理念冲突"。
+    3.  重点分析：两人合财吗？能否互补短板？谁适合主导（CEO），谁适合执行（COO）？
+        """
+    elif relation_type == "知己好友":
+        # 朋友：谈性格共鸣
+        role_instruction = """
+    **⚠️ 特殊指令（友情分析）**：
+    1.  这是纯友谊关系。请分析两人是否是"灵魂知己"或"酒肉朋友"。
+    2.  重点看性格是否投缘，能否互相提供情绪价值。
+        """
+    elif relation_type == "尚未确定":
+        # 尚未确定关系：全面分析各种可能性
+        role_instruction = """
+    **⚠️ 特殊指令（关系探索分析）**：
+    1.  两人关系尚未明确，请从多角度分析他们的契合度。
+    2.  请分别评估：作为恋人、作为事业伙伴、作为朋友的匹配程度。
+    3.  给出建议：根据两人八字特点，哪种关系更适合他们？
+        """
+    else:
+        # 默认异性恋人
+        role_instruction = "这是传统的异性伴侣分析，请按常规命理逻辑进行。"
     
     # 将 Python 算出的列表转换为 Markdown 文本
     hard_evidence = "\n".join([f"- {item}" for item in comp_data['details']])
@@ -104,6 +146,12 @@ def build_couple_prompt(person_a, person_b, comp_data, focus_instruction=""):
     - **核心格局**：{person_b.get('pattern_name', '普通格局')}
     - **五行能量**：{person_b.get('strength', '未知')} (喜：{person_b.get('joy_elements', '未知')})
     - **本命画像**：(请基于其日主和格局，用一句话描述乙方的性格底色)
+
+    ---
+    ### 🎯 关系定义 (Relationship Context)
+    - **关系类型**：{relation_type}
+    - **性别组合**：{person_a.get('gender', '未知')} + {person_b.get('gender', '未知')}
+    {role_instruction}
 
     ---
     ### 🔗 缘分硬指标 (Python Calculated)
