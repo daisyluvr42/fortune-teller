@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from lunar_python import Solar
 from openai import OpenAI
 import svgwrite
+from tavily import TavilyClient
 
 load_dotenv()
 
@@ -60,7 +61,6 @@ def search_bazi_info(query: str, search_type: str = "bazi_classic") -> str:
         return "搜索功能未配置，请设置 TAVILY_API_KEY。"
     
     try:
-        from tavily import TavilyClient
         client = TavilyClient(api_key=TAVILY_API_KEY)
         
         # 根据搜索类型调整查询和领域
