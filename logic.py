@@ -1291,7 +1291,7 @@ class BaziChartGenerator:
         ten_god_y = 100      # 十神标签 Y
         stem_row_y = 140     # 天干圆心 Y
         branch_row_y = 220   # 地支圆心 Y
-        hidden_row_y = 305   # 藏干行 Y (居中显示)
+        hidden_row_y = 320   # 藏干行 Y (居中显示) - 增加15px呼吸空间
         
         for i, p_key in enumerate(pillar_keys):
             center_x = col_width * i + col_width / 2
@@ -1319,15 +1319,17 @@ class BaziChartGenerator:
             stem_color = self.get_color(stem_char)
             branch_color = self.get_color(branch_char)
             
-            # --- 十神标签 (徽章样式) ---
+            # --- 十神标签 (徽章样式 - 动态边框颜色) ---
             if stem_ten_god:
-                badge_w = 36
+                badge_w = 42  # 增加宽度，增加呼吸空间
                 badge_h = 18
+                # 动态边框颜色：匹配天干的五行颜色
+                badge_border_color = stem_color
                 dwg.add(dwg.rect(insert=(center_x - badge_w/2, ten_god_y - badge_h/2 - 2), 
                                  size=(badge_w, badge_h), rx=9, ry=9,
-                                 fill=self.colors['badge_bg'], stroke=self.colors['border'], stroke_width=1))
+                                 fill=self.colors['badge_bg'], stroke=badge_border_color, stroke_width=1.5))
                 dwg.add(dwg.text(stem_ten_god, insert=(center_x, ten_god_y + 4),
-                                 text_anchor="middle", font_size="12px", font_weight="bold",
+                                 text_anchor="middle", font_size="11px", font_weight="bold",
                                  fill=self.colors['text_dark'], font_family="SimHei, Microsoft YaHei"))
             
             # --- 天干 (圆形，更大更精致) ---
@@ -1372,8 +1374,8 @@ class BaziChartGenerator:
                                          text_anchor="middle", font_size="10px",
                                          fill=self.colors['text_muted'], font_family="SimHei, Microsoft YaHei"))
         
-        # ========== 5. 分隔线 (藏干区上方) ==========
-        line_y = 268
+        # ========== 5. 分隔线 (藏干区上方) - 下移15px增加呼吸空间 ==========
+        line_y = 283  # 从268下移到283
         dwg.add(dwg.line(start=(30, line_y), end=(width - 30, line_y), 
                          stroke=self.colors['border'], stroke_width=1, stroke_dasharray="4,3"))
         

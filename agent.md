@@ -322,7 +322,24 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 ## 更新日志
 
-### 2026-01-08 (周易起卦功能) ⭐ NEW
+### 2026-01-08 (FastAPI + iOS 移动端) ⭐ NEW
+- ⭐ **FastAPI 后端 API** - 新增 `main.py` RESTful 后端
+  - `POST /api/chart` - 返回结构化八字数据 (四柱/格局/身强身弱/喜用神)
+  - `POST /api/analysis` - 调用 Gemini API 进行命理分析
+  - `POST /api/compatibility` - 双人合盘分数与详情
+  - Pydantic 数据验证 + CORS 跨域支持
+  - 📦 新增依赖: `fastapi>=0.109.0`, `uvicorn>=0.27.0`
+- ⭐ **iOS SwiftUI 移动端** - 新增 `/ios/FortuneTeller/` 目录
+  - **数据模型** (`Models.swift`)：`UserInput`, `Pillar`, `BaziChartResponse`, `AnalysisResponse`
+  - **网络层** (`NetworkManager.swift`)：单例模式 + async/await
+  - **MVVM 架构**：`HomeViewModel` + `HomeView`
+  - **五行配色** (`FiveElementColor.swift`)：木绿/火红/土黄/金金/水蓝
+  - **八字柱组件** (`PillarView.swift`)：十神标签 + 天干圆形 + 地支方形
+  - **四柱网格** (`ChartGridView.swift`)：四柱横排 + 格局徽章 + 摘要行
+  - **仪表盘** (`DashboardView.swift`)：运势指数 + 进度条 + 功能网格 + FAB
+  - **AI 对话** (`ChatView.swift`)：消息气泡 + 输入框 + 打字动画
+
+### 2026-01-08 (周易起卦功能)
 - ⭐ **周易起卦计算器** - 新增 `ZhouyiCalculator` 类
   - 金钱课起卦法 (3枚硬币摇6次)
   - 完整 64 卦二进制映射表 (按八宫分类)
