@@ -1240,25 +1240,25 @@ if not st.session_state.bazi_calculated:
                 "stem": pattern_info.get("year_pillar", "")[0] if pattern_info.get("year_pillar") else "?",
                 "branch": pattern_info.get("year_pillar", "")[1] if len(pattern_info.get("year_pillar", "")) > 1 else "?",
                 "stem_ten_god": ten_gods.get("年干", ""),
-                "hidden_stems": get_hidden_with_gods("年支")
+                "hidden_stems": get_hidden_with_gods("年支藏干")  # Fixed: use correct key
             },
             "month": {
                 "stem": pattern_info.get("month_pillar", "")[0] if pattern_info.get("month_pillar") else "?",
                 "branch": pattern_info.get("month_pillar", "")[1] if len(pattern_info.get("month_pillar", "")) > 1 else "?",
                 "stem_ten_god": ten_gods.get("月干", ""),
-                "hidden_stems": get_hidden_with_gods("月支")
+                "hidden_stems": get_hidden_with_gods("月支藏干")  # Fixed: use correct key
             },
             "day": {
                 "stem": pattern_info.get("day_pillar", "")[0] if pattern_info.get("day_pillar") else "?",
                 "branch": pattern_info.get("day_pillar", "")[1] if len(pattern_info.get("day_pillar", "")) > 1 else "?",
                 "stem_ten_god": "日主",  # 日主本身
-                "hidden_stems": get_hidden_with_gods("日支")
+                "hidden_stems": get_hidden_with_gods("日支藏干")  # Fixed: use correct key
             },
             "hour": {
                 "stem": pattern_info.get("hour_pillar", "")[0] if pattern_info.get("hour_pillar") else "?",
                 "branch": pattern_info.get("hour_pillar", "")[1] if len(pattern_info.get("hour_pillar", "")) > 1 else "?",
                 "stem_ten_god": ten_gods.get("时干", ""),
-                "hidden_stems": get_hidden_with_gods("时支")
+                "hidden_stems": get_hidden_with_gods("时支藏干")  # Fixed: use correct key
             }
         }
         st.session_state.bazi_svg = chart_generator.generate_chart(chart_data)

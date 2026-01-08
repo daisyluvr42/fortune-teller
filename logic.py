@@ -1245,8 +1245,11 @@ class BaziChartGenerator:
         """
         生成高级精致的排盘 SVG (支持移动端响应式)
         """
+        # DEBUG: Print bazi_data structure to verify hidden_stems data
+        print(f"DEBUG: Full bazi_data = {bazi_data}")
+        
         width = 480
-        height = 380
+        height = 420  # Adjusted to fit content snugly
         # Create SVG with fixed size, then add viewBox for responsive scaling
         dwg = svgwrite.Drawing(filename, size=(f"{width}px", f"{height}px"))
         dwg['viewBox'] = f"0 0 {width} {height}"
@@ -1267,11 +1270,11 @@ class BaziChartGenerator:
         dwg.add(dwg.rect(insert=(0, 28), size=(width, 24), 
                          fill=self.colors['bg_header']))  # 修正底部圆角
         
-        # 标题文字
+        # 标题文字 - Using white for maximum visibility against dark header
         gender_text = bazi_data.get('gender', '命盘')
         dwg.add(dwg.text(f"🔮 {gender_text}", insert=(width/2, 35), 
                          text_anchor="middle", font_size="22px", font_weight="bold", 
-                         fill=self.colors['header_text'], font_family="SimHei, Microsoft YaHei, sans-serif"))
+                         fill="#FFFFFF", font_family="SimHei, Microsoft YaHei, sans-serif"))
         
         # ========== 3. 四柱列标题 ==========
         col_width = width / 4
@@ -1291,7 +1294,9 @@ class BaziChartGenerator:
         ten_god_y = 100      # 十神标签 Y
         stem_row_y = 140     # 天干圆心 Y
         branch_row_y = 220   # 地支圆心 Y
-        hidden_row_y = 320   # 藏干行 Y (居中显示) - 增加15px呼吸空间
+        branch_bottom_y = branch_row_y + 29  # Branch square bottom edge (rect_size/2 = 29)
+        hidden_start_y = branch_bottom_y + 80  # Safe start Y for hidden stems (with margin)
+        hidden_row_y = hidden_start_y  # Y position for hidden stem characters
         
         for i, p_key in enumerate(pillar_keys):
             center_x = col_width * i + col_width / 2
@@ -1349,16 +1354,21 @@ class BaziChartGenerator:
                              fill=branch_color, font_family="KaiTi, STKaiti, FangSong, serif"))
             
             # --- 藏干 (水平排列，更清晰) ---
+            # DEBUG: Print hidden_stems data for each pillar
+            print(f"DEBUG: Pillar {i} ({p_key}) Hidden Stems: {hidden_stems}")
+            
             if hidden_stems:
                 # 计算藏干总宽度
                 stem_count = min(len(hidden_stems), 3)
                 spacing = 32
                 start_offset = -(stem_count - 1) * spacing / 2
+                line_height = 22  # Vertical spacing between hidden stem and its ten_god
                 
                 for idx, item in enumerate(hidden_stems[:3]):
                     if isinstance(item, (tuple, list)) and len(item) >= 2:
                         h_stem, h_god = item[0], item[1]
                     else:
+                        print(f"DEBUG: Skipping invalid hidden_stem item at idx {idx}: {item}")
                         continue
                     
                     x_pos = center_x + start_offset + idx * spacing
@@ -1374,8 +1384,9 @@ class BaziChartGenerator:
                                          text_anchor="middle", font_size="10px",
                                          fill=self.colors['text_muted'], font_family="SimHei, Microsoft YaHei"))
         
-        # ========== 5. 分隔线 (藏干区上方) - 下移15px增加呼吸空间 ==========
-        line_y = 283  # 从268下移到283
+        # ========== 5. 分隔线 (藏干区上方) ==========
+        # Positioned safely between branch squares and hidden stems
+        line_y = branch_bottom_y + 40  # 40px below branch bottom edge
         dwg.add(dwg.line(start=(30, line_y), end=(width - 30, line_y), 
                          stroke=self.colors['border'], stroke_width=1, stroke_dasharray="4,3"))
         
@@ -1383,6 +1394,10 @@ class BaziChartGenerator:
         dwg.add(dwg.text("藏 干", insert=(width/2, line_y + 18), 
                          text_anchor="middle", font_size="11px", 
                          fill=self.colors['text_light'], font_family="SimHei, Microsoft YaHei"))
+        
+        # DEBUG: Print final Y coordinates for verification
+        print(f"DEBUG: Canvas height={height}, line_y={line_y}, hidden_row_y={hidden_row_y}")
+        print(f"DEBUG: Hidden stem ten_god max Y = {hidden_row_y + 16} (should be < {height})")
         
         return dwg.tostring()
 
