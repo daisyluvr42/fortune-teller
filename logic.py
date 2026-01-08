@@ -9,7 +9,14 @@ from dotenv import load_dotenv
 from lunar_python import Solar
 from openai import OpenAI
 import svgwrite
-from tavily import TavilyClient
+
+# Optional: Tavily for search (may not be installed on all deployments)
+try:
+    from tavily import TavilyClient
+    TAVILY_AVAILABLE = True
+except ImportError:
+    TavilyClient = None
+    TAVILY_AVAILABLE = False
 
 load_dotenv()
 
@@ -57,6 +64,8 @@ def search_bazi_info(query: str, search_type: str = "bazi_classic") -> str:
     Returns:
         搜索结果摘要
     """
+    if not TAVILY_AVAILABLE:
+        return "搜索功能未配置，tavily-python 库未安装。"
     if not TAVILY_API_KEY or TAVILY_API_KEY == "replace_me":
         return "搜索功能未配置，请设置 TAVILY_API_KEY。"
     
