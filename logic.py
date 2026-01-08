@@ -961,6 +961,242 @@ class TiaoHouCalculator:
         }
 
 
+class ZhouyiCalculator:
+    """周易起卦计算器 - 金钱课起卦法"""
+    
+    def __init__(self):
+        import random
+        self.random = random
+        
+        # 完整的 64 卦二进制映射表
+        # 二进制格式：从初爻到上爻，0为阴爻(- -)，1为阳爻(—)
+        # 例如：乾卦为 111111 (六个阳爻)，坤卦为 000000 (六个阴爻)
+        self.hexagram_names = {
+            # 乾宫八卦
+            "111111": ("乾为天", "乾", "刚健中正，自强不息"),
+            "111110": ("天风姤", "姤", "邂逅相遇，阴柔渐长"),
+            "111100": ("天山遁", "遁", "隐退避让，保全实力"),
+            "111000": ("天地否", "否", "阴阳不交，闭塞不通"),
+            "110000": ("风地观", "观", "观察审视，神道设教"),
+            "100000": ("山地剥", "剥", "剥落衰败，以静制动"),
+            "100001": ("火地晋", "晋", "光明上进，顺畅发展"),
+            "100011": ("火天大有", "大有", "日丽中天，万物繁盛"),
+            
+            # 兑宫八卦
+            "011011": ("兑为泽", "兑", "欢悦和悦，以诚相待"),
+            "011010": ("泽水困", "困", "困境受阻，坚守正道"),
+            "011000": ("泽地萃", "萃", "聚集汇合，顺应时势"),
+            "011100": ("泽山咸", "咸", "感应交流，男女相感"),
+            "001100": ("水山蹇", "蹇", "艰难险阻，见险而止"),
+            "101100": ("地山谦", "谦", "谦虚谨慎，有终吉祥"),
+            "101101": ("雷山小过", "小过", "小事过度，谨慎行事"),
+            "101111": ("雷泽归妹", "归妹", "少女出嫁，不可勉强"),
+            
+            # 离宫八卦
+            "101101": ("离为火", "离", "光明美丽，附着依托"),
+            "101100": ("火山旅", "旅", "羁旅在外，谨慎小心"),
+            "101000": ("火风鼎", "鼎", "革新变革，稳定发展"),
+            "101010": ("火水未济", "未济", "事未成就，小心谨慎"),
+            "100010": ("山水蒙", "蒙", "启蒙教育，以正养正"),
+            "110010": ("风水涣", "涣", "涣散离散，拯救团聚"),
+            "110011": ("天水讼", "讼", "争讼纠纷，终凶戒惧"),
+            "110111": ("天火同人", "同人", "志同道合，和同于人"),
+            
+            # 震宫八卦
+            "001001": ("震为雷", "震", "震动奋起，戒惧修省"),
+            "001000": ("雷地豫", "豫", "欢乐豫悦，骄纵灾祸"),
+            "001010": ("雷水解", "解", "解除险难，缓和舒解"),
+            "001110": ("雷风恒", "恒", "恒久不变，守恒持正"),
+            "000110": ("地风升", "升", "上升进步，柔顺谦虚"),
+            "010110": ("水风井", "井", "井养不穷，往来无咎"),
+            "010111": ("泽风大过", "大过", "大为过度，非常行事"),
+            "010101": ("泽雷随", "随", "随机应变，和悦相随"),
+            
+            # 巽宫八卦
+            "110110": ("巽为风", "巽", "谦逊柔顺，渗透前进"),
+            "110111": ("风天小畜", "小畜", "小有蓄积，以待时机"),
+            "110101": ("风火家人", "家人", "家庭家道，利女正固"),
+            "110100": ("风雷益", "益", "增益利益，损上益下"),
+            "111100": ("天雷无妄", "无妄", "真实无妄，顺应自然"),
+            "101100": ("火雷噬嗑", "噬嗑", "咬合惩治，明罚敕法"),
+            "101110": ("山雷颐", "颐", "颐养正道，自求口实"),
+            "101010": ("山风蛊", "蛊", "蛊惑振救，整治腐败"),
+            
+            # 坎宫八卦
+            "010010": ("坎为水", "坎", "重重险阻，习坎行险"),
+            "010011": ("水泽节", "节", "节制调节，适可而止"),
+            "010111": ("水雷屯", "屯", "初生艰难，屯难聚积"),
+            "010101": ("水火既济", "既济", "事已成就，守成谨慎"),
+            "011101": ("泽火革", "革", "变革更新，顺天应人"),
+            "001101": ("雷火丰", "丰", "丰盛盈满，明以动之"),
+            "001100": ("地火明夷", "明夷", "光明受损，晦暗艰贞"),
+            "001110": ("地水师", "师", "兴师动众，正义之战"),
+            
+            # 艮宫八卦
+            "100100": ("艮为山", "艮", "止而不进，知止则吉"),
+            "100101": ("山火贲", "贲", "装饰文饰，实质为本"),
+            "100111": ("山天大畜", "大畜", "大有蓄积，刚健笃实"),
+            "100110": ("山泽损", "损", "减损奉献，损下益上"),
+            "101110": ("火泽睽", "睽", "乖违背离，同异相成"),
+            "111110": ("天泽履", "履", "履道坦坦，素履之往"),
+            "111010": ("风泽中孚", "中孚", "内心诚信，豚鱼吉祥"),
+            "111000": ("风山渐", "渐", "渐进发展，循序前进"),
+            
+            # 坤宫八卦
+            "000000": ("坤为地", "坤", "柔顺厚德，载物含弘"),
+            "000001": ("地雷复", "复", "一阳来复，回归正道"),
+            "000011": ("地泽临", "临", "居高临下，教民保民"),
+            "000111": ("地天泰", "泰", "天地交通，通泰安宁"),
+            "001111": ("雷天大壮", "大壮", "阳盛壮大，非礼弗履"),
+            "011111": ("泽天夬", "夬", "决断果敢，刚决柔和"),
+            "011110": ("水天需", "需", "等待时机，饮食宴乐"),
+            "011100": ("水地比", "比", "亲近辅助，择善而从"),
+        }
+        
+        # 八卦基础信息
+        self.bagua = {
+            "111": ("乾", "天", "☰", "刚健"),
+            "011": ("兑", "泽", "☱", "喜悦"),
+            "101": ("离", "火", "☲", "光明"),
+            "001": ("震", "雷", "☳", "震动"),
+            "110": ("巽", "风", "☴", "顺入"),
+            "010": ("坎", "水", "☵", "陷险"),
+            "100": ("艮", "山", "☶", "止静"),
+            "000": ("坤", "地", "☷", "柔顺"),
+        }
+
+    def cast_hexagram(self):
+        """
+        模拟金钱课起卦 (3枚硬币摇6次)
+        老阴(6): 变阳, 少阳(7): 不变, 少阴(8): 不变, 老阳(9): 变阴
+        
+        Returns:
+            dict: 包含本卦、变卦、动爻等信息
+        """
+        lines = []  # 存储本卦爻 (0为阴, 1为阳)
+        changing_lines = []  # 存储变爻索引 (1-6)
+        
+        original_binary = ""
+        future_binary = ""
+        
+        details = []
+        line_types = []
+
+        for i in range(6):
+            # 模拟投硬币：2为字(背)，3为花(面)
+            # 6=2+2+2(老阴), 7=2+2+3(少阳), 8=2+3+3(少阴), 9=3+3+3(老阳)
+            toss = sum([self.random.choice([2, 3]) for _ in range(3)])
+            
+            line_val = 0
+            is_change = False
+            note = ""
+            
+            if toss == 6:  # 老阴 -> 变阳
+                line_val = 0
+                is_change = True
+                note = "⚋ 老阴 (动爻)"
+                line_types.append("老阴")
+            elif toss == 7:  # 少阳 -> 阳
+                line_val = 1
+                note = "⚊ 少阳"
+                line_types.append("少阳")
+            elif toss == 8:  # 少阴 -> 阴
+                line_val = 0
+                note = "⚋ 少阴"
+                line_types.append("少阴")
+            elif toss == 9:  # 老阳 -> 变阴
+                line_val = 1
+                is_change = True
+                note = "⚊ 老阳 (动爻)"
+                line_types.append("老阳")
+            
+            lines.append(line_val)
+            details.append(f"第{i+1}爻: {note}")
+            
+            original_binary += str(line_val)
+            
+            # 计算变卦
+            if is_change:
+                future_binary += str(1 - line_val)  # 阴阳互变
+                changing_lines.append(i + 1)  # 记录是第几爻动了 (1-6)
+            else:
+                future_binary += str(line_val)
+
+        # 获取卦象信息
+        original_info = self.hexagram_names.get(original_binary, ("未知卦", "未知", ""))
+        future_info = self.hexagram_names.get(future_binary, ("未知卦", "未知", ""))
+        
+        # 获取上下卦信息
+        lower_trigram = original_binary[:3]  # 初爻到三爻 (下卦/内卦)
+        upper_trigram = original_binary[3:]  # 四爻到上爻 (上卦/外卦)
+        
+        lower_info = self.bagua.get(lower_trigram, ("未知", "", "", ""))
+        upper_info = self.bagua.get(upper_trigram, ("未知", "", "", ""))
+        
+        return {
+            "original_hex": original_info[0],      # 本卦全名
+            "original_short": original_info[1],    # 本卦简称
+            "original_meaning": original_info[2],  # 本卦含义
+            "original_binary": original_binary,    # 本卦二进制
+            
+            "future_hex": future_info[0] if changing_lines else None,       # 变卦全名
+            "future_short": future_info[1] if changing_lines else None,     # 变卦简称
+            "future_meaning": future_info[2] if changing_lines else None,   # 变卦含义
+            "future_binary": future_binary if changing_lines else None,     # 变卦二进制
+            
+            "changing_lines": changing_lines,   # 动爻列表 (1-6)
+            "details": details,                 # 每爻详情
+            "line_types": line_types,           # 爻的类型列表
+            
+            "lower_trigram": f"{lower_info[2]} {lower_info[0]}({lower_info[1]})",  # 下卦
+            "upper_trigram": f"{upper_info[2]} {upper_info[0]}({upper_info[1]})",  # 上卦
+            
+            "has_change": len(changing_lines) > 0  # 是否有变卦
+        }
+    
+    def get_hexagram_by_binary(self, binary_str):
+        """
+        根据二进制字符串获取卦象信息
+        
+        Args:
+            binary_str: 6位二进制字符串，如 "111111"
+            
+        Returns:
+            tuple: (卦名, 简称, 含义)
+        """
+        return self.hexagram_names.get(binary_str, ("未知卦", "未知", ""))
+    
+    def format_hexagram_display(self, result):
+        """
+        格式化卦象显示
+        
+        Args:
+            result: cast_hexagram() 返回的结果
+            
+        Returns:
+            str: 格式化的卦象文本
+        """
+        lines = []
+        lines.append(f"═══ 周易起卦结果 ═══\n")
+        lines.append(f"【本卦】{result['original_hex']}")
+        lines.append(f"   卦义：{result['original_meaning']}")
+        lines.append(f"   上卦：{result['upper_trigram']}")
+        lines.append(f"   下卦：{result['lower_trigram']}")
+        
+        if result['has_change']:
+            lines.append(f"\n【动爻】第 {', '.join(map(str, result['changing_lines']))} 爻")
+            lines.append(f"\n【变卦】{result['future_hex']}")
+            lines.append(f"   卦义：{result['future_meaning']}")
+        else:
+            lines.append(f"\n【动爻】无动爻（六爻皆静）")
+        
+        lines.append(f"\n--- 逐爻详情 ---")
+        for detail in result['details']:
+            lines.append(detail)
+        
+        return "\n".join(lines)
+
+
 class BaziChartGenerator:
     """八字排盘 SVG 图表生成器 - 高级精致版"""
     
@@ -2007,7 +2243,7 @@ def get_fortune_analysis(
     Args:
         topic: The analysis topic (e.g., "整体命格", "事业运势", etc.)
         user_context: User context string including bazi, gender, birthplace, time.
-        custom_question: Optional custom question for "深聊一下" option.
+        custom_question: Optional custom question for "大师解惑" option.
         api_key: API key for the LLM provider.
         base_url: Base URL for the LLM API.
         model: Model name to use.
@@ -2073,7 +2309,7 @@ def get_fortune_analysis(
     )
     
     # Build user message based on topic
-    if topic == "深聊一下" and custom_question:
+    if topic == "大师解惑" and custom_question:
         custom_prompt = """请扮演一位智慧、包容且精通命理的大师，回答用户的**自由提问**。
 
 ⚠️ **核心指令**：

@@ -8,8 +8,8 @@ import urllib.parse
 import re
 from datetime import date, datetime
 import os
-from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator
-from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt
+from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, ZhouyiCalculator
+from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
@@ -19,6 +19,69 @@ load_dotenv()
 
 # Daily limit for default API key (to prevent abuse)
 DEFAULT_API_DAILY_LIMIT = 20
+
+# Pre-sorted city list for searchable dropdown
+SORTED_CITY_LIST = sorted(CHINA_CITIES.keys())
+
+
+def searchable_city_select(label: str, key_prefix: str, default_index: int = 0):
+    """
+    Create a searchable city dropdown with text filter.
+    
+    Args:
+        label: Label for the section
+        key_prefix: Unique prefix for session state keys
+        default_index: Default selected index in filtered list
+    
+    Returns:
+        tuple: (selected_city, longitude or None)
+    """
+    search_key = f"{key_prefix}_search"
+    select_key = f"{key_prefix}_select"
+    
+    # Initialize search state
+    if search_key not in st.session_state:
+        st.session_state[search_key] = ""
+    
+    # Search input with placeholder
+    search_query = st.text_input(
+        "🔍 搜索城市",
+        value=st.session_state[search_key],
+        placeholder="输入城市名快速筛选...",
+        key=search_key,
+        label_visibility="collapsed"
+    )
+    
+    # Filter city list based on search query
+    if search_query:
+        filtered_cities = [city for city in SORTED_CITY_LIST if search_query.lower() in city.lower()]
+    else:
+        filtered_cities = SORTED_CITY_LIST
+    
+    # Build options list with "不选择" option first
+    options = ["不选择 (使用北京时间)"] + filtered_cities
+    
+    # If no matches, show all cities
+    if len(options) == 1 and search_query:
+        st.caption(f"未找到匹配 '{search_query}' 的城市，显示全部")
+        options = ["不选择 (使用北京时间)"] + SORTED_CITY_LIST
+    
+    # City selectbox
+    selected = st.selectbox(
+        label,
+        options=options,
+        index=default_index,
+        label_visibility="collapsed",
+        key=select_key
+    )
+    
+    # Return selected city and longitude
+    if selected != "不选择 (使用北京时间)":
+        longitude = CHINA_CITIES.get(selected)
+        st.caption(f"📐 经度: {longitude}°E")
+        return selected, longitude
+    else:
+        return selected, None
 
 
 def clean_markdown_for_display(text: str) -> str:
@@ -96,7 +159,7 @@ AI_PROVIDERS = {
 }
 
 # Fortune analysis topics
-ANALYSIS_TOPICS = ["整体命格", "事业运势", "感情运势", "喜用忌用", "健康建议", "开运建议", "深聊一下"]
+ANALYSIS_TOPICS = ["整体命格", "事业运势", "感情运势", "喜用忌用", "健康建议", "开运建议", "大师解惑"]
 
 # Page Configuration
 st.set_page_config(
@@ -148,6 +211,19 @@ if "partner_info" not in st.session_state:
     st.session_state.partner_info = None
 if "compatibility_result" not in st.session_state:
     st.session_state.compatibility_result = None
+# Oracle (每日一卦) session state
+if "oracle_mode" not in st.session_state:
+    st.session_state.oracle_mode = False
+if "oracle_question" not in st.session_state:
+    st.session_state.oracle_question = ""
+if "oracle_shake_count" not in st.session_state:
+    st.session_state.oracle_shake_count = 0
+if "oracle_hex_result" not in st.session_state:
+    st.session_state.oracle_hex_result = None
+if "oracle_used_today" not in st.session_state:
+    st.session_state.oracle_used_today = False
+if "oracle_usage_date" not in st.session_state:
+    st.session_state.oracle_usage_date = None
 
 # Check query parameters for localStorage data
 query_params = st.query_params
@@ -557,6 +633,29 @@ st.markdown("""
         .stSelectbox [data-baseweb="select"] > div {
             font-size: 1rem;
         }
+        
+        /* Searchable city input styling */
+        .stTextInput input {
+            min-height: 44px;
+            font-size: 1rem;
+        }
+        
+        .stTextInput input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+    }
+    
+    /* ===== City search input styling (all screens) ===== */
+    .stTextInput input[placeholder*="城市"] {
+        background: rgba(255, 215, 0, 0.05);
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        border-radius: 8px;
+    }
+    
+    .stTextInput input[placeholder*="城市"]:focus {
+        border-color: #ffd700;
+        box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.2);
     }
     
     /* ===== Viewport meta optimization ===== */
@@ -805,22 +904,13 @@ if not st.session_state.bazi_calculated:
         final_hour = get_shichen_mid_hour(shichen)
         final_minute = 0
 
-    # Birthplace Input Section
+    # Birthplace Input Section - Searchable Dropdown
     st.markdown('<p class="section-label">📍 出生地点 (用于真太阳时计算)</p>', unsafe_allow_html=True)
-
-    city_list = ["不选择 (使用北京时间)"] + sorted(CHINA_CITIES.keys())
-    birthplace = st.selectbox(
-        "选择出生城市",
-        options=city_list,
-        index=0,
-        label_visibility="collapsed"
+    
+    birthplace, longitude = searchable_city_select(
+        label="选择出生城市",
+        key_prefix="main_city"
     )
-
-    if birthplace != "不选择 (使用北京时间)":
-        longitude = CHINA_CITIES[birthplace]
-        st.caption(f"📐 经度: {longitude}°E")
-    else:
-        longitude = None
 
     # API Configuration (Optional) - In main area
     st.markdown("---")
@@ -1057,20 +1147,13 @@ if not st.session_state.bazi_calculated:
             partner_final_hour = get_shichen_mid_hour(partner_shichen)
             partner_final_minute = 0
         
-        # Partner Birthplace
+        # Partner Birthplace - Searchable Dropdown
         st.markdown('<p class="section-label">📍 出生地点</p>', unsafe_allow_html=True)
-        partner_birthplace = st.selectbox(
-            "对方出生城市",
-            options=city_list,
-            index=0,
-            label_visibility="collapsed",
-            key="partner_birthplace"
-        )
         
-        if partner_birthplace != "不选择 (使用北京时间)":
-            partner_longitude = CHINA_CITIES[partner_birthplace]
-        else:
-            partner_longitude = None
+        partner_birthplace, partner_longitude = searchable_city_select(
+            label="对方出生城市",
+            key_prefix="partner_city"
+        )
 
 
     # Calculate button
@@ -1333,9 +1416,9 @@ else:
                 disabled=is_generating
             )
         
-        # "深聊一下" button below the 2x2 grid
+        # "大师解惑" button below the 2x2 grid
         st.markdown("")
-        if st.button("💬 深聊一下", key="btn_compat_custom", use_container_width=True, disabled=is_generating):
+        if st.button("💬 大师解惑", key="btn_compat_custom", use_container_width=True, disabled=is_generating):
             st.session_state.show_custom_input = True
             st.rerun()
         
@@ -1370,10 +1453,11 @@ else:
                 st.session_state.is_generating = True
                 st.rerun()
     else:
-        # Single Mode - Regular 7 buttons
+        # Single Mode - Regular buttons + Oracle button
         st.markdown("### 🌟 选择想要了解的内容")
         
         # Button array - buttons are disabled during generation
+        # First row: 4 main topics
         cols = st.columns(4)
         
         for i, topic in enumerate(ANALYSIS_TOPICS[:4]):
@@ -1391,26 +1475,68 @@ else:
                         st.session_state.is_generating = True
                         st.rerun()
         
-        cols2 = st.columns(3)
-        for i, topic in enumerate(ANALYSIS_TOPICS[4:]):
-            with cols2[i]:
-                if topic == "深聊一下":
-                    if st.button(topic, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
-                        st.session_state.show_custom_input = True
-                        st.rerun()
+        # Second row: Remaining 2 topics + Oracle button + 大师解惑
+        cols2 = st.columns(4)
+        
+        # 健康建议 (index 4)
+        with cols2[0]:
+            topic = ANALYSIS_TOPICS[4]
+            is_clicked = topic in st.session_state.clicked_topics
+            button_label = f"✓ {topic}" if is_clicked else topic
+            if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
+                if topic in st.session_state.clicked_topics:
+                    st.session_state.scroll_to_topic = topic
+                    st.session_state.scroll_timestamp = datetime.now().timestamp()
+                    st.rerun()
                 else:
-                    is_clicked = topic in st.session_state.clicked_topics
-                    button_label = f"✓ {topic}" if is_clicked else topic
-                    if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
-                        if topic in st.session_state.clicked_topics:
-                            st.session_state.scroll_to_topic = topic
-                            st.session_state.scroll_timestamp = datetime.now().timestamp()
-                            st.rerun()
-                        else:
-                            st.session_state.clicked_topics.add(topic)
-                            st.session_state.pending_topic = topic
-                            st.session_state.is_generating = True
-                            st.rerun()
+                    st.session_state.clicked_topics.add(topic)
+                    st.session_state.pending_topic = topic
+                    st.session_state.is_generating = True
+                    st.rerun()
+        
+        # 开运建议 (index 5)
+        with cols2[1]:
+            topic = ANALYSIS_TOPICS[5]
+            is_clicked = topic in st.session_state.clicked_topics
+            button_label = f"✓ {topic}" if is_clicked else topic
+            if st.button(button_label, key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
+                if topic in st.session_state.clicked_topics:
+                    st.session_state.scroll_to_topic = topic
+                    st.session_state.scroll_timestamp = datetime.now().timestamp()
+                    st.rerun()
+                else:
+                    st.session_state.clicked_topics.add(topic)
+                    st.session_state.pending_topic = topic
+                    st.session_state.is_generating = True
+                    st.rerun()
+        
+        # 🎴 每日一卦 (Oracle button)
+        with cols2[2]:
+            # Check if already used today
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            oracle_disabled = is_generating or (st.session_state.oracle_usage_date == today_str and st.session_state.oracle_used_today)
+            oracle_label = "✓ 每日一卦" if "oracle" in st.session_state.clicked_topics else "🎴 每日一卦"
+            
+            if st.button(oracle_label, key="btn_oracle", use_container_width=True, disabled=oracle_disabled):
+                if "oracle" in st.session_state.clicked_topics:
+                    # Scroll to existing oracle result
+                    st.session_state.scroll_to_topic = "oracle"
+                    st.session_state.scroll_timestamp = datetime.now().timestamp()
+                    st.rerun()
+                else:
+                    # Check daily limit
+                    if st.session_state.oracle_usage_date == today_str and st.session_state.oracle_used_today:
+                        st.warning("⚠️ 今日一卦已用完，如需更多请购买 credit")
+                    else:
+                        st.session_state.oracle_mode = True
+                        st.rerun()
+        
+        # 大师解惑 (index 6)
+        with cols2[3]:
+            topic = ANALYSIS_TOPICS[6]  # "大师解惑"
+            if st.button(f"💬 {topic}", key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
+                st.session_state.show_custom_input = True
+                st.rerun()
     
     
     # Custom question input
@@ -1427,13 +1553,214 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("提交", key="submit_custom", use_container_width=True, disabled=is_generating):
                 if custom_question.strip():
-                    st.session_state.pending_topic = "深聊一下"
+                    st.session_state.pending_topic = "大师解惑"
                     st.session_state.pending_custom_question = custom_question
                     st.session_state.custom_question_count += 1
                     st.session_state.show_custom_input = False
                     st.session_state.is_generating = True
                     st.rerun()
     
+    # ========== Oracle Mode (每日一卦) UI ==========
+    if st.session_state.oracle_mode:
+        st.markdown("---")
+        st.markdown("### 🎴 每日一卦 - 周易占卜")
+        
+        # Step 1: Input question (if not already set)
+        if not st.session_state.oracle_question:
+            oracle_question = st.text_input(
+                "🔮 请输入您想卜问的事情",
+                key="oracle_question_input",
+                placeholder="例如：这份工作机会值得抓住吗？"
+            )
+            if st.button("确认卜问", key="confirm_oracle_question", use_container_width=True):
+                if oracle_question.strip():
+                    st.session_state.oracle_question = oracle_question.strip()
+                    st.session_state.oracle_shake_count = 0
+                    st.rerun()
+                else:
+                    st.warning("请先输入您想卜问的事情")
+        
+        # Step 2: Shaking / Clicking 3 times
+        elif st.session_state.oracle_shake_count < 3:
+            st.info(f"📿 您正在卜问：**{st.session_state.oracle_question}**")
+            st.markdown(f"")
+            
+            # Progress display
+            shake_progress = "🪙" * st.session_state.oracle_shake_count + "⚪" * (3 - st.session_state.oracle_shake_count)
+            st.markdown(f"### 进度：{shake_progress} ({st.session_state.oracle_shake_count}/3)")
+            st.caption("点击下方按钮 3 次，或摇动手机（移动端）完成起卦")
+            
+            # Shake button
+            if st.button("🪙 投掷铜钱", key=f"shake_{st.session_state.oracle_shake_count}", use_container_width=True):
+                st.session_state.oracle_shake_count += 1
+                if st.session_state.oracle_shake_count >= 3:
+                    # Cast hexagram
+                    calculator = ZhouyiCalculator()
+                    st.session_state.oracle_hex_result = calculator.cast_hexagram()
+                st.rerun()
+            
+            # Mobile shake detection (JavaScript injection)
+            shake_js = f'''
+            <script>
+            (function() {{
+                var shakeCount = {st.session_state.oracle_shake_count};
+                var lastShakeTime = 0;
+                var shakeThreshold = 15;
+                
+                if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission !== 'function') {{
+                    window.addEventListener('devicemotion', function(event) {{
+                        var acceleration = event.accelerationIncludingGravity;
+                        var total = Math.abs(acceleration.x) + Math.abs(acceleration.y) + Math.abs(acceleration.z);
+                        
+                        if (total > shakeThreshold && Date.now() - lastShakeTime > 500) {{
+                            lastShakeTime = Date.now();
+                            // Trigger Streamlit rerun by clicking the button
+                            var btn = document.querySelector('[data-testid="baseButton-secondary"]');
+                            if (btn && btn.textContent.includes('投掷铜钱')) {{
+                                btn.click();
+                            }}
+                        }}
+                    }});
+                }}
+            }})();
+            </script>
+            '''
+            components.html(shake_js, height=0)
+            
+            # Cancel button
+            if st.button("❌ 取消卜卦", key="cancel_oracle", use_container_width=True):
+                st.session_state.oracle_mode = False
+                st.session_state.oracle_question = ""
+                st.session_state.oracle_shake_count = 0
+                st.rerun()
+        
+        # Step 3: Display hexagram result and get LLM interpretation
+        else:
+            hex_result = st.session_state.oracle_hex_result
+            if hex_result:
+                st.success("✨ 起卦成功！")
+                
+                # Display hexagram SVG
+                st.markdown("#### 🔮 卦象")
+                col_hex1, col_hex2 = st.columns(2)
+                
+                with col_hex1:
+                    st.markdown(f"**本卦：{hex_result['original_hex']}**")
+                    st.markdown(f'<p style="color: #ffd700; font-size: 0.9em;">{hex_result["original_meaning"]}</p>', unsafe_allow_html=True)
+                    hex_svg = draw_hexagram_svg(hex_result['original_binary'])
+                    st.markdown(f'<div style="text-align:center;">{hex_svg}</div>', unsafe_allow_html=True)
+                
+                with col_hex2:
+                    if hex_result['has_change']:
+                        st.markdown(f"**变卦：{hex_result['future_hex']}**")
+                        st.markdown(f'<p style="color: #ffd700; font-size: 0.9em;">{hex_result["future_meaning"]}</p>', unsafe_allow_html=True)
+                        future_svg = draw_hexagram_svg(hex_result['future_binary'])
+                        st.markdown(f'<div style="text-align:center;">{future_svg}</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown("**无变卦**")
+                        st.caption("六爻皆静，本卦即是答案")
+                
+                # Hexagram details
+                with st.expander("📜 卦象详情"):
+                    st.markdown(f"**上卦（外卦）**：{hex_result['upper_trigram']}")
+                    st.markdown(f"**下卦（内卦）**：{hex_result['lower_trigram']}")
+                    if hex_result['changing_lines']:
+                        st.markdown(f"**动爻**：第 {', '.join(map(str, hex_result['changing_lines']))} 爻")
+                    st.markdown("---")
+                    for detail in hex_result['details']:
+                        st.caption(detail)
+                
+                # Build bazi context for oracle
+                bazi_data_for_oracle = {
+                    "day_pillar": st.session_state.bazi_result.split()[2] if st.session_state.bazi_result else ("?", "?"),
+                    "pattern_name": getattr(st.session_state, 'pattern_info', {}).get('name', '普通格局'),
+                    "strength": getattr(st.session_state, 'pattern_info', {}).get('strength', '未知'),
+                    "joy_elements": getattr(st.session_state, 'pattern_info', {}).get('joy_elements', '未知')
+                }
+                
+                # Try to get better bazi data from user_context if available
+                if hasattr(st.session_state, 'pattern_info') and st.session_state.pattern_info:
+                    pattern_info = st.session_state.pattern_info
+                    bazi_data_for_oracle = {
+                        "day_pillar": (pattern_info.get('day_master', '?'), pattern_info.get('day_branch', '?')),
+                        "pattern_name": pattern_info.get('name', '普通格局'),
+                        "strength": pattern_info.get('strength', '未知'),
+                        "joy_elements": pattern_info.get('joy_elements', '未知')
+                    }
+                
+                # Trigger LLM interpretation
+                st.markdown("---")
+                st.markdown("### 🧙 大师解卦")
+                
+                # Build oracle prompt
+                oracle_prompt = build_oracle_prompt(
+                    user_question=st.session_state.oracle_question,
+                    hex_data=hex_result,
+                    bazi_data=bazi_data_for_oracle
+                )
+                
+                # Get API config
+                api_config = st.session_state.api_config
+                
+                # Rate limiting check
+                if st.session_state.using_default_api:
+                    if st.session_state.default_api_usage_count >= DEFAULT_API_DAILY_LIMIT:
+                        st.error(f"⚠️ 默认 API 本次会话已达到 {DEFAULT_API_DAILY_LIMIT} 次使用限制。")
+                    elif not DEFAULT_API_KEY:
+                        st.error("⚠️ 服务器未配置默认 API Key。")
+                    else:
+                        # Stream LLM response
+                        with st.spinner("大师正在解读卦象..."):
+                            try:
+                                from openai import OpenAI
+                                
+                                if st.session_state.using_default_api:
+                                    client = OpenAI(api_key=DEFAULT_API_KEY, base_url=DEFAULT_BASE_URL)
+                                    model = DEFAULT_MODEL
+                                else:
+                                    client = OpenAI(api_key=api_config['api_key'], base_url=api_config['base_url'])
+                                    model = api_config['model']
+                                
+                                response = client.chat.completions.create(
+                                    model=model,
+                                    messages=[
+                                        {"role": "system", "content": "你是一位精通《周易》六爻与《子平八字》的国学大师。"},
+                                        {"role": "user", "content": oracle_prompt}
+                                    ],
+                                    stream=True,
+                                    max_tokens=4000
+                                )
+                                
+                                oracle_response = ""
+                                response_placeholder = st.empty()
+                                
+                                for chunk in response:
+                                    if chunk.choices[0].delta.content:
+                                        oracle_response += chunk.choices[0].delta.content
+                                        cleaned = clean_markdown_for_display(oracle_response)
+                                        response_placeholder.markdown(
+                                            f'<div class="fortune-text">{cleaned}</div>',
+                                            unsafe_allow_html=True
+                                        )
+                                
+                                # Save response and mark daily usage
+                                st.session_state.clicked_topics.add("oracle")
+                                st.session_state.responses.append(("oracle", f"🎴 {st.session_state.oracle_question}", oracle_response))
+                                st.session_state.oracle_used_today = True
+                                st.session_state.oracle_usage_date = datetime.now().strftime("%Y-%m-%d")
+                                st.session_state.default_api_usage_count += 1
+                                
+                            except Exception as e:
+                                st.error(f"❌ 解卦失败：{str(e)}")
+                
+                # Reset button
+                if st.button("🔄 完成", key="finish_oracle", use_container_width=True):
+                    st.session_state.oracle_mode = False
+                    st.session_state.oracle_question = ""
+                    st.session_state.oracle_shake_count = 0
+                    st.session_state.oracle_hex_result = None
+                    st.rerun()
+
     # Process pending topic
     if hasattr(st.session_state, 'pending_topic') and st.session_state.pending_topic:
         topic = st.session_state.pending_topic
@@ -1454,8 +1781,8 @@ else:
         
         # Stream response
         response_text = ""
-        topic_key = topic if topic != "深聊一下" else f"custom_{st.session_state.custom_question_count}"
-        topic_display = f"💬 {custom_q}" if topic == "深聊一下" and custom_q else f"📌 {topic}"
+        topic_key = topic if topic != "大师解惑" else f"custom_{st.session_state.custom_question_count}"
+        topic_display = f"💬 {custom_q}" if topic == "大师解惑" and custom_q else f"📌 {topic}"
         
         api_config = st.session_state.api_config
         

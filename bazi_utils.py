@@ -1,6 +1,7 @@
 """
 八字工具类 - 合盘分析等
 """
+import svgwrite
 
 
 class BaziCompatibilityCalculator:
@@ -194,6 +195,111 @@ def build_couple_prompt(person_a, person_b, comp_data, relation_type="恋人/伴
     1.  严禁说"你们肯定会离婚"或"你们注定分手"。
     2.  遇到刑冲，请用"磨合"、"修炼"等词汇代替"克死"。
     3.  分析必须基于上述提供的八字数据，不可胡编乱造。
+    """
+    
+    return prompt
+
+
+def draw_hexagram_svg(binary_code):
+    """
+    绘制六爻卦象的 SVG 图
+    
+    :param binary_code: 6位二进制字符串，如 "111000" (从初爻到上爻，即从下到上)
+    :return: SVG 字符串
+    """
+    dwg = svgwrite.Drawing(size=(100, 120))
+    
+    for i, bit in enumerate(binary_code):
+        y = 100 - i * 18  # 从下往上画
+        if bit == '1':  # 阳爻 (一条长线)
+            dwg.add(dwg.rect(insert=(10, y), size=(80, 10), fill="black"))
+        else:  # 阴爻 (两条短线，中间断开)
+            dwg.add(dwg.rect(insert=(10, y), size=(35, 10), fill="black"))
+            dwg.add(dwg.rect(insert=(55, y), size=(35, 10), fill="black"))
+    
+    return dwg.tostring()
+
+
+def build_oracle_prompt(user_question, hex_data, bazi_data):
+    """
+    构建【命卜合参】的最终 Prompt
+    
+    :param user_question: 用户的问题 (str)
+    :param hex_data: 周易起卦结果 (dict: original_hex, future_hex, changing_lines, details)
+    :param bazi_data: 八字排盘结果 (dict: day_pillar, pattern_name, strength, joy_elements)
+    """
+    
+    # 1. 提炼八字核心画像 (Character Profile)
+    # 我们不需要把四柱的所有细节都丢进去，只需要"性格"和"能量"
+    bazi_profile = f"""
+    - **日主 (本我)**：{bazi_data['day_pillar'][0]} (能量状态：{bazi_data.get('strength', '未知')})
+    - **核心格局 (性格底色)**：{bazi_data.get('pattern_name', '普通格局')}
+    - **喜用神 (能量需求)**：{bazi_data.get('joy_elements', '未知')}
+    """
+
+    # 2. 提炼卦象信息 (Divination Data)
+    hex_info = f"""
+    - **本卦 (现状)**：{hex_data['original_hex']}
+    - **变卦 (趋势)**：{hex_data['future_hex']}
+    - **动爻 (变数)**：{', '.join(map(str, hex_data.get('changing_lines', [])))} 
+    - **爻辞细节**：{'; '.join(hex_data.get('details', []))}
+    """
+
+    # 3. 构建 Prompt
+    prompt = f"""
+    # Role & Persona
+    你是一位精通《周易》六爻与《子平八字》的国学大师，擅长将"命理哲学"与"现实决策"结合。
+    
+    ---
+    ### 📂 数据输入 (Data Input)
+
+    **1. 案主档案 (Context - 仅作背景参考)**
+    *这是用户的"出厂设置"与性格底色，用于决定"应对策略"。*
+    {bazi_profile}
+
+    **2. 占卜事项 (Focus - 核心决策依据)**
+    *这是用户当下的具体困惑，用于决定"吉凶成败"。*
+    * **用户提问**："{user_question}"
+    {hex_info}
+
+    ---
+    ### 🧠 核心思考协议 (Priority Protocol) - 重要！
+    请严格遵守以下**权重原则**进行分析，切勿混淆：
+
+    **1. 决断权在卦 (Hexagram rules the Outcome)**
+    * **成败吉凶，以卦象为准！**
+    * 即使八字显示用户运气不好，如果卦象是大吉（如《乾为天》），请断为吉。
+    * *逻辑*：八字是气候，卦象是当下的天气。气候差不代表今天不下雨。
+
+    **2. 策略权在命 (Bazi rules the Strategy)**
+    * **怎么做，以八字为准！**
+    * 结合案主的【格局】与【强弱】给出建议。
+    * *场景A*：若卦吉，但案主**身弱/七杀格**（抗压差） -> 建议："虽然机会很好，但不要单打独斗，需找人合作（印比帮身）"。
+    * *场景B*：若卦凶，且案主**身强/伤官格**（心气高） -> 建议："目前时机未到，你才华虽高但容易冲动，现在最需要的是忍耐和蛰伏"。
+
+    ---
+    ### 📝 输出结构 (Output Format)
+    请以 Markdown 格式输出。**严格限制总字数在 600-800 字以内**，言简意赅，不要铺陈废话。
+
+    #### 1. 🔮 大师直断 (The Verdict)
+    * 用一句话直接回答用户的问题（吉/凶/平/待定）。不要模棱两可。（控制在 50 字以内）
+
+    #### 2. 📜 卦象天机 (Decoding the Hexagram)
+    * **断语**：解释【本卦】和【变卦】的含义（结合用户的问题，不要掉书袋）。
+    * **玄机**：重点解读【动爻】。动爻是事情的突破口，它暗示了什么？
+    * （此段控制在 200 字以内）
+
+    #### 3. 💡 命理锦囊 (Tailored Advice)
+    * **话术要求**：必须结合用户的【八字格局】来谈。
+    * *模板*："结合你的命盘来看，你是 [格局名] 的人，性格 [性格关键词]。面对这个卦象显示的局势，最佳策略是……"
+    * **行动建议**：给出 1-2 条具体的行动指南。
+    * （此段控制在 200 字以内）
+
+    ---
+    **安全合规指令**：
+    保持理性、客观、温暖。遇到凶卦，请侧重于"如何避险"或"等待时机"，给予希望，严禁制造恐慌。
+    
+    **长度红线**：总回复不超过 800 字。超过即为失败。
     """
     
     return prompt

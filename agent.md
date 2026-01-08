@@ -16,7 +16,8 @@
 ```
 fortune_teller_agent/
 ├── app.py           # Streamlit 主应用
-├── logic.py         # 八字计算 & LLM 调用 & 格局/调候/图表计算器
+├── logic.py         # 八字计算 & LLM 调用 & 格局/调候/周易计算器
+├── bazi_utils.py    # 合盘计算器 & 周易图表 & Prompt 构建器
 ├── pdf_generator.py # PDF 报告生成器 (ReportLab)
 ├── china_cities.py  # 350+ 中国城市经度数据
 ├── .env             # 环境变量 (API Key)
@@ -44,7 +45,7 @@ fortune_teller_agent/
 | **喜用忌用** | 《五行能量管理与开运指南》- 能量维他命、能量过敏原、开运方案 |
 | **健康建议** | 《身心能量调理指南》- 五色食疗、运动处方、流年健康备忘 |
 | **开运建议** | 《全场景转运与能量提升方案》- 晶石饰品、工位风水、居家能量 |
-| **深聊一下** | 自定义问题，支持共情式回答 |
+| **大师解惑** | 自定义问题，支持共情式回答 |
 
 ### 合盘分析按钮 (4个) ⭐ NEW
 | 按钮 | 功能 |
@@ -67,6 +68,8 @@ fortune_teller_agent/
 - ✅ **搜索增强** - Tavily Tool Use 搜索行业趋势、流行色等
 - ✅ **双重安全防护** - 服务器端关键词拦截 + LLM 端安全结束符
 - ✅ **API 速率限制** - 默认 API 每会话 20 次限制
+- ✅ **周易起卦** - 金钱课起卦法 + 64卦完整映射 + 卦象 SVG 可视化（金色文字增强可视性）
+- ✅ **命卜合参** - 八字 + 周易结合分析，决断在卦、策略在命（精准限制 800 字以内）
 
 ## 运行方式
 
@@ -155,7 +158,7 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 - `get_interactions(all_branches)` - 地支刑冲合害 (六冲/六合/三合)
 - `calculate_all(...)` - 综合计算所有辅助信息
 
-#### TiaoHouCalculator ⭐ NEW
+#### TiaoHouCalculator
 调候用神计算器，根据月令季节计算调候需求。
 - `get_tiao_hou(day_master, month_branch)` - 计算调候用神
 
@@ -168,7 +171,36 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 **返回值**：`{"status": "...", "needs": "...", "advice": "...", "is_urgent": True/False}`
 
-#### BaziChartGenerator ⭐ NEW
+#### ZhouyiCalculator ⭐ NEW
+周易起卦计算器，实现金钱课起卦法。
+- `cast_hexagram()` - 模拟3枚硬币摇6次起卦
+- `get_hexagram_by_binary(binary_str)` - 根据二进制获取卦象信息
+- `format_hexagram_display(result)` - 格式化卦象文本输出
+
+**64卦映射**：完整的二进制码到卦名映射，按八宫分类（乾/兑/离/震/巽/坎/艮/坤）。
+
+**起卦逻辑**：
+| 硬币和 | 爻类型 | 变爻 | 说明 |
+|--------|--------|------|------|
+| 6 | 老阴 | ✓ | 阴爻动，变阳 |
+| 7 | 少阳 | ✗ | 阳爻静 |
+| 8 | 少阴 | ✗ | 阴爻静 |
+| 9 | 老阳 | ✓ | 阳爻动，变阴 |
+
+**返回值**：
+```python
+{
+    "original_hex": "乾为天",      # 本卦全名
+    "future_hex": "天风姤",        # 变卦全名 (有动爻时)
+    "changing_lines": [6],         # 动爻列表 (1-6)
+    "details": [...],              # 每爻详情
+    "upper_trigram": "☰ 乾(天)",  # 上卦
+    "lower_trigram": "☰ 乾(天)",  # 下卦
+    "has_change": True             # 是否有变卦
+}
+```
+
+#### BaziChartGenerator
 八字排盘 SVG 图表生成器，生成专业美观的可视化排盘。
 - `get_color(char)` - 根据干支获取五行颜色
 - `generate_chart(bazi_data, filename)` - 生成 SVG 字符串
@@ -179,7 +211,7 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 - 显示内容：标题(乾造/坤造)、四柱名、十神、天干、地支、藏干
 - 布局：米黄色背景 + 标题栏 + 行标签
 
-### bazi_utils.py - 合盘计算器 ⭐ NEW
+### bazi_utils.py - 合盘计算器 & 周易工具
 
 #### BaziCompatibilityCalculator
 双人合盘计算器，分析两人之间的"化学反应"。
@@ -208,7 +240,31 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 3. **知己好友**：侧重性格共鸣、情感价值与灵魂契合度。
 4. **尚未确定**：多角度评估，建议最适合的发展方向。
 
-### logic.py - 安全函数 ⭐ NEW
+#### draw_hexagram_svg(binary_code) ⭐ NEW
+绘制六爻卦象的 SVG 图。
+- `binary_code` - 6位二进制字符串 (如 "111000"，从初爻到上爻)
+- 返回 SVG 字符串
+
+**图形说明**：
+- 阳爻 (1)：一条完整横线
+- 阴爻 (0)：中间断开的两条短线
+
+#### build_oracle_prompt(user_question, hex_data, bazi_data) ⭐ NEW
+构建【命卜合参】的 LLM Prompt，将八字与周易结合分析。
+
+**核心思考协议**：
+| 权重 | 依据 | 说明 |
+|------|------|------|
+| 决断权在卦 | 卦象 | 成败吉凶以卦象为准 |
+| 策略权在命 | 八字 | 怎么做以八字格局为准 |
+
+**输出结构**：
+1. 🔮 **大师直断** - 一句话回答吉凶（50字内）
+2. 📜 **卦象天机** - 解读本卦/变卦/动爻含义（200字内）
+3. 💡 **命理锦囊** - 结合八字格局给出行动建议（200字内）
+- **长度约束**：严格控制在 800 字以内，适配显示区域。
+
+### logic.py - 安全函数
 
 #### is_safe_input(user_text)
 服务器端输入安全检查，防止 Prompt 注入攻击。
@@ -266,7 +322,31 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 ## 更新日志
 
-### 2026-01-07 (深度合盘更新) ⭐ NEW
+### 2026-01-08 (周易起卦功能) ⭐ NEW
+- ⭐ **周易起卦计算器** - 新增 `ZhouyiCalculator` 类
+  - 金钱课起卦法 (3枚硬币摇6次)
+  - 完整 64 卦二进制映射表 (按八宫分类)
+  - 支持本卦/变卦/动爻计算
+  - 上下卦 (内外卦) 信息解析
+- ⭐ **卦象 SVG 可视化** - 新增 `draw_hexagram_svg()` 函数
+  - 阳爻 (一条长线) / 阴爻 (两条短线)
+  - 从初爻到上爻 (从下往上) 绘制
+- ⭐ **命卜合参 Prompt** - 新增 `build_oracle_prompt()` 函数
+  - 八字 + 周易结合分析
+  - 决断权在卦 (吉凶成败)、策略权在命 (应对方式)
+  - 结构化输出：大师直断 → 卦象天机 → 命理锦囊
+- ⭐ **可搜索城市下拉框** - 新增 `searchable_city_select()` 函数
+  - 🔍 文本搜索框 + 动态过滤 342 个城市
+  - 📱 移动端触摸友好 (min-height: 44px)
+  - 💄 金色主题 CSS 样式
+  - 📐 选择后自动显示城市经度
+- 📦 新增类/函数位置：
+  - `ZhouyiCalculator` → `logic.py`
+  - `draw_hexagram_svg` → `bazi_utils.py`
+  - `build_oracle_prompt` → `bazi_utils.py`
+  - `searchable_city_select` → `app.py`
+
+### 2026-01-07 (深度合盘更新)
 - ⭐ **关系类型定制化** - 合盘模式支持多种关系场景
   - 新增“二位是什么关系？”下拉框选择
   - **定制化 Prompt 逻辑**：
@@ -367,7 +447,7 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 - 重构 System Instruction - 资深命理大师人设 + 数据协议 + 搜索策略
 - 重构所有分析提示词 - 结构化输出、意象化表达、搜索落地
 - 「转运建议」→「开运建议」
-- 「我还想问」→「深聊一下」
+- 「我还想问」→「大师解惑」
 - 对话历史改为完整问答记录 (非摘要)
 
 ### 2026-01-05 (晚间更新)
