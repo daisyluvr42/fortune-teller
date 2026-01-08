@@ -109,6 +109,9 @@ def clean_markdown_for_display(text: str) -> str:
     # Convert numbered lists
     text = re.sub(r'^\s*(\d+)\.\s+', r'<span style="color: #ffd700;">\1.</span> ', text, flags=re.MULTILINE)
     
+    # Remove English translations in parentheses from headers (e.g., "#### 标题 (English)")
+    text = re.sub(r'^(#+\s+.*?)\s*\([^)]*\)', r'\1', text, flags=re.MULTILINE)
+    
     # Add line breaks for markdown paragraphs
     text = re.sub(r'\n\n', r'<br><br>', text)
     text = re.sub(r'\n', r'<br>', text)
@@ -271,12 +274,21 @@ st.markdown("""
     h1 {
         font-family: 'Noto Serif SC', serif;
         text-align: center;
-        color: #FFDD44;
-        text-shadow: 0 0 10px rgba(255, 230, 100, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
+        color: #FFD700;
+        text-shadow: 0 0 15px rgba(255, 215, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.7);
         margin-bottom: 30px;
         font-size: 2.2rem;
         font-weight: 700;
         letter-spacing: 2px;
+    }
+    
+    h2, h3, h4, h5 {
+        font-family: 'Noto Serif SC', serif;
+        color: #FFD700 !important;
+        font-weight: 700 !important;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
     }
     
     .bazi-display {
@@ -295,11 +307,12 @@ st.markdown("""
     
     .time-info {
         font-family: 'Noto Serif SC', serif;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         text-align: center;
-        color: #aaa;
+        color: #CCCCCC;
         margin-top: -10px;
         margin-bottom: 20px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
     
     .fortune-text {
@@ -318,12 +331,14 @@ st.markdown("""
     
     .topic-header {
         font-family: 'Noto Serif SC', serif;
-        font-size: 1.3rem;
+        font-size: 1.35rem;
+        font-weight: 700;
         color: #ffd700;
-        border-left: 4px solid #ffd700;
+        border-left: 5px solid #ffd700;
         padding-left: 15px;
-        margin-top: 25px;
-        margin-bottom: 10px;
+        margin-top: 30px;
+        margin-bottom: 15px;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
     
     .stButton > button {
@@ -1563,7 +1578,7 @@ else:
     # ========== Oracle Mode (每日一卦) UI ==========
     if st.session_state.oracle_mode:
         st.markdown("---")
-        st.markdown("### 🎴 每日一卦 - 周易占卜")
+        st.markdown('<h3 style="color: #FFD700; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">🎴 每日一卦 - 周易占卜</h3>', unsafe_allow_html=True)
         
         # Step 1: Input question (if not already set)
         if not st.session_state.oracle_question:
@@ -1583,7 +1598,23 @@ else:
         # Step 2: Shaking / Clicking 3 times
         elif st.session_state.oracle_shake_count < 3:
             st.info(f"📿 您正在卜问：**{st.session_state.oracle_question}**")
-            st.markdown(f"")
+            
+            # Reminder to silently repeat the question 3 times
+            st.markdown('''
+            <div style="background: linear-gradient(145deg, rgba(255, 215, 0, 0.15), rgba(255, 140, 0, 0.1)); 
+                        border: 1px solid rgba(255, 215, 0, 0.4); 
+                        border-radius: 12px; 
+                        padding: 15px 20px; 
+                        margin: 15px 0;
+                        text-align: center;">
+                <p style="color: #FFD700; font-family: 'Noto Serif SC', serif; font-size: 1.1rem; margin: 0;">
+                    🙏 请在心中默念您的问题三遍后，再投掷铜钱
+                </p>
+                <p style="color: #CCCCCC; font-size: 0.9rem; margin-top: 8px; margin-bottom: 0;">
+                    诚心诚意，心诚则灵
+                </p>
+            </div>
+            ''', unsafe_allow_html=True)
             
             # Progress display
             shake_progress = "🪙" * st.session_state.oracle_shake_count + "⚪" * (3 - st.session_state.oracle_shake_count)
@@ -1599,28 +1630,61 @@ else:
                     st.session_state.oracle_hex_result = calculator.cast_hexagram()
                 st.rerun()
             
-            # Mobile shake detection (JavaScript injection)
+            # Mobile shake detection (JavaScript injection with iOS permission handling)
             shake_js = f'''
             <script>
             (function() {{
-                var shakeCount = {st.session_state.oracle_shake_count};
-                var lastShakeTime = 0;
-                var shakeThreshold = 15;
+                // Prevent duplicate initialization
+                if (window.shakeHandlerInitialized) return;
+                window.shakeHandlerInitialized = true;
                 
-                if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission !== 'function') {{
-                    window.addEventListener('devicemotion', function(event) {{
-                        var acceleration = event.accelerationIncludingGravity;
-                        var total = Math.abs(acceleration.x) + Math.abs(acceleration.y) + Math.abs(acceleration.z);
-                        
-                        if (total > shakeThreshold && Date.now() - lastShakeTime > 500) {{
-                            lastShakeTime = Date.now();
-                            // Trigger Streamlit rerun by clicking the button
-                            var btn = document.querySelector('[data-testid="baseButton-secondary"]');
-                            if (btn && btn.textContent.includes('投掷铜钱')) {{
-                                btn.click();
+                var lastShakeTime = 0;
+                var shakeThreshold = 20;
+                
+                function handleMotion(event) {{
+                    var acceleration = event.accelerationIncludingGravity;
+                    if (!acceleration) return;
+                    
+                    var total = Math.abs(acceleration.x || 0) + Math.abs(acceleration.y || 0) + Math.abs(acceleration.z || 0);
+                    
+                    if (total > shakeThreshold && Date.now() - lastShakeTime > 600) {{
+                        lastShakeTime = Date.now();
+                        // Find the coin toss button using multiple selectors for reliability
+                        var btn = null;
+                        var buttons = document.querySelectorAll('button');
+                        for (var i = 0; i < buttons.length; i++) {{
+                            if (buttons[i].textContent.includes('投掷铜钱')) {{
+                                btn = buttons[i];
+                                break;
                             }}
                         }}
-                    }});
+                        if (btn) {{
+                            btn.click();
+                        }}
+                    }}
+                }}
+                
+                // Check if DeviceMotionEvent requires permission (iOS 13+)
+                if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {{
+                    // iOS 13+ - need to request permission on user gesture
+                    // Create a one-time button to request permission
+                    if (!window.motionPermissionRequested) {{
+                        window.motionPermissionRequested = true;
+                        // Automatically try to add listener after any user interaction
+                        document.addEventListener('click', function requestMotionPermission() {{
+                            DeviceMotionEvent.requestPermission()
+                                .then(function(permissionState) {{
+                                    if (permissionState === 'granted') {{
+                                        window.addEventListener('devicemotion', handleMotion);
+                                    }}
+                                }})
+                                .catch(console.error);
+                            document.removeEventListener('click', requestMotionPermission);
+                        }}, {{ once: true }});
+                    }}
+                }} else if (window.DeviceMotionEvent) {{
+                    // Non-iOS or older iOS - can add listener directly
+                    window.addEventListener('devicemotion', handleMotion);
                 }}
             }})();
             </script>

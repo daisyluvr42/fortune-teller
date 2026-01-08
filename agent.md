@@ -345,6 +345,10 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
   - `draw_hexagram_svg` → `bazi_utils.py`
   - `build_oracle_prompt` → `bazi_utils.py`
   - `searchable_city_select` → `app.py`
+- ⭐ **起卦交互优化**：
+  - **默念提醒**：在投掷铜钱前新增“心诚则灵”提醒框，引导用户默念问题三遍。
+  - **手机端摇一摇修复**：支持 iOS 13+ 加速度计权限请求 (`DeviceMotionEvent.requestPermission`)，解决移动端无法触发起卦的问题。
+  - **交互稳定性**：优化按钮选择器逻辑，防止脚本重复初始化，提高移动端响应成功率。
 
 ### 2026-01-07 (深度合盘更新)
 - ⭐ **关系类型定制化** - 合盘模式支持多种关系场景
