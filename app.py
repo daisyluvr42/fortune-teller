@@ -9,7 +9,7 @@ import re
 from datetime import date, datetime
 import os
 from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, ZhouyiCalculator
-from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt
+from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt, BaziEnergyCalculator, EnergyPieChartGenerator
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
@@ -1263,6 +1263,41 @@ if not st.session_state.bazi_calculated:
         }
         st.session_state.bazi_svg = chart_generator.generate_chart(chart_data)
         
+        # ========== Calculate Five Elements Energy ==========
+        pillars = [
+            pattern_info.get("year_pillar", ""),
+            pattern_info.get("month_pillar", ""),
+            pattern_info.get("day_pillar", ""),
+            pattern_info.get("hour_pillar", "")
+        ]
+        energy_calc = BaziEnergyCalculator()
+        energy_data = energy_calc.calculate_energy(pillars)
+        st.session_state.energy_data = energy_data
+        
+        # Generate Energy Pie Chart SVG
+        energy_chart_gen = EnergyPieChartGenerator()
+        st.session_state.energy_svg = energy_chart_gen.generate_chart(energy_data)
+        
+        # Get dominant and weakest elements
+        dominant_element, dominant_pct = energy_calc.get_dominant_element(pillars)
+        weakest_element, weakest_pct = energy_calc.get_weakest_element(pillars)
+        st.session_state.dominant_element = (dominant_element, dominant_pct)
+        st.session_state.weakest_element = (weakest_element, weakest_pct)
+        
+        # Inject energy data into user context for LLM
+        energy_context = f"""
+【五行能量分布】(System Calculated)
+- 木: {energy_data['木']['score']}分 ({int(energy_data['木']['pct'] * 100)}%)
+- 火: {energy_data['火']['score']}分 ({int(energy_data['火']['pct'] * 100)}%)
+- 土: {energy_data['土']['score']}分 ({int(energy_data['土']['pct'] * 100)}%)
+- 金: {energy_data['金']['score']}分 ({int(energy_data['金']['pct'] * 100)}%)
+- 水: {energy_data['水']['score']}分 ({int(energy_data['水']['pct'] * 100)}%)
+- **最强五行**: {dominant_element} ({int(dominant_pct * 100)}%)
+- **最弱五行**: {weakest_element} ({int(weakest_pct * 100)}%)
+⚠️ 请根据此五行能量分布分析用户的健康、性格倾向和开运建议。
+"""
+        st.session_state.user_context += energy_context
+        
         # ========== Compatibility Mode: Calculate Partner's Bazi ==========
         if st.session_state.compatibility_mode:
             # Calculate partner's Bazi
@@ -1375,6 +1410,51 @@ else:
         
         if st.session_state.time_info:
             st.markdown(f'<div class="time-info">📐 {st.session_state.time_info} | 出生地: {st.session_state.birthplace} | 性别: {st.session_state.gender}</div>', unsafe_allow_html=True)
+        
+        # ========== Five Elements Energy Pie Chart ==========
+        if hasattr(st.session_state, 'energy_svg') and st.session_state.energy_svg:
+            st.markdown("")
+            
+            # Centered title using HTML
+            st.markdown('<h3 style="text-align: center; color: #FFD700; margin-bottom: 10px;">📊 五行能量分布</h3>', unsafe_allow_html=True)
+            
+            # Render the energy pie chart SVG (centered)
+            import base64
+            energy_svg_b64 = base64.b64encode(st.session_state.energy_svg.encode()).decode()
+            energy_chart_html = f'''
+            <div style="display: flex; justify-content: center; margin: 15px 0;">
+                <img src="data:image/svg+xml;base64,{energy_svg_b64}" style="max-width: 100%; width: 400px; height: auto;"/>
+            </div>
+            '''
+            st.markdown(energy_chart_html, unsafe_allow_html=True)
+            
+            # Display strongest and weakest elements using st.metric (centered with CSS)
+            if hasattr(st.session_state, 'dominant_element') and hasattr(st.session_state, 'weakest_element'):
+                dominant = st.session_state.dominant_element
+                weakest = st.session_state.weakest_element
+                
+                # Element color mapping
+                element_colors = {"木": "🟢", "火": "🔴", "土": "🟠", "金": "🟡", "水": "🔵"}
+                
+                # Centered metrics using HTML instead of st.columns for better alignment
+                metrics_html = f'''
+                <div style="display: flex; justify-content: center; gap: 60px; margin: 20px 0;">
+                    <div style="text-align: center;">
+                        <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">⬆️ 最强五行</div>
+                        <div style="font-size: 2rem; font-weight: bold; color: #FFFFFF;">{element_colors.get(dominant[0], '')} {dominant[0]}</div>
+                        <div style="color: #2ecc71; font-size: 0.9rem;">↑ {int(dominant[1] * 100)}%</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">⬇️ 最弱五行</div>
+                        <div style="font-size: 2rem; font-weight: bold; color: #FFFFFF;">{element_colors.get(weakest[0], '')} {weakest[0]}</div>
+                        <div style="color: #e74c3c; font-size: 0.9rem;">↓ {int(weakest[1] * 100)}%</div>
+                    </div>
+                </div>
+                '''
+                st.markdown(metrics_html, unsafe_allow_html=True)
+            
+            st.markdown("")
+        
     else:
         # Fallback to text display
         st.markdown(f'<div class="bazi-display">{st.session_state.bazi_result}</div>', unsafe_allow_html=True)

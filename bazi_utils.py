@@ -305,3 +305,297 @@ def build_oracle_prompt(user_question, hex_data, bazi_data):
     """
     
     return prompt
+
+
+# ============================================================
+# 五行能量计算器 (Five Elements Energy Calculator)
+# ============================================================
+
+# 天干 -> 五行映射
+STEM_WUXING_MAP = {
+    "甲": "木", "乙": "木",
+    "丙": "火", "丁": "火",
+    "戊": "土", "己": "土",
+    "庚": "金", "辛": "金",
+    "壬": "水", "癸": "水"
+}
+
+# 地支藏干权重表 (本气/中气/余气)
+# 格式: {地支: [(藏干, 权重), ...]}
+BRANCH_WEIGHT_MAP = {
+    "子": [("癸", 100)],
+    "丑": [("己", 60), ("癸", 30), ("辛", 10)],
+    "寅": [("甲", 60), ("丙", 30), ("戊", 10)],
+    "卯": [("乙", 100)],
+    "辰": [("戊", 60), ("乙", 30), ("癸", 10)],
+    "巳": [("丙", 60), ("戊", 30), ("庚", 10)],
+    "午": [("丁", 70), ("己", 30)],
+    "未": [("己", 60), ("丁", 30), ("乙", 10)],
+    "申": [("庚", 60), ("壬", 30), ("戊", 10)],
+    "酉": [("辛", 100)],
+    "戌": [("戊", 60), ("辛", 30), ("丁", 10)],
+    "亥": [("壬", 70), ("甲", 30)]
+}
+
+
+class BaziEnergyCalculator:
+    """
+    五行能量计算器 - 基于四柱计算五行能量分布
+    
+    算法说明:
+    - 天干: 每个天干贡献 100 点到对应五行
+    - 地支藏干: 按本气(60-100)、中气(30)、余气(10)的权重分配
+    """
+    
+    def __init__(self):
+        self.stem_map = STEM_WUXING_MAP
+        self.branch_map = BRANCH_WEIGHT_MAP
+    
+    def calculate_energy(self, pillars):
+        """
+        计算五行能量分布
+        
+        :param pillars: 四柱列表, 如 ['甲子', '丙寅', '戊辰', '庚午']
+        :return: dict 包含每个五行的分数和百分比
+                 {'木': {'score': 250, 'pct': 0.25}, ...}
+        """
+        # 初始化五行分数
+        scores = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
+        
+        for pillar in pillars:
+            if len(pillar) != 2:
+                continue
+            
+            stem, branch = pillar[0], pillar[1]
+            
+            # 1. 天干贡献 100 点
+            if stem in self.stem_map:
+                wuxing = self.stem_map[stem]
+                scores[wuxing] += 100
+            
+            # 2. 地支藏干按权重贡献
+            if branch in self.branch_map:
+                for hidden_stem, weight in self.branch_map[branch]:
+                    if hidden_stem in self.stem_map:
+                        wuxing = self.stem_map[hidden_stem]
+                        scores[wuxing] += weight
+        
+        # 计算总分和百分比
+        total = sum(scores.values())
+        if total == 0:
+            total = 1  # 避免除零
+        
+        result = {}
+        for element, score in scores.items():
+            result[element] = {
+                "score": score,
+                "pct": round(score / total, 4)
+            }
+        
+        return result
+    
+    def get_dominant_element(self, pillars):
+        """
+        获取主导五行
+        
+        :param pillars: 四柱列表
+        :return: (五行名, 百分比)
+        """
+        energy = self.calculate_energy(pillars)
+        dominant = max(energy.items(), key=lambda x: x[1]['score'])
+        return dominant[0], dominant[1]['pct']
+    
+    def get_weakest_element(self, pillars):
+        """
+        获取最弱五行
+        
+        :param pillars: 四柱列表
+        :return: (五行名, 百分比)
+        """
+        energy = self.calculate_energy(pillars)
+        weakest = min(energy.items(), key=lambda x: x[1]['score'])
+        return weakest[0], weakest[1]['pct']
+
+
+class EnergyPieChartGenerator:
+    """
+    五行能量饼图生成器 - 渲染 SVG 饼图
+    
+    功能:
+    - 根据五行分数生成饼图切片
+    - 显示五行配色图例
+    - 百分比标签
+    """
+    
+    def __init__(self):
+        # 五行配色 (与 BaziChartGenerator 一致)
+        self.colors = {
+            "木": "#2E8B57",  # 翠绿
+            "火": "#E74C3C",  # 朱红
+            "土": "#D35400",  # 土黄
+            "金": "#F1C40F",  # 金色
+            "水": "#2980B9"   # 湛蓝
+        }
+        # 五行顺序 (相生序)
+        self.element_order = ["木", "火", "土", "金", "水"]
+    
+    def generate_chart(self, energy_data, width=400, height=250):
+        """
+        生成五行能量饼图 SVG
+        
+        :param energy_data: BaziEnergyCalculator.calculate_energy() 返回的字典
+                            {'木': {'score': 250, 'pct': 0.25}, ...}
+        :param width: 画布宽度
+        :param height: 画布高度
+        :return: SVG 字符串
+        """
+        import math
+        
+        dwg = svgwrite.Drawing(size=(width, height), viewBox=f"0 0 {width} {height}")
+        
+        # 添加背景
+        dwg.add(dwg.rect(insert=(0, 0), size=(width, height), fill="#1a1a2e", rx=10))
+        
+        # 饼图参数
+        cx, cy = 120, 125  # 圆心
+        radius = 90
+        
+        # 排序并计算角度
+        current_angle = -90  # 从12点钟方向开始 (SVG 坐标系)
+        
+        for element in self.element_order:
+            if element not in energy_data:
+                continue
+            
+            pct = energy_data[element]['pct']
+            if pct <= 0:
+                continue
+            
+            sweep_angle = pct * 360
+            
+            # 计算弧线端点
+            start_rad = math.radians(current_angle)
+            end_rad = math.radians(current_angle + sweep_angle)
+            
+            x1 = cx + radius * math.cos(start_rad)
+            y1 = cy + radius * math.sin(start_rad)
+            x2 = cx + radius * math.cos(end_rad)
+            y2 = cy + radius * math.sin(end_rad)
+            
+            # 大弧标志 (角度 > 180 度)
+            large_arc = 1 if sweep_angle > 180 else 0
+            
+            # SVG 弧线路径
+            path_data = f"M {cx},{cy} L {x1},{y1} A {radius},{radius} 0 {large_arc},1 {x2},{y2} Z"
+            
+            dwg.add(dwg.path(d=path_data, fill=self.colors[element], stroke="#1a1a2e", stroke_width=2))
+            
+            # 在扇形中间添加百分比标签 (如果 >= 8%)
+            if pct >= 0.08:
+                mid_angle = current_angle + sweep_angle / 2
+                mid_rad = math.radians(mid_angle)
+                label_r = radius * 0.65
+                lx = cx + label_r * math.cos(mid_rad)
+                ly = cy + label_r * math.sin(mid_rad)
+                
+                pct_text = f"{int(pct * 100)}%"
+                dwg.add(dwg.text(pct_text, insert=(lx, ly + 4),
+                                 font_size="13", font_weight="bold",
+                                 fill="white", text_anchor="middle",
+                                 style="font-family: 'Helvetica Neue', sans-serif"))
+            
+            current_angle += sweep_angle
+        
+        # 绘制图例 (右侧)
+        legend_x = 250
+        legend_y_start = 50
+        
+        # 图例标题
+        dwg.add(dwg.text("五行能量", insert=(legend_x + 40, legend_y_start - 10),
+                         font_size="14", font_weight="bold", fill="#FFD700",
+                         text_anchor="middle", style="font-family: 'PingFang SC', sans-serif"))
+        
+        for i, element in enumerate(self.element_order):
+            y_pos = legend_y_start + i * 35
+            
+            # 色块
+            dwg.add(dwg.rect(insert=(legend_x, y_pos), size=(24, 24),
+                            fill=self.colors[element], rx=4))
+            
+            # 五行名
+            dwg.add(dwg.text(element, insert=(legend_x + 32, y_pos + 17),
+                             font_size="16", font_weight="bold",
+                             fill=self.colors[element],
+                             style="font-family: 'PingFang SC', 'STKaiti', sans-serif"))
+            
+            # 分数和百分比
+            if element in energy_data:
+                score = energy_data[element]['score']
+                pct = energy_data[element]['pct']
+                info_text = f"{score}分 ({int(pct * 100)}%)"
+                dwg.add(dwg.text(info_text, insert=(legend_x + 60, y_pos + 17),
+                                 font_size="12", fill="#CCCCCC",
+                                 style="font-family: 'Helvetica Neue', sans-serif"))
+        
+        return dwg.tostring()
+    
+    def save_chart(self, energy_data, filepath, width=400, height=250):
+        """
+        保存饼图到文件
+        
+        :param energy_data: 能量数据字典
+        :param filepath: 保存路径
+        :param width: 画布宽度
+        :param height: 画布高度
+        """
+        svg_content = self.generate_chart(energy_data, width, height)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(svg_content)
+
+
+def generate_energy_pie_chart(pillars):
+    """
+    便捷函数: 从四柱直接生成五行能量饼图
+    
+    :param pillars: 四柱列表, 如 ['甲子', '丙寅', '戊辰', '庚午']
+    :return: SVG 字符串
+    """
+    calculator = BaziEnergyCalculator()
+    energy_data = calculator.calculate_energy(pillars)
+    
+    generator = EnergyPieChartGenerator()
+    return generator.generate_chart(energy_data)
+
+
+# ============================================================
+# 示例用法 (Example Usage)
+# ============================================================
+if __name__ == "__main__":
+    # 示例四柱: 甲子年 丙寅月 戊辰日 庚午时
+    sample_pillars = ["甲子", "丙寅", "戊辰", "庚午"]
+    
+    # 1. 计算五行能量
+    calc = BaziEnergyCalculator()
+    energy = calc.calculate_energy(sample_pillars)
+    
+    print("=" * 50)
+    print("五行能量分布:")
+    print("=" * 50)
+    for element, data in energy.items():
+        print(f"  {element}: {data['score']}分 ({data['pct']*100:.1f}%)")
+    
+    dominant, dom_pct = calc.get_dominant_element(sample_pillars)
+    weakest, weak_pct = calc.get_weakest_element(sample_pillars)
+    print(f"\n主导五行: {dominant} ({dom_pct*100:.1f}%)")
+    print(f"最弱五行: {weakest} ({weak_pct*100:.1f}%)")
+    
+    # 2. 生成饼图 SVG
+    svg = generate_energy_pie_chart(sample_pillars)
+    
+    # 保存到文件
+    output_path = "/tmp/energy_pie_chart.svg"
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(svg)
+    
+    print(f"\n饼图已保存到: {output_path}")
+
