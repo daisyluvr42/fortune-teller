@@ -166,7 +166,7 @@ ANALYSIS_TOPICS = ["整体命格", "事业运势", "感情运势", "喜用忌用
 
 # Page Configuration
 st.set_page_config(
-    page_title="八字算命",
+    page_title="命理大师",
     page_icon="🔮",
     layout="centered"
 )
