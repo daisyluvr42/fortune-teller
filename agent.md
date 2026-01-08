@@ -322,6 +322,30 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 ## 更新日志
 
+### 2026-01-08 (五行能量饼图) ⭐ NEW
+- ⭐ **五行能量计算器** - 新增 `BaziEnergyCalculator` 类
+  - 天干贡献 100 点到对应五行
+  - 地支藏干按权重分配 (本气 60-100, 中气 30, 余气 10)
+  - `BRANCH_WEIGHT_MAP` 完整的 12 地支藏干权重表
+  - `get_dominant_element()` / `get_weakest_element()` - 获取最强/最弱五行
+- ⭐ **五行能量饼图 SVG** - 新增 `EnergyPieChartGenerator` 类
+  - 使用 `svgwrite` 绘制弧线路径饼图
+  - 五行配色图例 + 分数/百分比显示
+  - 画布尺寸: viewBox="0 0 400 250"
+- ⭐ **Streamlit 集成** - 排盘后显示五行能量分布
+  - 居中标题: "📊 五行能量分布"
+  - 饼图 SVG 使用 base64 编码渲染
+  - ⬆️ 最强五行 / ⬇️ 最弱五行 指标卡片
+  - LLM Prompt 注入五行分布数据
+- 📦 新增函数位置：
+  - `BaziEnergyCalculator` → `bazi_utils.py`
+  - `EnergyPieChartGenerator` → `bazi_utils.py`
+  - `generate_energy_pie_chart()` → `bazi_utils.py`
+- 📱 **iOS 移动端同步** - 新增 `EnergyPieChartView.swift`
+  - SwiftUI 饼图组件 + 图例
+  - 最强/最弱五行指标
+  - 集成到 `DashboardView.swift`
+
 ### 2026-01-08 (藏干显示修复) ⭐ NEW
 - 🐛 **藏干 (Hidden Stems) 显示修复** - 解决藏干字符不可见问题
   - **根因**：`app.py` 中查询键名错误 (`"年支"` → `"年支藏干"`)
