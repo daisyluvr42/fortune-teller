@@ -4,10 +4,21 @@ Uses SQLite to persist user profiles with user-defined IDs.
 """
 import sqlite3
 import os
+from datetime import datetime, timedelta
 from typing import Optional
 
 # Database file path (same directory as this module)
 DB_PATH = os.path.join(os.path.dirname(__file__), "profiles.db")
+
+# China Standard Time offset (UTC+8)
+CST_OFFSET_HOURS = 8
+
+
+def get_cst_today() -> str:
+    """Get current date in China Standard Time (UTC+8) as YYYY-MM-DD string."""
+    utc_now = datetime.utcnow()
+    cst_now = utc_now + timedelta(hours=CST_OFFSET_HOURS)
+    return cst_now.strftime("%Y-%m-%d")
 
 
 def get_connection() -> sqlite3.Connection:
@@ -39,6 +50,7 @@ def init_db() -> None:
             city TEXT,
             is_lunar INTEGER DEFAULT 0,
             session_data TEXT,
+            last_divination_date TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -46,6 +58,13 @@ def init_db() -> None:
     # Migration: Add session_data column if it doesn't exist (for existing tables)
     try:
         cursor.execute("ALTER TABLE profiles_v2 ADD COLUMN session_data TEXT")
+    except sqlite3.OperationalError:
+        # Column already exists, ignore
+        pass
+    
+    # Migration: Add last_divination_date column if it doesn't exist
+    try:
+        cursor.execute("ALTER TABLE profiles_v2 ADD COLUMN last_divination_date TEXT")
     except sqlite3.OperationalError:
         # Column already exists, ignore
         pass
@@ -227,3 +246,65 @@ def delete_profile(profile_id: str) -> bool:
     conn.close()
     
     return deleted
+
+
+def check_daily_quota(profile_id: str) -> bool:
+    """
+    Check if a profile has available daily divination quota.
+    Based on China Standard Time (UTC+8).
+    
+    Args:
+        profile_id: The profile ID to check
+    
+    Returns:
+        True if quota available, False if already used today
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT last_divination_date FROM profiles_v2 WHERE profile_id = ?",
+        (profile_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return False  # Profile not found
+    
+    last_date = row["last_divination_date"]
+    today = get_cst_today()
+    
+    if last_date is None:
+        return True  # First time use
+    
+    if last_date < today:
+        return True  # New day, refresh credit
+    
+    return False  # Already used today
+
+
+def consume_daily_quota(profile_id: str) -> bool:
+    """
+    Consume the daily divination quota by updating last_divination_date.
+    
+    Args:
+        profile_id: The profile ID to update
+    
+    Returns:
+        True if updated successfully, False if profile not found
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    today = get_cst_today()
+    cursor.execute(
+        "UPDATE profiles_v2 SET last_divination_date = ? WHERE profile_id = ?",
+        (today, profile_id)
+    )
+    updated = cursor.rowcount > 0
+    
+    conn.commit()
+    conn.close()
+    
+    return updated

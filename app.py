@@ -14,7 +14,7 @@ from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
 from pdf_generator import generate_report_pdf
-from db_utils import init_db, save_profile, profile_exists, get_all_profiles, get_profile_by_id, delete_profile, update_session_data
+from db_utils import init_db, save_profile, profile_exists, get_all_profiles, get_profile_by_id, delete_profile, update_session_data, check_daily_quota, consume_daily_quota
 
 load_dotenv()
 
@@ -1833,24 +1833,31 @@ else:
         
         # 🎴 每日一卦 (Oracle button)
         with cols2[2]:
-            # Check if already used today
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            oracle_disabled = is_generating or (st.session_state.oracle_usage_date == today_str and st.session_state.oracle_used_today)
+            # Check if profile is loaded (required for daily quota)
+            has_profile = st.session_state.loaded_profile_id is not None
             oracle_label = "✓ 每日一卦" if "oracle" in st.session_state.clicked_topics else "🎴 每日一卦"
             
-            if st.button(oracle_label, key="btn_oracle", use_container_width=True, disabled=oracle_disabled):
-                if "oracle" in st.session_state.clicked_topics:
-                    # Scroll to existing oracle result
-                    st.session_state.scroll_to_topic = "oracle"
-                    st.session_state.scroll_timestamp = datetime.now().timestamp()
-                    st.rerun()
-                else:
-                    # Check daily limit
-                    if st.session_state.oracle_usage_date == today_str and st.session_state.oracle_used_today:
-                        st.warning("⚠️ 今日一卦已用完，如需更多请购买 credit")
-                    else:
+            if not has_profile:
+                # No profile loaded - show disabled button with tooltip
+                st.button(oracle_label, key="btn_oracle", use_container_width=True, disabled=True, help="需读取或建立档案")
+            else:
+                # Check database quota
+                has_quota = check_daily_quota(st.session_state.loaded_profile_id)
+                oracle_disabled = is_generating or (not has_quota and "oracle" not in st.session_state.clicked_topics)
+                
+                if st.button(oracle_label, key="btn_oracle", use_container_width=True, disabled=oracle_disabled):
+                    if "oracle" in st.session_state.clicked_topics:
+                        # Scroll to existing oracle result
+                        st.session_state.scroll_to_topic = "oracle"
+                        st.session_state.scroll_timestamp = datetime.now().timestamp()
+                        st.rerun()
+                    elif has_quota:
                         st.session_state.oracle_mode = True
                         st.rerun()
+                
+                # Show quota status below button
+                if not has_quota and "oracle" not in st.session_state.clicked_topics:
+                    st.caption("🍵 今日已用")
         
         # 大师解惑 (index 6)
         with cols2[3]:
@@ -2119,6 +2126,10 @@ else:
                                 st.session_state.oracle_used_today = True
                                 st.session_state.oracle_usage_date = datetime.now().strftime("%Y-%m-%d")
                                 st.session_state.default_api_usage_count += 1
+                                
+                                # Consume daily quota in database (if profile loaded)
+                                if st.session_state.loaded_profile_id:
+                                    consume_daily_quota(st.session_state.loaded_profile_id)
                                 
                                 # Auto-save session data if profile is loaded
                                 if st.session_state.loaded_profile_id:
