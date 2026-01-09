@@ -171,8 +171,9 @@ def restore_session_state(session_data_json: str) -> bool:
         st.session_state.is_first_response = snapshot.get("is_first_response", True)
         st.session_state.custom_question_count = snapshot.get("custom_question_count", 0)
         
-        # Critical: Set bazi_calculated to show results page
+        # Critical: Set flags to show results page
         st.session_state.bazi_calculated = True
+        st.session_state.has_result = True
         
         return True
     except Exception as e:
@@ -234,6 +235,8 @@ st.set_page_config(
 # Initialize session state
 if "bazi_calculated" not in st.session_state:
     st.session_state.bazi_calculated = False
+if "has_result" not in st.session_state:
+    st.session_state.has_result = False  # Controls which page to show
 if "bazi_result" not in st.session_state:
     st.session_state.bazi_result = ""
 if "time_info" not in st.session_state:
@@ -287,6 +290,23 @@ if "oracle_used_today" not in st.session_state:
     st.session_state.oracle_used_today = False
 if "oracle_usage_date" not in st.session_state:
     st.session_state.oracle_usage_date = None
+
+# ========== Form Input Session State Keys ==========
+# These bind to form widgets with key= parameter for auto-update when loading profiles
+if "input_gender" not in st.session_state:
+    st.session_state.input_gender = "男"
+if "input_birth_date" not in st.session_state:
+    st.session_state.input_birth_date = date(1990, 1, 1)
+if "input_birth_hour" not in st.session_state:
+    st.session_state.input_birth_hour = 12
+if "input_birth_minute" not in st.session_state:
+    st.session_state.input_birth_minute = 0
+if "input_lunar_year" not in st.session_state:
+    st.session_state.input_lunar_year = 1990
+if "input_lunar_month" not in st.session_state:
+    st.session_state.input_lunar_month = "1月"
+if "input_lunar_day" not in st.session_state:
+    st.session_state.input_lunar_day = 1
 
 # Check query parameters for localStorage data
 query_params = st.query_params
@@ -749,6 +769,73 @@ if "loaded_profile" not in st.session_state:
     st.session_state.loaded_profile = None
 if "loaded_profile_id" not in st.session_state:
     st.session_state.loaded_profile_id = None
+if "pending_profile_load" not in st.session_state:
+    st.session_state.pending_profile_load = None  # Profile to load on next rerun
+
+
+def load_profile_callback(profile_data: dict, profile_id: str):
+    """
+    Callback function to load profile data into session state.
+    This updates all input keys and sets has_result flag.
+    MUST be called before any UI rendering for proper updates.
+    """
+    # 1. Update form input session state keys
+    st.session_state.input_gender = profile_data.get("gender", "男")
+    
+    # Handle date - either solar or lunar
+    if profile_data.get("is_lunar", False):
+        st.session_state.calendar_mode = "lunar"
+        st.session_state.input_lunar_year = profile_data.get("birth_year", 1990)
+        st.session_state.input_lunar_month = f"{profile_data.get('birth_month', 1)}月"
+        st.session_state.input_lunar_day = profile_data.get("birth_day", 1)
+    else:
+        st.session_state.calendar_mode = "solar"
+        try:
+            st.session_state.input_birth_date = date(
+                profile_data.get("birth_year", 1990),
+                profile_data.get("birth_month", 1),
+                profile_data.get("birth_day", 1)
+            )
+        except:
+            st.session_state.input_birth_date = date(1990, 1, 1)
+    
+    # Handle time
+    birth_hour_str = profile_data.get("birth_hour", "12:00")
+    if birth_hour_str and ":" in birth_hour_str:
+        try:
+            h, m = birth_hour_str.split(":")
+            st.session_state.input_birth_hour = int(h)
+            st.session_state.input_birth_minute = int(m)
+            st.session_state.time_mode = "exact"
+        except:
+            st.session_state.input_birth_hour = 12
+            st.session_state.input_birth_minute = 0
+    elif birth_hour_str and "时" in birth_hour_str:
+        # Shichen format
+        st.session_state.time_mode = "shichen"
+        st.session_state.input_birth_hour = 12  # Fallback
+    
+    # Store loaded profile reference
+    st.session_state.loaded_profile = profile_data
+    st.session_state.loaded_profile_id = profile_id
+    
+    # 2. Restore session data if available (bazi results, chat history, etc.)
+    if profile_data.get("session_data"):
+        if restore_session_state(profile_data["session_data"]):
+            # restore_session_state sets bazi_calculated = True
+            st.session_state.has_result = True
+    
+    # 3. Clear cache if needed
+    # st.cache_data.clear()  # Uncomment if caching causes issues
+
+
+# ========== CRITICAL: Handle Pending Profile Load BEFORE Any UI ==========
+# This ensures profile data is loaded into session state before widgets render
+if st.session_state.pending_profile_load is not None:
+    pending = st.session_state.pending_profile_load
+    st.session_state.pending_profile_load = None  # Clear the flag
+    load_profile_callback(pending["profile"], pending["profile_id"])
+    st.rerun()  # Rerun to render with updated state
 
 # Sidebar with Profile Search (Input-First Pattern)
 with st.sidebar:
@@ -769,21 +856,13 @@ with st.sidebar:
             if search_id.strip():
                 profile = get_profile_by_id(search_id.strip())
                 if profile:
-                    st.session_state.loaded_profile = profile
-                    st.session_state.loaded_profile_id = search_id.strip()
-                    
-                    # Restore session state if session_data exists
-                    if profile.get("session_data"):
-                        if restore_session_state(profile["session_data"]):
-                            # Critical: bazi_calculated is set to True inside restore_session_state
-                            # This ensures user sees the results page directly
-                            st.success(f"✓ 已加载完整记录")
-                        else:
-                            st.success(f"✓ 已加载")
-                    else:
-                        st.success(f"✓ 已加载")
-                    # Force rerun to update UI - will go to results page if bazi_calculated is True
-                    st.rerun()
+                    # Use pending load mechanism for proper session state update
+                    # This ensures load_profile_callback runs BEFORE any UI renders
+                    st.session_state.pending_profile_load = {
+                        "profile": profile,
+                        "profile_id": search_id.strip()
+                    }
+                    st.rerun()  # Rerun to trigger the callback at top of script
                 else:
                     st.error("未找到此ID")
             else:
@@ -897,6 +976,7 @@ with st.sidebar:
     # Reset button
     if st.button("🔄 重新开始", use_container_width=True):
         st.session_state.bazi_calculated = False
+        st.session_state.has_result = False
         st.session_state.bazi_result = ""
         st.session_state.time_info = ""
         st.session_state.user_context = ""
@@ -915,6 +995,7 @@ with st.sidebar:
     # Clear storage button
     if st.button("🗑️ 清除浏览器记录", use_container_width=True):
         st.session_state.bazi_calculated = False
+        st.session_state.has_result = False
         st.session_state.bazi_result = ""
         st.session_state.time_info = ""
         st.session_state.user_context = ""
@@ -955,7 +1036,7 @@ st.markdown("<h1>🔮 命理大师</h1>", unsafe_allow_html=True)
 
 # ========== Loaded Profile Notification ==========
 # If a profile was loaded from sidebar, show notification and pre-fill values will be used
-if st.session_state.loaded_profile and not st.session_state.bazi_calculated:
+if st.session_state.loaded_profile and not st.session_state.has_result:
     profile = st.session_state.loaded_profile
     st.markdown(f"""
     <div style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); 
@@ -966,8 +1047,9 @@ if st.session_state.loaded_profile and not st.session_state.bazi_calculated:
     </div>
     """, unsafe_allow_html=True)
 
-# Only show input form if Bazi not yet calculated
-if not st.session_state.bazi_calculated:
+# ========== MAIN INTERFACE: Mutually Exclusive Pages ==========
+# Use has_result to determine which page to show
+if not st.session_state.has_result:
     # Mode Toggle (Single vs Compatibility)
     st.markdown('<p class="section-label">💫 分析模式</p>', unsafe_allow_html=True)
     mode_selection = st.radio(
@@ -992,20 +1074,18 @@ if not st.session_state.bazi_calculated:
     if st.session_state.compatibility_mode:
         st.markdown("### 👤 甲方 (我的信息)")
     
-    # Gender Selection - pre-populate from loaded profile
+    # Gender Selection - bound to session state for auto-update on profile load
     st.markdown('<p class="section-label">👤 性别</p>', unsafe_allow_html=True)
-    
-    # Determine default gender index from loaded profile
-    _default_gender_idx = 0
-    if st.session_state.loaded_profile:
-        _default_gender_idx = 0 if st.session_state.loaded_profile["gender"] == "男" else 1
     
     gender = st.selectbox(
         "性别",
         options=["男", "女"],
-        index=_default_gender_idx,
+        index=0 if st.session_state.input_gender == "男" else 1,
+        key="input_gender_widget",
         label_visibility="collapsed"
     )
+    # Sync widget value to session state
+    st.session_state.input_gender = gender
 
 
     # Birth Date Input
@@ -1030,25 +1110,17 @@ if not st.session_state.bazi_calculated:
     
     # Show appropriate date input based on calendar mode
     if st.session_state.calendar_mode == "solar":
-        # Solar calendar - use date picker with loaded profile default
-        _default_date = date(1990, 1, 1)
-        if st.session_state.loaded_profile and not st.session_state.loaded_profile.get("is_lunar", False):
-            try:
-                _default_date = date(
-                    st.session_state.loaded_profile["birth_year"],
-                    st.session_state.loaded_profile["birth_month"],
-                    st.session_state.loaded_profile["birth_day"]
-                )
-            except:
-                pass
-        
+        # Solar calendar - use date picker bound to session state
         birthday = st.date_input(
             "出生日期",
-            value=_default_date,
+            value=st.session_state.input_birth_date,
             min_value=date(1900, 1, 1),
             max_value=date.today(),
+            key="input_birth_date_widget",
             label_visibility="collapsed"
         )
+        # Sync to session state
+        st.session_state.input_birth_date = birthday
     else:
         # Lunar calendar - use dropdowns
         lunar_col1, lunar_col2, lunar_col3 = st.columns(3)
@@ -1137,16 +1209,23 @@ if not st.session_state.bazi_calculated:
             birth_hour = st.selectbox(
                 "小时",
                 options=list(range(24)),
-                index=12,
+                index=st.session_state.input_birth_hour,
+                key="input_birth_hour_widget",
                 format_func=lambda x: f"{x:02d}"
             )
+            st.session_state.input_birth_hour = birth_hour
         with time_col_m:
+            # Calculate minute index (options are 0, 5, 10, ... 55)
+            _minute_options = list(range(0, 60, 5))
+            _minute_idx = _minute_options.index(st.session_state.input_birth_minute) if st.session_state.input_birth_minute in _minute_options else 0
             birth_minute = st.selectbox(
                 "分钟",
-                options=list(range(0, 60, 5)),
-                index=0,
+                options=_minute_options,
+                index=_minute_idx,
+                key="input_birth_minute_widget",
                 format_func=lambda x: f"{x:02d}"
             )
+            st.session_state.input_birth_minute = birth_minute
         final_hour = birth_hour
         final_minute = birth_minute
 
@@ -1497,6 +1576,7 @@ if not st.session_state.bazi_calculated:
         
         # Store in session state
         st.session_state.bazi_calculated = True
+        st.session_state.has_result = True  # Controls page display
         st.session_state.bazi_result = bazi_result
         st.session_state.time_info = time_info
         st.session_state.pattern_info = pattern_info  # Store pattern info
