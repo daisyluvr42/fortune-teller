@@ -2040,13 +2040,56 @@ def calculate_bazi(year: int, month: int, day: int, hour: int, minute: int = 0, 
     return bazi_str, time_info, pattern_info
 
 
-def build_user_context(bazi_text: str, gender: str, birthplace: str, current_time: str, birth_datetime: str = None, pattern_info: dict = None) -> str:
+def build_user_context(bazi_text: str, gender: str, birthplace: str, current_time: str, birth_datetime: str = None, pattern_info: dict = None, birth_year: int = None) -> str:
     """
     Build comprehensive user context for LLM prompts.
     Includes pre-computed pattern (格局) and ten gods (十神) information.
     """
     birth_info = f"\n出生时间：{birth_datetime}" if birth_datetime else ""
     
+    # Calculate age and dynamic instructions
+    age_instruction = ""
+    if birth_year:
+        current_year = datetime.now().year
+        age = current_year - birth_year
+        
+        if age <= 15:
+            age_instruction = f"""
+【特殊指令：案主为儿童/少年 ({age}岁)】
+1. [事业板块] -> 强制重定向为分析“学业与天赋”：
+   - 重点关注：文昌运、考试运、天赋潜能、适合的兴趣特长开发。
+   - ⛔️ 严禁提及：职场升迁、权力斗争、办公室政治。
+2. [感情板块] -> 强制重定向为分析“亲子与家庭”：
+   - 重点关注：与父母的缘分、性格引导方向、渴望的家庭氛围。
+   - ⛔️ 严禁提及：恋爱、婚姻、桃花、两性关系。
+"""
+        elif 16 <= age <= 22:
+            age_instruction = f"""
+【特殊指令：案主为青年/学生 ({age}岁)】
+1. [事业板块] -> 强制重定向为分析“学业与职业探索”：
+   - 重点关注：学业考试（考研/留学）、早期职业规划（适合的行业属性）。
+2. [感情板块] -> 强制重定向为分析“恋爱与人际”：
+   - 重点关注：恋爱运势（桃花质量、相处模式）、同辈人际关系。
+   - 侧重于情感价值观的建立，而非催婚或长期婚姻稳定性。
+"""
+        elif age >= 60:
+            age_instruction = f"""
+【特殊指令：案主为长者 ({age}岁)】
+1. [事业板块] -> 强制重定向为分析“守成与声望”：
+   - 侧重分析：晚年声望、财富守成、精神层面的成就感、或家族传承。
+   - 减少职场拼搏、升职加薪的描述。
+2. [感情板块] -> 强制重定向为分析“伴侣与晚景”：
+   - 侧重分析：老来伴的相互扶持、晚年孤独感排解、以及与子女的亲密程度。
+"""
+        else:
+            # 23-59岁 (Standard Adult)
+            age_instruction = f"""
+【指令：案主为成年人 ({age}岁)】
+请按标准成人视角分析：
+1. [事业板块] -> 关注职场升迁、财富积累、创业机会。
+2. [感情板块] -> 关注婚恋关系、婚姻稳定性、家庭建设。
+"""
+
     # 构建格局和十神信息
     pattern_section = ""
     if pattern_info:
@@ -2182,6 +2225,7 @@ def build_user_context(bazi_text: str, gender: str, birthplace: str, current_tim
 性别：{gender}
 出生地：{birthplace}{birth_info}
 当前基准时间 (已与网络同步)：{current_time}
+{age_instruction}
 {pattern_section}
 
 ---

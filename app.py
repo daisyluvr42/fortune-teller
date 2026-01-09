@@ -1605,7 +1605,8 @@ if not st.session_state.has_result:
             st.session_state.birthplace,
             current_time,
             birth_datetime,
-            pattern_info  # Pass pattern info to user context
+            pattern_info,  # Pass pattern info to user context
+            birthday.year  # Pass birth year for age calculation
         )
         
         # Generate SVG chart with detailed data (ten gods + hidden stems)
