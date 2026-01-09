@@ -18,9 +18,10 @@ fortune_teller_agent/
 ├── app.py           # Streamlit 主应用
 ├── logic.py         # 八字计算 & LLM 调用 & 格局/调候/周易计算器
 ├── bazi_utils.py    # 合盘计算器 & 周易图表 & Prompt 构建器
+├── db_utils.py      # SQLite 数据库工具 & 用户档案管理
 ├── pdf_generator.py # PDF 报告生成器 (ReportLab)
 ├── china_cities.py  # 350+ 中国城市经度数据
-├── .env             # 环境变量 (API Key)
+├── .env             # 环境变量 (API Key, Supabase)
 └── pyproject.toml   # 项目配置
 ```
 
@@ -321,6 +322,27 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 | 🗑️ 清除保存记录 | 清空当前会话 + 清除 localStorage |
 
 ## 更新日志
+
+### 2026-01-09 (用户档案会话持久化) ⭐ NEW
+- ⭐ **完整会话持久化** - 加载档案即刻恢复分析结果
+  - 新增 `db_utils.py` - SQLite 用户档案管理
+  - 新增 `session_data TEXT` 列存储 JSON 序列化会话状态
+  - 保存 15+ 关键会话变量 (bazi_result, responses, clicked_topics, bazi_svg, energy_data 等)
+- ⭐ **自动保存触发** - LLM 响应完成后自动更新数据库
+  - 主分析响应、合盘分析、周易起卦三处触发点
+  - 基于 `loaded_profile_id` 检测是否需要保存
+- ⭐ **即刻恢复** - 加载档案时自动还原完整 UI 状态
+  - `restore_session_state()` 反序列化 JSON
+  - 设置 `bazi_calculated = True` 直接显示结果页
+  - 无需重新点击"开始算命"
+- ⭐ **Supabase 配置** - 新增云数据库环境变量
+  - `.env` 新增 `SUPABASE_URL` / `SUPABASE_KEY`
+  - `.streamlit/secrets.toml` 用于 Streamlit Cloud
+  - 所有敏感文件已 gitignore
+- 📦 新增函数位置：
+  - `serialize_session_state()` → `app.py`
+  - `restore_session_state()` → `app.py`
+  - `update_session_data()` → `db_utils.py`
 
 ### 2026-01-08 (五行能量饼图) ⭐ NEW
 - ⭐ **五行能量计算器** - 新增 `BaziEnergyCalculator` 类

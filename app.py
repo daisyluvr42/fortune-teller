@@ -14,6 +14,7 @@ from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
 from pdf_generator import generate_report_pdf
+from db_utils import init_db, save_profile, profile_exists, get_all_profiles, get_profile_by_id, delete_profile, update_session_data
 
 load_dotenv()
 
@@ -118,6 +119,65 @@ def clean_markdown_for_display(text: str) -> str:
     
     return text
 
+
+def serialize_session_state() -> str:
+    """
+    Capture critical session state as JSON string for persistence.
+    Used for auto-saving session after LLM responses.
+    """
+    snapshot = {
+        "bazi_result": st.session_state.get("bazi_result", ""),
+        "time_info": st.session_state.get("time_info", ""),
+        "user_context": st.session_state.get("user_context", ""),
+        "clicked_topics": list(st.session_state.get("clicked_topics", set())),
+        "responses": st.session_state.get("responses", []),
+        "pattern_info": st.session_state.get("pattern_info"),
+        "bazi_svg": st.session_state.get("bazi_svg"),
+        "energy_data": st.session_state.get("energy_data"),
+        "energy_svg": st.session_state.get("energy_svg"),
+        "dominant_element": st.session_state.get("dominant_element"),
+        "weakest_element": st.session_state.get("weakest_element"),
+        "birthplace": st.session_state.get("birthplace"),
+        "gender": st.session_state.get("gender"),
+        "birth_datetime": st.session_state.get("birth_datetime"),
+        "is_first_response": st.session_state.get("is_first_response", True),
+        "custom_question_count": st.session_state.get("custom_question_count", 0),
+    }
+    return json.dumps(snapshot, ensure_ascii=False)
+
+
+def restore_session_state(session_data_json: str) -> bool:
+    """
+    Restore session state from JSON string.
+    Returns True if restoration was successful.
+    """
+    try:
+        snapshot = json.loads(session_data_json)
+        
+        st.session_state.bazi_result = snapshot.get("bazi_result", "")
+        st.session_state.time_info = snapshot.get("time_info", "")
+        st.session_state.user_context = snapshot.get("user_context", "")
+        st.session_state.clicked_topics = set(snapshot.get("clicked_topics", []))
+        st.session_state.responses = [tuple(r) if isinstance(r, list) else r for r in snapshot.get("responses", [])]
+        st.session_state.pattern_info = snapshot.get("pattern_info")
+        st.session_state.bazi_svg = snapshot.get("bazi_svg")
+        st.session_state.energy_data = snapshot.get("energy_data")
+        st.session_state.energy_svg = snapshot.get("energy_svg")
+        st.session_state.dominant_element = tuple(snapshot["dominant_element"]) if snapshot.get("dominant_element") else None
+        st.session_state.weakest_element = tuple(snapshot["weakest_element"]) if snapshot.get("weakest_element") else None
+        st.session_state.birthplace = snapshot.get("birthplace")
+        st.session_state.gender = snapshot.get("gender")
+        st.session_state.birth_datetime = snapshot.get("birth_datetime")
+        st.session_state.is_first_response = snapshot.get("is_first_response", True)
+        st.session_state.custom_question_count = snapshot.get("custom_question_count", 0)
+        
+        # Critical: Set bazi_calculated to show results page
+        st.session_state.bazi_calculated = True
+        
+        return True
+    except Exception as e:
+        print(f"Failed to restore session state: {e}")
+        return False
 
 # Default API configuration (Gemini) - Load from environment for security
 # IMPORTANT: Set GEMINI_API_KEY in .env file, do NOT hardcode API keys!
@@ -681,8 +741,79 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar for reset only
+# Initialize database on startup
+init_db()
+
+# Profile session state initialization for Input-First pattern
+if "loaded_profile" not in st.session_state:
+    st.session_state.loaded_profile = None
+if "loaded_profile_id" not in st.session_state:
+    st.session_state.loaded_profile_id = None
+
+# Sidebar with Profile Search (Input-First Pattern)
 with st.sidebar:
+    # ========== Profile Search Section (Input-First) ==========
+    st.markdown('<p class="sidebar-title">🔍 查找档案</p>', unsafe_allow_html=True)
+    
+    search_id = st.text_input(
+        "输入档案ID搜索",
+        placeholder="例如: Boss123",
+        key="profile_search_input",
+        label_visibility="collapsed"
+    )
+    
+    col_search, col_delete = st.columns([2, 1])
+    
+    with col_search:
+        if st.button("📥 加载", use_container_width=True):
+            if search_id.strip():
+                profile = get_profile_by_id(search_id.strip())
+                if profile:
+                    st.session_state.loaded_profile = profile
+                    st.session_state.loaded_profile_id = search_id.strip()
+                    
+                    # Restore session state if session_data exists
+                    if profile.get("session_data"):
+                        if restore_session_state(profile["session_data"]):
+                            st.success(f"✓ 已加载完整记录")
+                        else:
+                            st.success(f"✓ 已加载")
+                    else:
+                        st.success(f"✓ 已加载")
+                    st.rerun()
+                else:
+                    st.error("未找到此ID")
+            else:
+                st.warning("请输入ID")
+    
+    with col_delete:
+        if st.button("🗑️", use_container_width=True, help="删除此档案"):
+            if search_id.strip():
+                if delete_profile(search_id.strip()):
+                    st.success("已删除")
+                    if st.session_state.loaded_profile_id == search_id.strip():
+                        st.session_state.loaded_profile = None
+                        st.session_state.loaded_profile_id = None
+                    st.rerun()
+                else:
+                    st.error("未找到")
+    
+    # Show loaded profile info
+    if st.session_state.loaded_profile:
+        profile = st.session_state.loaded_profile
+        st.markdown(f"""
+        <div style="background: rgba(255, 215, 0, 0.1); border-radius: 8px; padding: 10px; margin-top: 10px;">
+            <small style="color: #ffd700;">📋 当前: <b>{st.session_state.loaded_profile_id}</b></small><br>
+            <small style="color: #ccc;">{profile['gender']} | {profile['birth_year']}年{profile['birth_month']}月{profile['birth_day']}日</small>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("✕ 清除已加载", use_container_width=True):
+            st.session_state.loaded_profile = None
+            st.session_state.loaded_profile_id = None
+            st.rerun()
+    
+    st.markdown("---")
     st.markdown('<p class="sidebar-title">⚙️ 设置</p>', unsafe_allow_html=True)
     
     # Reset button
@@ -699,10 +830,12 @@ with st.sidebar:
         st.session_state.calendar_mode = "solar"
         st.session_state.is_first_response = True
         st.session_state.scroll_to_topic = None
+        st.session_state.loaded_profile = None
+        st.session_state.loaded_profile_id = None
         st.rerun()
     
     # Clear storage button
-    if st.button("🗑️ 清除保存记录", use_container_width=True):
+    if st.button("🗑️ 清除浏览器记录", use_container_width=True):
         st.session_state.bazi_calculated = False
         st.session_state.bazi_result = ""
         st.session_state.time_info = ""
@@ -718,15 +851,14 @@ with st.sidebar:
         st.session_state.clear_storage_requested = True
         st.rerun()
     
-    st.markdown("---")
     st.markdown("""
     <small style="color: #888;">
-    💡 默认 API 每会话限制 """ + str(DEFAULT_API_DAILY_LIMIT) + """ 次请求。如需无限制使用，请配置您自己的 API Key。
+    💡 默认 API 每会话限制 """ + str(DEFAULT_API_DAILY_LIMIT) + """ 次请求。
     </small>
     """, unsafe_allow_html=True)
     st.markdown("""
     <small style="color: #666;">
-    💾 分析记录会自动保存在浏览器中
+    💾 在主界面输入信息后可保存为档案
     </small>
     """, unsafe_allow_html=True)
 
@@ -742,6 +874,19 @@ if st.session_state.clear_storage_requested:
 
 # Title
 st.markdown("<h1>🔮 命理大师</h1>", unsafe_allow_html=True)
+
+# ========== Loaded Profile Notification ==========
+# If a profile was loaded from sidebar, show notification and pre-fill values will be used
+if st.session_state.loaded_profile and not st.session_state.bazi_calculated:
+    profile = st.session_state.loaded_profile
+    st.markdown(f"""
+    <div style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); 
+                border-radius: 10px; padding: 12px; margin-bottom: 15px;">
+        <span style="color: #4CAF50;">✓ 已加载档案:</span>
+        <strong style="color: #ffd700;">{st.session_state.loaded_profile_id}</strong>
+        <span style="color: #ccc;"> ({profile['gender']} | {profile['birth_year']}年{profile['birth_month']}月{profile['birth_day']}日)</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Only show input form if Bazi not yet calculated
 if not st.session_state.bazi_calculated:
@@ -769,12 +914,18 @@ if not st.session_state.bazi_calculated:
     if st.session_state.compatibility_mode:
         st.markdown("### 👤 甲方 (我的信息)")
     
-    # Gender Selection
+    # Gender Selection - pre-populate from loaded profile
     st.markdown('<p class="section-label">👤 性别</p>', unsafe_allow_html=True)
+    
+    # Determine default gender index from loaded profile
+    _default_gender_idx = 0
+    if st.session_state.loaded_profile:
+        _default_gender_idx = 0 if st.session_state.loaded_profile["gender"] == "男" else 1
+    
     gender = st.selectbox(
         "性别",
         options=["男", "女"],
-        index=0,
+        index=_default_gender_idx,
         label_visibility="collapsed"
     )
 
@@ -801,10 +952,21 @@ if not st.session_state.bazi_calculated:
     
     # Show appropriate date input based on calendar mode
     if st.session_state.calendar_mode == "solar":
-        # Solar calendar - use date picker
+        # Solar calendar - use date picker with loaded profile default
+        _default_date = date(1990, 1, 1)
+        if st.session_state.loaded_profile and not st.session_state.loaded_profile.get("is_lunar", False):
+            try:
+                _default_date = date(
+                    st.session_state.loaded_profile["birth_year"],
+                    st.session_state.loaded_profile["birth_month"],
+                    st.session_state.loaded_profile["birth_day"]
+                )
+            except:
+                pass
+        
         birthday = st.date_input(
             "出生日期",
-            value=date(1990, 1, 1),
+            value=_default_date,
             min_value=date(1900, 1, 1),
             max_value=date.today(),
             label_visibility="collapsed"
@@ -1171,12 +1333,73 @@ if not st.session_state.bazi_calculated:
         )
 
 
-    # Calculate button
+    # ========== Save Profile Dialog ==========
+    @st.dialog("保存档案")
+    def save_profile_dialog():
+        """Dialog to save current form values as a profile with user-defined ID."""
+        st.markdown("为当前输入的信息设置一个唯一ID，以便日后快速加载。")
+        
+        new_profile_id = st.text_input(
+            "档案ID",
+            placeholder="输入字母/数字组合，如: Boss123",
+            max_chars=50
+        )
+        
+        col_confirm, col_cancel = st.columns(2)
+        with col_confirm:
+            if st.button("✓ 确认保存", use_container_width=True, type="primary"):
+                if not new_profile_id.strip():
+                    st.error("请输入档案ID")
+                elif profile_exists(new_profile_id.strip()):
+                    st.error("❌ ID已存在，请换一个")
+                else:
+                    # Get current form values from session state
+                    # These need to be captured before dialog opens
+                    save_success = save_profile(
+                        profile_id=new_profile_id.strip(),
+                        gender=st.session_state.get("_save_gender", "男"),
+                        birth_year=st.session_state.get("_save_year", 1990),
+                        birth_month=st.session_state.get("_save_month", 1),
+                        birth_day=st.session_state.get("_save_day", 1),
+                        birth_hour=st.session_state.get("_save_hour", "午时 (11:00-13:00)"),
+                        city=st.session_state.get("_save_city", None),
+                        is_lunar=st.session_state.get("_save_is_lunar", False)
+                    )
+                    if save_success:
+                        st.success(f"✓ 档案 '{new_profile_id.strip()}' 已保存!")
+                        st.balloons()
+                    else:
+                        st.error("保存失败")
+        
+        with col_cancel:
+            if st.button("✕ 取消", use_container_width=True):
+                st.rerun()
+
+    # Calculate and Save buttons row
     st.markdown("")
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        button_label = "💕 开始合盘分析" if st.session_state.compatibility_mode else "🎴 开始算命"
-        start_button = st.button(button_label, use_container_width=True)
+    if st.session_state.compatibility_mode:
+        # Compatibility mode: only calculate button
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            start_button = st.button("💕 开始合盘分析", use_container_width=True)
+        save_clicked = False
+    else:
+        # Single mode: calculate + save buttons
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+        with col2:
+            start_button = st.button("🎴 开始算命", use_container_width=True)
+        with col3:
+            # Store current form values before opening dialog
+            if st.button("💾 保存档案", use_container_width=True):
+                # Capture current form values to session state for the dialog
+                st.session_state["_save_gender"] = gender
+                st.session_state["_save_year"] = birthday.year
+                st.session_state["_save_month"] = birthday.month
+                st.session_state["_save_day"] = birthday.day
+                st.session_state["_save_hour"] = st.session_state.time_mode == "shichen" and shichen or f"{final_hour:02d}:00"
+                st.session_state["_save_city"] = birthplace if birthplace != "不选择 (使用北京时间)" else None
+                st.session_state["_save_is_lunar"] = st.session_state.calendar_mode == "lunar"
+                save_profile_dialog()
 
 
     if start_button:
@@ -1894,6 +2117,10 @@ else:
                                 st.session_state.oracle_usage_date = datetime.now().strftime("%Y-%m-%d")
                                 st.session_state.default_api_usage_count += 1
                                 
+                                # Auto-save session data if profile is loaded
+                                if st.session_state.loaded_profile_id:
+                                    update_session_data(st.session_state.loaded_profile_id, serialize_session_state())
+                                
                             except Exception as e:
                                 st.error(f"❌ 解卦失败：{str(e)}")
                 
@@ -2017,6 +2244,10 @@ else:
             st.session_state.is_generating = False
             if st.session_state.using_default_api:
                 st.session_state.default_api_usage_count += 1
+            
+            # Auto-save session data if profile is loaded
+            if st.session_state.loaded_profile_id:
+                update_session_data(st.session_state.loaded_profile_id, serialize_session_state())
             st.rerun()
         
         with st.spinner(f"正在分析 {topic}..."):
@@ -2063,6 +2294,9 @@ else:
         # Increment usage counter if using default API
         if st.session_state.using_default_api:
             st.session_state.default_api_usage_count += 1
+        # Auto-save session data if profile is loaded
+        if st.session_state.loaded_profile_id:
+            update_session_data(st.session_state.loaded_profile_id, serialize_session_state())
         # Scroll to the newly added response
         st.session_state.scroll_to_topic = topic_key
         st.rerun()
@@ -2123,7 +2357,7 @@ else:
         st.markdown("---")
         st.markdown("### 📥 保存报告")
         
-        # Generate PDF on button click
+        # Generate PDF and create download link
         try:
             pdf_bytes = generate_report_pdf(
                 bazi_result=st.session_state.bazi_result,
@@ -2134,15 +2368,39 @@ else:
                 birth_datetime=getattr(st.session_state, 'birth_datetime', None),
             )
             
-            col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
-            with col_dl2:
-                st.download_button(
-                    label="📄 下载 PDF 报告",
-                    data=pdf_bytes,
-                    file_name=f"命理报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                )
+            # Use base64 data URL to bypass iframe sandboxing issues on mobile browsers
+            import base64
+            b64_pdf = base64.b64encode(pdf_bytes).decode()
+            pdf_filename = f"命理报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+            
+            # Create styled download link that works on all browsers including mobile Safari
+            download_html = f'''
+            <div style="display: flex; justify-content: center; margin: 20px 0;">
+                <a href="data:application/pdf;base64,{b64_pdf}" 
+                   download="{pdf_filename}"
+                   style="
+                       display: inline-flex;
+                       align-items: center;
+                       justify-content: center;
+                       padding: 12px 30px;
+                       background: linear-gradient(145deg, #4A90D9, #357ABD);
+                       color: white;
+                       text-decoration: none;
+                       border-radius: 8px;
+                       font-size: 16px;
+                       font-weight: 500;
+                       box-shadow: 0 4px 15px rgba(74, 144, 217, 0.3);
+                       transition: all 0.3s ease;
+                       min-width: 200px;
+                   "
+                   onmouseover="this.style.background='linear-gradient(145deg, #5A9DE9, #4A90D9)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(74, 144, 217, 0.4)';"
+                   onmouseout="this.style.background='linear-gradient(145deg, #4A90D9, #357ABD)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(74, 144, 217, 0.3)';">
+                    📄 下载 PDF 报告
+                </a>
+            </div>
+            '''
+            st.markdown(download_html, unsafe_allow_html=True)
+            
         except Exception as e:
             st.error(f"生成 PDF 时出错: {str(e)}")
 
