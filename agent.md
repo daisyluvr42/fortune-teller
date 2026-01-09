@@ -344,6 +344,10 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
   - `restore_session_state()` → `app.py`
   - `update_session_data()` → `db_utils.py`
 
+### 2026-01-09 (保存档案 UI 优化)
+- 🎨 **按钮顺序调整** - 保存档案按钮移至左侧，开始算命按钮在右侧
+- 🐛 **对话框自动关闭** - 保存成功后 0.5s 延迟后自动调用 `st.rerun()` 关闭弹窗
+
 ### 2026-01-08 (五行能量饼图) ⭐ NEW
 - ⭐ **五行能量计算器** - 新增 `BaziEnergyCalculator` 类
   - 天干贡献 100 点到对应五行

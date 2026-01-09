@@ -1368,6 +1368,9 @@ if not st.session_state.bazi_calculated:
                     if save_success:
                         st.success(f"✓ 档案 '{new_profile_id.strip()}' 已保存!")
                         st.balloons()
+                        import time
+                        time.sleep(0.5)  # Give user a moment to see success
+                        st.rerun()  # Close dialog by rerunning
                     else:
                         st.error("保存失败")
         
@@ -1384,11 +1387,9 @@ if not st.session_state.bazi_calculated:
             start_button = st.button("💕 开始合盘分析", use_container_width=True)
         save_clicked = False
     else:
-        # Single mode: calculate + save buttons
+        # Single mode: save + calculate buttons (Save first for better UX)
         col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
         with col2:
-            start_button = st.button("🎴 开始算命", use_container_width=True)
-        with col3:
             # Store current form values before opening dialog
             if st.button("💾 保存档案", use_container_width=True):
                 # Capture current form values to session state for the dialog
@@ -1400,6 +1401,8 @@ if not st.session_state.bazi_calculated:
                 st.session_state["_save_city"] = birthplace if birthplace != "不选择 (使用北京时间)" else None
                 st.session_state["_save_is_lunar"] = st.session_state.calendar_mode == "lunar"
                 save_profile_dialog()
+        with col3:
+            start_button = st.button("🎴 开始算命", use_container_width=True)
 
 
     if start_button:
