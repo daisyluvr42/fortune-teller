@@ -1460,6 +1460,18 @@ if not st.session_state.has_result:
                         is_lunar=st.session_state.get("_save_is_lunar", False)
                     )
                     if save_success:
+                        # Update session state immediately to sync with daily divination
+                        st.session_state.loaded_profile_id = new_profile_id.strip()
+                        st.session_state.loaded_profile = {
+                            "id": new_profile_id.strip(),
+                            "gender": st.session_state.get("_save_gender", "男"),
+                            "birth_year": st.session_state.get("_save_year", 1990),
+                            "birth_month": st.session_state.get("_save_month", 1),
+                            "birth_day": st.session_state.get("_save_day", 1),
+                            "birth_hour": st.session_state.get("_save_hour", "12:00"),
+                            "city": st.session_state.get("_save_city", None)
+                        }
+                        
                         st.success(f"✓ 档案 '{new_profile_id.strip()}' 已保存!")
                         st.balloons()
                         import time
@@ -2410,11 +2422,14 @@ else:
                 except Exception as e:
                     response_text = f"分析时出错: {str(e)}"
                     response_placeholder.error(response_text)
+                finally:
+                    # Force reset loading state even if error occurs
+                    st.session_state.is_generating = False
             
             # Store response and update state
             st.session_state.responses.append((topic_key, topic_display, response_text))
             st.session_state.is_first_response = False
-            st.session_state.is_generating = False
+            
             if st.session_state.using_default_api:
                 st.session_state.default_api_usage_count += 1
             
@@ -2459,11 +2474,14 @@ else:
                     f'<div class="topic-header">{topic_display}</div><div class="fortune-text">{clean_markdown_for_display(response_text)}</div>',
                     unsafe_allow_html=True
                 )
+            finally:
+                # Force reset loading state
+                st.session_state.is_generating = False
         
         # Store response and update flags
         st.session_state.responses.append((topic_key, topic_display, response_text))
         st.session_state.is_first_response = False
-        st.session_state.is_generating = False
+        
         # Increment usage counter if using default API
         if st.session_state.using_default_api:
             st.session_state.default_api_usage_count += 1
@@ -2526,7 +2544,7 @@ else:
             st.session_state.scroll_to_topic = None
             st.session_state.scroll_timestamp = None
         
-        # ========== PDF Download Button ==========
+        # ========== PDF Download & Save Profile (Aligned) ==========
         st.markdown("---")
         st.markdown("### 📥 保存报告")
         
@@ -2546,33 +2564,58 @@ else:
             b64_pdf = base64.b64encode(pdf_bytes).decode()
             pdf_filename = f"命理报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
             
-            # Create styled download link that works on all browsers including mobile Safari
+            # Create styled download link
             download_html = f'''
-            <div style="display: flex; justify-content: center; margin: 20px 0;">
-                <a href="data:application/pdf;base64,{b64_pdf}" 
-                   download="{pdf_filename}"
-                   style="
-                       display: inline-flex;
-                       align-items: center;
-                       justify-content: center;
-                       padding: 12px 30px;
-                       background: linear-gradient(145deg, #4A90D9, #357ABD);
-                       color: white;
-                       text-decoration: none;
-                       border-radius: 8px;
-                       font-size: 16px;
-                       font-weight: 500;
-                       box-shadow: 0 4px 15px rgba(74, 144, 217, 0.3);
-                       transition: all 0.3s ease;
-                       min-width: 200px;
-                   "
-                   onmouseover="this.style.background='linear-gradient(145deg, #5A9DE9, #4A90D9)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(74, 144, 217, 0.4)';"
-                   onmouseout="this.style.background='linear-gradient(145deg, #4A90D9, #357ABD)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(74, 144, 217, 0.3)';">
-                    📄 下载 PDF 报告
-                </a>
-            </div>
+            <a href="data:application/pdf;base64,{b64_pdf}" 
+               download="{pdf_filename}"
+               style="
+                   display: inline-flex;
+                   align-items: center;
+                   justify-content: center;
+                   padding: 10px 20px;
+                   background: linear-gradient(145deg, #4A90D9, #357ABD);
+                   color: white;
+                   text-decoration: none;
+                   border-radius: 8px;
+                   font-size: 16px;
+                   font-weight: 500;
+                   box-shadow: 0 4px 15px rgba(74, 144, 217, 0.3);
+                   transition: all 0.3s ease;
+                   width: 100%;
+                   border: none;
+               ">
+                📄 下载 PDF 报告
+            </a>
             '''
-            st.markdown(download_html, unsafe_allow_html=True)
+            
+            # Layout buttons side-by-side using Streamlit columns
+            col_save, col_download = st.columns([1, 1], vertical_alignment="bottom")
+            
+            with col_save:
+                # Button to trigger save dialog
+                if st.button("💾 保存档案", key="btn_save_result_bottom", use_container_width=True):
+                    # Capture current form values if they exist, or use defaults from data
+                    st.session_state["_save_gender"] = st.session_state.get("gender", "男")
+                    
+                    # Try to parse year/month/day from birth_datetime string
+                    b_dt = st.session_state.get("birth_datetime", "")
+                    try:
+                        match = re.search(r'(\d+)年(\d+)月(\d+)日', b_dt)
+                        if match:
+                            st.session_state["_save_year"] = int(match.group(1))
+                            st.session_state["_save_month"] = int(match.group(2))
+                            st.session_state["_save_day"] = int(match.group(3))
+                    except:
+                        pass
+                        
+                    st.session_state["_save_hour"] = st.session_state.get("time_info", "").split()[0] if st.session_state.get("time_info") else "12:00"
+                    st.session_state["_save_city"] = st.session_state.get("birthplace", None)
+                    st.session_state["_save_is_lunar"] = st.session_state.get("calendar_mode") == "lunar"
+                    
+                    save_profile_dialog()
+            
+            with col_download:
+                st.markdown(download_html, unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"生成 PDF 时出错: {str(e)}")
