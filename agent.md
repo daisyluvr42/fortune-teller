@@ -323,6 +323,16 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 
 ## 更新日志
 
+### 2026-01-10 (Supabase 云端数据库迁移) ⭐ NEW
+- ⭐ **全量迁移至 Supabase** - 解决 Profiles 数据丢失问题 (Ghost Writes)
+  - 弃用 SQLite (`profiles.db`)，全面拥抱云原生 PostgreSQL
+  - **严格写入验证**：`upsert` 后立即进行 `select` 回读校验，确保数据真实持久化
+  - **RLS 策略支持**：适配 Supabase Row Level Security，防止未授权写入
+- 📦 **技术栈更新**：
+  - 新增依赖 `supabase>=2.3.0`
+  - 重构 `db_utils.py`，移除所有 SQLite 代码
+  - 环境变量新增 `SUPABASE_URL` 和 `SUPABASE_KEY`
+
 ### 2026-01-10 (智能年龄分层逻辑) ⭐ NEW
 - ⭐ **Prompt 逻辑重构** - 基于用户年龄段动态调整分析侧重点
   - **儿童/少年 (0-15岁)**：[事业]重定向为"学业与天赋"，[感情]重定向为"亲子与家庭"
