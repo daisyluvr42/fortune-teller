@@ -775,11 +775,14 @@ with st.sidebar:
                     # Restore session state if session_data exists
                     if profile.get("session_data"):
                         if restore_session_state(profile["session_data"]):
+                            # Critical: bazi_calculated is set to True inside restore_session_state
+                            # This ensures user sees the results page directly
                             st.success(f"✓ 已加载完整记录")
                         else:
                             st.success(f"✓ 已加载")
                     else:
                         st.success(f"✓ 已加载")
+                    # Force rerun to update UI - will go to results page if bazi_calculated is True
                     st.rerun()
                 else:
                     st.error("未找到此ID")
@@ -797,6 +800,81 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("未找到")
+    
+    st.markdown("---")
+    
+    # ========== Save Profile Section ==========
+    st.markdown('<p class="sidebar-title">💾 保存档案</p>', unsafe_allow_html=True)
+    
+    save_profile_id = st.text_input(
+        "输入新档案ID",
+        placeholder="例如: MyBoss",
+        key="save_profile_id_input",
+        label_visibility="collapsed"
+    )
+    
+    if st.button("💾 保存当前档案", use_container_width=True):
+        if save_profile_id.strip():
+            # Check if profile ID already exists
+            if profile_exists(save_profile_id.strip()):
+                st.error("此ID已存在，请换一个")
+            else:
+                # Get current form values from session state or use defaults
+                # Note: We need to save from the current form state, which might be in session_state after rerun
+                # For now, we'll save the loaded_profile data if available, or the last calculated data
+                if st.session_state.bazi_calculated:
+                    # If bazi is already calculated, we have session data to save
+                    # Try to get birth info from session state
+                    birth_datetime = st.session_state.get("birth_datetime", "")
+                    gender = st.session_state.get("gender", "男")
+                    birthplace = st.session_state.get("birthplace", None)
+                    
+                    # Parse birth_datetime to extract year, month, day, hour
+                    try:
+                        # birth_datetime format is usually like "1990年1月1日 12:00"
+                        match = re.search(r'(\d+)年(\d+)月(\d+)日', birth_datetime)
+                        if match:
+                            b_year = int(match.group(1))
+                            b_month = int(match.group(2))
+                            b_day = int(match.group(3))
+                        else:
+                            st.error("无法解析出生日期，请先点击'开始算命'")
+                            st.stop()
+                        
+                        # Extract hour if available
+                        hour_match = re.search(r'(\d{1,2})[:：](\d{2})', birth_datetime)
+                        if hour_match:
+                            birth_hour = f"{hour_match.group(1)}:{hour_match.group(2)}"
+                        else:
+                            birth_hour = "12:00"
+                        
+                        # Save profile with current session data
+                        success = save_profile(
+                            profile_id=save_profile_id.strip(),
+                            gender=gender,
+                            birth_year=b_year,
+                            birth_month=b_month,
+                            birth_day=b_day,
+                            birth_hour=birth_hour,
+                            city=birthplace,
+                            is_lunar=False  # Assume solar for now
+                        )
+                        
+                        if success:
+                            # Also save session data for instant restore
+                            session_data_json = serialize_session_state()
+                            update_session_data(save_profile_id.strip(), session_data_json)
+                            st.session_state.loaded_profile_id = save_profile_id.strip()
+                            st.success(f"✓ 已保存为 {save_profile_id.strip()}")
+                            st.rerun()
+                        else:
+                            st.error("保存失败")
+                    except Exception as e:
+                        st.error(f"保存出错: {str(e)}")
+                else:
+                    st.warning("请先点击'开始算命'计算八字后再保存")
+        else:
+            st.warning("请输入档案ID")
     
     # Show loaded profile info
     if st.session_state.loaded_profile:
@@ -1089,69 +1167,6 @@ if not st.session_state.bazi_calculated:
         key_prefix="main_city"
     )
 
-    # API Configuration (Optional) - In main area
-    st.markdown("---")
-    with st.expander("🤖 AI 模型设置 (可选)", expanded=False):
-        st.markdown('<small style="color: #888;">默认使用 Gemini API，如需使用其他模型请在此配置</small>', unsafe_allow_html=True)
-        
-        provider = st.selectbox(
-            "选择 AI 提供商",
-            list(AI_PROVIDERS.keys()),
-            index=0
-        )
-        
-        provider_config = AI_PROVIDERS[provider]
-        
-        if provider == "自定义 (Custom)":
-            base_url = st.text_input(
-                "API Base URL",
-                placeholder="https://api.example.com/v1"
-            )
-            model = st.text_input(
-                "模型名称",
-                placeholder="model-name"
-            )
-            api_key = st.text_input(
-                "API Key",
-                type="password",
-                placeholder="输入你的 API Key"
-            )
-        elif provider == "默认 (Gemini)":
-            base_url = DEFAULT_BASE_URL
-            model = st.selectbox("选择模型", provider_config["models"])
-            api_key = ""  # Will use default
-        else:
-            base_url = provider_config["base_url"]
-            model = st.selectbox("选择模型", provider_config["models"])
-            api_key = st.text_input(
-                "API Key",
-                type="password",
-                placeholder="输入你的 API Key"
-            )
-
-    # Store API config in session state
-    if 'api_config' not in st.session_state:
-        st.session_state.api_config = {
-            'api_key': DEFAULT_API_KEY,
-            'base_url': DEFAULT_BASE_URL,
-            'model': DEFAULT_MODEL
-        }
-    
-    # Update API config based on selection
-    if provider == "默认 (Gemini)" or (not api_key):
-        st.session_state.api_config = {
-            'api_key': DEFAULT_API_KEY,
-            'base_url': DEFAULT_BASE_URL,
-            'model': model if provider == "默认 (Gemini)" else DEFAULT_MODEL
-        }
-        st.session_state.using_default_api = True
-    else:
-        st.session_state.api_config = {
-            'api_key': api_key,
-            'base_url': base_url,
-            'model': model
-        }
-        st.session_state.using_default_api = False
 
     # ========== Partner Input Form (Compatibility Mode Only) ==========
     if st.session_state.compatibility_mode:
@@ -1403,6 +1418,70 @@ if not st.session_state.bazi_calculated:
                 save_profile_dialog()
         with col3:
             start_button = st.button("🎴 开始算命", use_container_width=True)
+
+    # API Configuration (Optional) - Below buttons
+    st.markdown("---")
+    with st.expander("🤖 AI 模型设置 (可选)", expanded=False):
+        st.markdown('<small style="color: #888;">默认使用 Gemini API，如需使用其他模型请在此配置</small>', unsafe_allow_html=True)
+        
+        provider = st.selectbox(
+            "选择 AI 提供商",
+            list(AI_PROVIDERS.keys()),
+            index=0
+        )
+        
+        provider_config = AI_PROVIDERS[provider]
+        
+        if provider == "自定义 (Custom)":
+            base_url = st.text_input(
+                "API Base URL",
+                placeholder="https://api.example.com/v1"
+            )
+            model = st.text_input(
+                "模型名称",
+                placeholder="model-name"
+            )
+            api_key = st.text_input(
+                "API Key",
+                type="password",
+                placeholder="输入你的 API Key"
+            )
+        elif provider == "默认 (Gemini)":
+            base_url = DEFAULT_BASE_URL
+            model = st.selectbox("选择模型", provider_config["models"])
+            api_key = ""  # Will use default
+        else:
+            base_url = provider_config["base_url"]
+            model = st.selectbox("选择模型", provider_config["models"])
+            api_key = st.text_input(
+                "API Key",
+                type="password",
+                placeholder="输入你的 API Key"
+            )
+
+    # Store API config in session state
+    if 'api_config' not in st.session_state:
+        st.session_state.api_config = {
+            'api_key': DEFAULT_API_KEY,
+            'base_url': DEFAULT_BASE_URL,
+            'model': DEFAULT_MODEL
+        }
+    
+    # Update API config based on selection
+    if provider == "默认 (Gemini)" or (not api_key):
+        st.session_state.api_config = {
+            'api_key': DEFAULT_API_KEY,
+            'base_url': DEFAULT_BASE_URL,
+            'model': model if provider == "默认 (Gemini)" else DEFAULT_MODEL
+        }
+        st.session_state.using_default_api = True
+    else:
+        st.session_state.api_config = {
+            'api_key': api_key,
+            'base_url': base_url,
+            'model': model
+        }
+        st.session_state.using_default_api = False
 
 
     if start_button:
