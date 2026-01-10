@@ -8,7 +8,7 @@ import urllib.parse
 import re
 from datetime import date, datetime
 import os
-from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, ZhouyiCalculator, get_bazi_json_analysis, ThousandFacesCalculator
+from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, ZhouyiCalculator
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt, BaziEnergyCalculator, EnergyPieChartGenerator
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
@@ -87,15 +87,35 @@ def searchable_city_select(label: str, key_prefix: str, default_index: int = 0):
 
 def clean_markdown_for_display(text: str) -> str:
     """
-    Clean markdown for display.
-    Now mainly relies on global CSS for styling, so we keep the markdown structure intact.
+    Convert markdown formatting to HTML for proper display in Streamlit.
+    Removes/converts: headers (#), bold (**), italic (*), bullet points, etc.
     """
     if not text:
         return text
     
+    # Convert headers (## Title) to styled divs
+    text = re.sub(r'^#{1,6}\s*(.+?)$', r'<div style="font-size: 1.2em; font-weight: bold; color: #ffd700; margin: 15px 0 10px 0;">\1</div>', text, flags=re.MULTILINE)
+    
+    # Convert bold (**text** or __text__)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
+    
+    # Convert italic (*text* or _text_) - but not inside words
+    text = re.sub(r'(?<!\w)\*([^*\n]+?)\*(?!\w)', r'<em>\1</em>', text)
+    text = re.sub(r'(?<!\w)_([^_\n]+?)_(?!\w)', r'<em>\1</em>', text)
+    
+    # Convert bullet points to styled list items
+    text = re.sub(r'^\s*[-*•]\s+', r'<span style="color: #ffd700;">▸</span> ', text, flags=re.MULTILINE)
+    
+    # Convert numbered lists
+    text = re.sub(r'^\s*(\d+)\.\s+', r'<span style="color: #ffd700;">\1.</span> ', text, flags=re.MULTILINE)
+    
     # Remove English translations in parentheses from headers (e.g., "#### 标题 (English)")
-    # This is a safety net in case some prompts still have them.
     text = re.sub(r'^(#+\s+.*?)\s*\([^)]*\)', r'\1', text, flags=re.MULTILINE)
+    
+    # Add line breaks for markdown paragraphs
+    text = re.sub(r'\n\n', r'<br><br>', text)
+    text = re.sub(r'\n', r'<br>', text)
     
     return text
 
@@ -579,66 +599,6 @@ st.markdown("""
             flex: 1 1 100% !important;
             min-width: 100% !important;
         }
-    }
-
-    /* ===== Global Markdown Styling (The Vibe) ===== */
-    /* Headers */
-    .stMarkdown h2, .stMarkdown h3 {
-        color: #FFD700 !important;
-        font-family: 'Noto Serif SC', serif !important;
-        margin-top: 1.5em !important;
-        margin-bottom: 0.8em !important;
-        font-weight: 600 !important;
-    }
-    
-    .stMarkdown h2 { font-size: 1.4rem !important; border-bottom: 1px solid rgba(255, 215, 0, 0.2); padding-bottom: 10px; }
-    .stMarkdown h3 { font-size: 1.2rem !important; }
-
-    /* Paragraphs */
-    .stMarkdown p {
-        font-size: 1.05rem !important;
-        line-height: 1.8 !important;
-        color: #e0e0e0 !important;
-        margin-bottom: 1.2em !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
-    /* Lists */
-    .stMarkdown ul {
-        margin-bottom: 1.2em !important;
-        padding-left: 1.5em !important;
-    }
-
-    .stMarkdown li {
-        font-size: 1.05rem !important;
-        line-height: 1.8 !important;
-        color: #d0d0d0 !important;
-        margin-bottom: 0.5em !important;
-        list-style-type: none !important; /* Custom bullet */
-        position: relative;
-    }
-    
-    .stMarkdown li::before {
-        content: "▸";
-        color: #FFD700;
-        position: absolute;
-        left: -1.2em;
-    }
-
-    /* Bold Text */
-    .stMarkdown strong {
-        color: #FFD700 !important;
-        font-weight: 600 !important;
-    }
-
-    /* Blockquotes */
-    .stMarkdown blockquote {
-        border-left: 3px solid #FFD700 !important;
-        background: rgba(255, 215, 0, 0.05) !important;
-        padding: 10px 15px !important;
-        margin: 1.5em 0 !important;
-    }
-
         
         /* Expander */
         .streamlit-expanderHeader {
@@ -1645,8 +1605,7 @@ if not st.session_state.has_result:
             st.session_state.birthplace,
             current_time,
             birth_datetime,
-            pattern_info,  # Pass pattern info to user context
-            birthday.year  # Pass birth year for age calculation
+            pattern_info  # Pass pattern info to user context
         )
         
         # Generate SVG chart with detailed data (ten gods + hidden stems)
@@ -2077,12 +2036,6 @@ else:
             if st.button(f"💬 {topic}", key=f"btn_{topic}", use_container_width=True, disabled=is_generating):
                 st.session_state.show_custom_input = True
                 st.rerun()
-
-
-
-
-    
-    # Custom question input
     
     
     # Custom question input
@@ -2485,7 +2438,7 @@ else:
                 update_session_data(st.session_state.loaded_profile_id, serialize_session_state())
             st.rerun()
         
-        with st.spinner(f"正在分析 {topic}..."):
+        with st.spinner(f"大师正在分析中..."):
             response_placeholder = st.empty()
             try:
                 for chunk in get_fortune_analysis(
@@ -2555,23 +2508,19 @@ else:
             # Check if this is the scroll target
             is_scroll_target = scroll_target and topic_key == scroll_target
             
-
-
             if is_scroll_target:
                 scroll_anchor_id = anchor_id
                 cleaned_response = clean_markdown_for_display(response)
                 st.markdown(
-                    f'<div id="{anchor_id}" class="topic-header" style="background: rgba(255, 215, 0, 0.2); padding: 10px; border-radius: 8px; scroll-margin-top: 100px;">{topic_display} 👈</div>',
+                    f'<div id="{anchor_id}" class="topic-header" style="background: rgba(255, 215, 0, 0.2); padding: 10px; border-radius: 8px; scroll-margin-top: 100px;">{topic_display} 👈</div><div class="fortune-text">{cleaned_response}</div>',
                     unsafe_allow_html=True
                 )
-                st.markdown(cleaned_response)
             else:
                 cleaned_response = clean_markdown_for_display(response)
                 st.markdown(
-                    f'<div id="{anchor_id}" class="topic-header">{topic_display}</div>',
+                    f'<div id="{anchor_id}" class="topic-header">{topic_display}</div><div class="fortune-text">{cleaned_response}</div>',
                     unsafe_allow_html=True
                 )
-                st.markdown(cleaned_response)
         
         # Use components.html to execute JavaScript for scrolling
         if scroll_anchor_id:
