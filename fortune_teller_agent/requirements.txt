@@ -1,0 +1,10 @@
+streamlit>=1.50.0
+openai>=2.14.0
+lunar-python>=1.4.8
+python-dotenv>=1.2.1
+svgwrite>=1.4.3
+tavily-python>=0.5.0
+reportlab>=4.0.0
+fastapi>=0.109.0
+uvicorn>=0.27.0
+supabase>=2.3.0 # v2 client for postgres
