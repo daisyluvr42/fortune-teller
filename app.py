@@ -184,13 +184,13 @@ def restore_session_state(session_data_json: str) -> bool:
 # IMPORTANT: Set GEMINI_API_KEY in .env file, do NOT hardcode API keys!
 DEFAULT_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-DEFAULT_MODEL = "gemini-3-flash-preview"
+DEFAULT_MODEL = "gemini-3-pro-preview"
 
 # Predefined AI providers (updated 2026-01)
 AI_PROVIDERS = {
     "默认 (Gemini)": {
         "base_url": DEFAULT_BASE_URL,
-        "models": ["gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-pro"]
+        "models": ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-pro"]
     },
     "DeepSeek": {
         "base_url": "https://api.deepseek.com",
@@ -206,7 +206,7 @@ AI_PROVIDERS = {
     },
     "Google Gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
-        "models": ["gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-pro"]
+        "models": ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-pro"]
     },
     "Moonshot (月之暗面)": {
         "base_url": "https://api.moonshot.cn/v1",
