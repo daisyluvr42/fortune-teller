@@ -4,7 +4,6 @@ Uses ReportLab for creating professional PDF reports with Chinese text support.
 """
 
 import io
-import os
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -14,7 +13,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
-import re
+from text_utils import clean_text_for_pdf
 
 # Register Chinese CID font (built-in, no external file needed)
 try:
@@ -25,33 +24,6 @@ except Exception:
     CHINESE_FONT = 'Helvetica'
 
 
-def clean_text_for_pdf(text: str) -> str:
-    """
-    Clean markdown formatting from text for PDF display.
-    Converts markdown to plain text.
-    """
-    if not text:
-        return text
-    
-    # Remove HTML tags
-    text = re.sub(r'<[^>]+>', '', text)
-    
-    # Convert markdown headers to plain text with newlines
-    text = re.sub(r'^#{1,6}\s*(.+?)$', r'\n\1\n', text, flags=re.MULTILINE)
-    
-    # Remove bold/italic markers
-    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-    text = re.sub(r'__(.+?)__', r'\1', text)
-    text = re.sub(r'\*([^*\n]+?)\*', r'\1', text)
-    text = re.sub(r'_([^_\n]+?)_', r'\1', text)
-    
-    # Convert bullet points
-    text = re.sub(r'^\s*[-*•]\s+', r'• ', text, flags=re.MULTILINE)
-    
-    # Clean up extra newlines
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    
-    return text.strip()
 
 
 def create_styles():

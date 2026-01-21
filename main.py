@@ -4,6 +4,7 @@ FastAPI Backend for Fortune Teller (Bazi Analysis)
 Provides RESTful API endpoints for mobile app integration.
 """
 import os
+from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Any
 
@@ -12,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-from openai import OpenAI
 
 # Import core logic
 from logic import (
@@ -27,7 +27,7 @@ from logic import (
 )
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt
 
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 # --- Pydantic Models for Request/Response ---
 

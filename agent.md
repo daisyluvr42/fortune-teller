@@ -14,11 +14,11 @@
 ## 项目结构
 
 ```
-fortune_teller_agent/
+.
 ├── app.py           # Streamlit 主应用
 ├── logic.py         # 八字计算 & LLM 调用 & 格局/调候/周易计算器
 ├── bazi_utils.py    # 合盘计算器 & 周易图表 & Prompt 构建器
-├── db_utils.py      # SQLite 数据库工具 & 用户档案管理
+├── db_utils.py      # Supabase 数据库工具 & 用户档案管理
 ├── pdf_generator.py # PDF 报告生成器 (ReportLab)
 ├── china_cities.py  # 350+ 中国城市经度数据
 ├── .env             # 环境变量 (API Key, Supabase)
@@ -75,7 +75,6 @@ fortune_teller_agent/
 ## 运行方式
 
 ```bash
-cd fortune_teller_agent
 uv run streamlit run app.py
 ```
 
@@ -101,6 +100,11 @@ TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
 ```
 
 **安全说明**：默认 API Key 已移至 `.env` 文件，不再硬编码。每会话限制 20 次请求以防滥用。
+
+## 版本规范
+
+- 当前版本号存放在项目根目录的 `VERSION` 文件中（供 UI 与发布同步读取）。
+- 如果新增/调整功能或用户可感知行为，必须顺次更新 `VERSION`。
 
 ## 主要类与函数
 

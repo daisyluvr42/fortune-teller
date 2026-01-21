@@ -4,9 +4,8 @@ import os
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../fortune_teller_agent')))
 
-from fortune_teller_agent.logic import build_thousand_faces_prompt
+from logic import build_thousand_faces_prompt
 
 def test_prompt_content():
     # Mock data

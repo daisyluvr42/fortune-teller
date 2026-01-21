@@ -6,23 +6,37 @@ import streamlit.components.v1 as components
 import json
 import urllib.parse
 import re
+import calendar
 from datetime import date, datetime
 import os
+from pathlib import Path
 from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, ZhouyiCalculator
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt, BaziEnergyCalculator, EnergyPieChartGenerator
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
 from pdf_generator import generate_report_pdf
+from llm_client import get_llm_client
+from text_utils import clean_markdown_for_display
 from db_utils import init_db, save_profile, profile_exists, get_all_profiles, get_profile_by_id, delete_profile, update_session_data, check_daily_quota, consume_daily_quota
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parent
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+
+
+def get_app_version() -> str:
+    """Read the app version from VERSION file; fallback if missing."""
+    try:
+        return (PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    except Exception:
+        return "v0.0.0"
 
 # Daily limit for default API key (to prevent abuse)
 DEFAULT_API_DAILY_LIMIT = 20
 
 # Pre-sorted city list for searchable dropdown
 SORTED_CITY_LIST = sorted(CHINA_CITIES.keys())
+SORTED_CITY_LIST_LOWER = [city.lower() for city in SORTED_CITY_LIST]
 
 
 def searchable_city_select(label: str, key_prefix: str, default_index: int = 0):
@@ -55,7 +69,12 @@ def searchable_city_select(label: str, key_prefix: str, default_index: int = 0):
     
     # Filter city list based on search query
     if search_query:
-        filtered_cities = [city for city in SORTED_CITY_LIST if search_query.lower() in city.lower()]
+        query_lower = search_query.lower()
+        filtered_cities = [
+            city
+            for city, city_lower in zip(SORTED_CITY_LIST, SORTED_CITY_LIST_LOWER)
+            if query_lower in city_lower
+        ]
     else:
         filtered_cities = SORTED_CITY_LIST
     
@@ -85,39 +104,6 @@ def searchable_city_select(label: str, key_prefix: str, default_index: int = 0):
         return selected, None
 
 
-def clean_markdown_for_display(text: str) -> str:
-    """
-    Convert markdown formatting to HTML for proper display in Streamlit.
-    Removes/converts: headers (#), bold (**), italic (*), bullet points, etc.
-    """
-    if not text:
-        return text
-    
-    # Convert headers (## Title) to styled divs
-    text = re.sub(r'^#{1,6}\s*(.+?)$', r'<div style="font-size: 1.2em; font-weight: bold; color: #ffd700; margin: 15px 0 10px 0;">\1</div>', text, flags=re.MULTILINE)
-    
-    # Convert bold (**text** or __text__)
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    text = re.sub(r'__(.+?)__', r'<strong>\1</strong>', text)
-    
-    # Convert italic (*text* or _text_) - but not inside words
-    text = re.sub(r'(?<!\w)\*([^*\n]+?)\*(?!\w)', r'<em>\1</em>', text)
-    text = re.sub(r'(?<!\w)_([^_\n]+?)_(?!\w)', r'<em>\1</em>', text)
-    
-    # Convert bullet points to styled list items
-    text = re.sub(r'^\s*[-*•]\s+', r'<span style="color: #ffd700;">▸</span> ', text, flags=re.MULTILINE)
-    
-    # Convert numbered lists
-    text = re.sub(r'^\s*(\d+)\.\s+', r'<span style="color: #ffd700;">\1.</span> ', text, flags=re.MULTILINE)
-    
-    # Remove English translations in parentheses from headers (e.g., "#### 标题 (English)")
-    text = re.sub(r'^(#+\s+.*?)\s*\([^)]*\)', r'\1', text, flags=re.MULTILINE)
-    
-    # Add line breaks for markdown paragraphs
-    text = re.sub(r'\n\n', r'<br><br>', text)
-    text = re.sub(r'\n', r'<br>', text)
-    
-    return text
 
 
 def serialize_session_state() -> str:
@@ -354,12 +340,12 @@ st.markdown("""
     h1 {
         font-family: 'Noto Serif SC', serif;
         text-align: center;
-        color: #FFD700;
-        text-shadow: 0 0 15px rgba(255, 215, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.7);
+        color: #FFE57A;
+        text-shadow: 0 0 8px rgba(255, 229, 122, 0.6), 0 2px 3px rgba(0, 0, 0, 0.6);
         margin-bottom: 30px;
-        font-size: 2.2rem;
-        font-weight: 700;
-        letter-spacing: 2px;
+        font-size: 2.3rem;
+        font-weight: 800;
+        letter-spacing: 2.5px;
     }
     
     h2, h3, h4, h5 {
@@ -773,6 +759,251 @@ if "pending_profile_load" not in st.session_state:
     st.session_state.pending_profile_load = None  # Profile to load on next rerun
 
 
+def calculate_and_store_single(
+    birthday: date,
+    final_hour: int,
+    final_minute: int,
+    longitude: float,
+    gender: str,
+    birthplace: str,
+):
+    """Calculate Bazi and store all derived session state for single-person mode."""
+    bazi_result, time_info, pattern_info = calculate_bazi(
+        birthday.year,
+        birthday.month,
+        birthday.day,
+        final_hour,
+        final_minute,
+        longitude,
+    )
+
+    st.session_state.bazi_calculated = True
+    st.session_state.has_result = True  # Controls page display
+    st.session_state.bazi_result = bazi_result
+    st.session_state.time_info = time_info
+    st.session_state.pattern_info = pattern_info
+    st.session_state.birthplace = birthplace if birthplace != "不选择 (使用北京时间)" else "未指定"
+    st.session_state.gender = gender
+
+    current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+    birth_datetime = f"{birthday.year}年{birthday.month}月{birthday.day}日 {final_hour:02d}:{final_minute:02d}"
+    st.session_state.birth_datetime = birth_datetime
+    st.session_state.user_context = build_user_context(
+        bazi_result,
+        gender,
+        st.session_state.birthplace,
+        current_time,
+        birth_datetime,
+        pattern_info,
+        birthday.year,
+    )
+
+    chart_generator = BaziChartGenerator()
+    ten_gods = pattern_info.get("ten_gods", {})
+    hidden_stems_info = pattern_info.get("hidden_stems", {})
+    day_master = pattern_info.get("day_master", "")
+
+    def get_hidden_with_gods(branch_name):
+        """Get hidden stems list with ten god for each."""
+        from logic import BaziPatternCalculator
+        calc = BaziPatternCalculator()
+        branch_hidden = hidden_stems_info.get(branch_name, [])
+        result = []
+        for stem in branch_hidden:
+            if day_master:
+                god = calc.get_ten_god(day_master, stem)
+                result.append((stem, god))
+            else:
+                result.append((stem, ""))
+        return result
+
+    chart_data = {
+        "gender": "乾造" if gender == "男" else "坤造",
+        "year": {
+            "stem": pattern_info.get("year_pillar", "")[0] if pattern_info.get("year_pillar") else "?",
+            "branch": pattern_info.get("year_pillar", "")[1] if len(pattern_info.get("year_pillar", "")) > 1 else "?",
+            "stem_ten_god": ten_gods.get("年干", ""),
+            "hidden_stems": get_hidden_with_gods("年支藏干"),
+        },
+        "month": {
+            "stem": pattern_info.get("month_pillar", "")[0] if pattern_info.get("month_pillar") else "?",
+            "branch": pattern_info.get("month_pillar", "")[1] if len(pattern_info.get("month_pillar", "")) > 1 else "?",
+            "stem_ten_god": ten_gods.get("月干", ""),
+            "hidden_stems": get_hidden_with_gods("月支藏干"),
+        },
+        "day": {
+            "stem": pattern_info.get("day_pillar", "")[0] if pattern_info.get("day_pillar") else "?",
+            "branch": pattern_info.get("day_pillar", "")[1] if len(pattern_info.get("day_pillar", "")) > 1 else "?",
+            "stem_ten_god": "日主",
+            "hidden_stems": get_hidden_with_gods("日支藏干"),
+        },
+        "hour": {
+            "stem": pattern_info.get("hour_pillar", "")[0] if pattern_info.get("hour_pillar") else "?",
+            "branch": pattern_info.get("hour_pillar", "")[1] if len(pattern_info.get("hour_pillar", "")) > 1 else "?",
+            "stem_ten_god": ten_gods.get("时干", ""),
+            "hidden_stems": get_hidden_with_gods("时支藏干"),
+        },
+    }
+    st.session_state.bazi_svg = chart_generator.generate_chart(chart_data)
+
+    pillars = [
+        pattern_info.get("year_pillar", ""),
+        pattern_info.get("month_pillar", ""),
+        pattern_info.get("day_pillar", ""),
+        pattern_info.get("hour_pillar", ""),
+    ]
+    energy_calc = BaziEnergyCalculator()
+    energy_data = energy_calc.calculate_energy(pillars)
+    st.session_state.energy_data = energy_data
+
+    energy_chart_gen = EnergyPieChartGenerator()
+    st.session_state.energy_svg = energy_chart_gen.generate_chart(energy_data)
+
+    dominant_element, dominant_pct = energy_calc.get_dominant_element(pillars)
+    weakest_element, weakest_pct = energy_calc.get_weakest_element(pillars)
+    st.session_state.dominant_element = (dominant_element, dominant_pct)
+    st.session_state.weakest_element = (weakest_element, weakest_pct)
+
+    energy_context = f"""
+【五行能量分布】(System Calculated)
+- 木: {energy_data['木']['score']}分 ({int(energy_data['木']['pct'] * 100)}%)
+- 火: {energy_data['火']['score']}分 ({int(energy_data['火']['pct'] * 100)}%)
+- 土: {energy_data['土']['score']}分 ({int(energy_data['土']['pct'] * 100)}%)
+- 金: {energy_data['金']['score']}分 ({int(energy_data['金']['pct'] * 100)}%)
+- 水: {energy_data['水']['score']}分 ({int(energy_data['水']['pct'] * 100)}%)
+- **最强五行**: {dominant_element} ({int(dominant_pct * 100)}%)
+- **最弱五行**: {weakest_element} ({int(weakest_pct * 100)}%)
+⚠️ 请根据此五行能量分布分析用户的健康、性格倾向和开运建议。
+"""
+    st.session_state.user_context += energy_context
+
+    return {
+        "chart_generator": chart_generator,
+        "pattern_info": pattern_info,
+        "bazi_result": bazi_result,
+    }
+
+
+def reset_session_state(clear_storage: bool) -> None:
+    """Reset app state; optionally clear browser storage."""
+    to_clear = [
+        # Widget keys
+        "input_gender_widget",
+        "input_birth_date_widget",
+        "input_birth_hour_widget",
+        "input_birth_minute_widget",
+        "profile_search_input",
+        "save_profile_id_input",
+        "partner_gender",
+        "partner_cal_radio",
+        "partner_birthday",
+        "partner_lunar_year",
+        "partner_lunar_month",
+        "partner_lunar_day",
+        "partner_time_radio",
+        "partner_hour",
+        "partner_minute",
+        "partner_shichen",
+        "main_city_search",
+        "main_city_select",
+        "partner_city_search",
+        "partner_city_select",
+    ]
+    for key in to_clear:
+        st.session_state.pop(key, None)
+
+    st.session_state.bazi_calculated = False
+    st.session_state.has_result = False
+    st.session_state.bazi_result = ""
+    st.session_state.time_info = ""
+    st.session_state.user_context = ""
+    st.session_state.clicked_topics = set()
+    st.session_state.responses = []
+    st.session_state.show_custom_input = False
+    st.session_state.custom_question_count = 0
+    st.session_state.time_mode = "exact"
+    st.session_state.calendar_mode = "solar"
+    st.session_state.is_first_response = True
+    st.session_state.scroll_to_topic = None
+    st.session_state.loaded_profile = None
+    st.session_state.loaded_profile_id = None
+    st.session_state.pending_profile_load = None
+    st.session_state.pattern_info = None
+    st.session_state.bazi_svg = None
+    st.session_state.energy_data = None
+    st.session_state.energy_svg = None
+    st.session_state.dominant_element = None
+    st.session_state.weakest_element = None
+    st.session_state.birthplace = "未指定"
+    st.session_state.gender = "男"
+    st.session_state.birth_datetime = ""
+    st.session_state.compatibility_mode = False
+    st.session_state.partner_bazi = None
+    st.session_state.partner_info = None
+    st.session_state.partner_pattern_info = None
+    st.session_state.compatibility_result = None
+    st.session_state.couple_svg = None
+    st.session_state.stored_partner_gender = None
+    st.session_state.stored_relation_type = None
+    st.session_state.oracle_mode = False
+    st.session_state.oracle_question = ""
+    st.session_state.oracle_shake_count = 0
+    st.session_state.oracle_hex_result = None
+    st.session_state.oracle_used_today = False
+    st.session_state.oracle_usage_date = None
+
+    st.session_state.input_gender = "男"
+    st.session_state.input_birth_date = date(1990, 1, 1)
+    st.session_state.input_birth_hour = 12
+    st.session_state.input_birth_minute = 0
+    st.session_state.input_lunar_year = 1990
+    st.session_state.input_lunar_month = "1月"
+    st.session_state.input_lunar_day = 1
+    st.session_state.partner_calendar_mode = "solar"
+    st.session_state.partner_time_mode = "exact"
+
+    st.session_state.data_loaded_from_storage = True
+    st.query_params.clear()
+
+    if clear_storage:
+        st.session_state.clear_storage_requested = True
+
+
+def reset_for_recalc() -> None:
+    """Reset analysis outputs but keep current profile inputs."""
+    st.session_state.bazi_calculated = False
+    st.session_state.has_result = False
+    st.session_state.bazi_result = ""
+    st.session_state.time_info = ""
+    st.session_state.user_context = ""
+    st.session_state.clicked_topics = set()
+    st.session_state.responses = []
+    st.session_state.show_custom_input = False
+    st.session_state.custom_question_count = 0
+    st.session_state.is_first_response = True
+    st.session_state.scroll_to_topic = None
+    st.session_state.pattern_info = None
+    st.session_state.bazi_svg = None
+    st.session_state.energy_data = None
+    st.session_state.energy_svg = None
+    st.session_state.dominant_element = None
+    st.session_state.weakest_element = None
+    st.session_state.birth_datetime = ""
+    st.session_state.oracle_mode = False
+    st.session_state.oracle_question = ""
+    st.session_state.oracle_shake_count = 0
+    st.session_state.oracle_hex_result = None
+    st.session_state.oracle_used_today = False
+    st.session_state.oracle_usage_date = None
+
+
+def reset_for_new_profile() -> None:
+    """Clear loaded profile and return to initial input page."""
+    reset_session_state(clear_storage=False)
+    st.session_state.loaded_profile = None
+    st.session_state.loaded_profile_id = None
+
+
 def load_profile_callback(profile_data: dict, profile_id: str):
     """
     Callback function to load profile data into session state.
@@ -824,6 +1055,48 @@ def load_profile_callback(profile_data: dict, profile_id: str):
         if restore_session_state(profile_data["session_data"]):
             # restore_session_state sets bazi_calculated = True
             st.session_state.has_result = True
+            return
+
+    # 3. If no session data, auto-calculate to enter results page
+    try:
+        birth_year = int(profile_data.get("birth_year", 1990))
+        birth_month = int(profile_data.get("birth_month", 1))
+        birth_day = int(profile_data.get("birth_day", 1))
+        is_lunar = bool(profile_data.get("is_lunar", False))
+
+        if is_lunar:
+            lunar_date = Lunar.fromYmd(birth_year, birth_month, birth_day)
+            solar_date = lunar_date.getSolar()
+            birthday = date(solar_date.getYear(), solar_date.getMonth(), solar_date.getDay())
+        else:
+            birthday = date(birth_year, birth_month, birth_day)
+
+        birth_hour_str = profile_data.get("birth_hour", "12:00")
+        if birth_hour_str and ":" in birth_hour_str:
+            h, m = birth_hour_str.split(":")
+            final_hour = int(h)
+            final_minute = int(m)
+        elif birth_hour_str and "时" in birth_hour_str:
+            final_hour = get_shichen_mid_hour(birth_hour_str)
+            final_minute = 0
+        else:
+            final_hour = 12
+            final_minute = 0
+
+        birthplace = profile_data.get("city") or "未指定"
+        longitude = CHINA_CITIES.get(birthplace)
+        gender = profile_data.get("gender", "男")
+
+        calculate_and_store_single(
+            birthday=birthday,
+            final_hour=final_hour,
+            final_minute=final_minute,
+            longitude=longitude,
+            gender=gender,
+            birthplace=birthplace,
+        )
+    except Exception as e:
+        st.error(f"档案自动加载失败: {str(e)}")
     
     # 3. Clear cache if needed
     # st.cache_data.clear()  # Uncomment if caching causes issues
@@ -965,49 +1238,23 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button("✕ 清除已加载", use_container_width=True):
-            st.session_state.loaded_profile = None
-            st.session_state.loaded_profile_id = None
+        if st.button("✕ 填新档案", use_container_width=True):
+            reset_for_new_profile()
             st.rerun()
     
     st.markdown("---")
     st.markdown('<p class="sidebar-title">⚙️ 设置</p>', unsafe_allow_html=True)
     
     # Reset button
-    if st.button("🔄 重新开始", use_container_width=True):
-        st.session_state.bazi_calculated = False
-        st.session_state.has_result = False
-        st.session_state.bazi_result = ""
-        st.session_state.time_info = ""
-        st.session_state.user_context = ""
-        st.session_state.clicked_topics = set()
-        st.session_state.responses = []
-        st.session_state.show_custom_input = False
-        st.session_state.custom_question_count = 0
-        st.session_state.time_mode = "exact"
-        st.session_state.calendar_mode = "solar"
-        st.session_state.is_first_response = True
-        st.session_state.scroll_to_topic = None
-        st.session_state.loaded_profile = None
-        st.session_state.loaded_profile_id = None
+    if st.button("🔄 重算一次", use_container_width=True):
+        if st.session_state.loaded_profile_id:
+            update_session_data(st.session_state.loaded_profile_id, "")
+        reset_for_recalc()
         st.rerun()
     
     # Clear storage button
     if st.button("🗑️ 清除浏览器记录", use_container_width=True):
-        st.session_state.bazi_calculated = False
-        st.session_state.has_result = False
-        st.session_state.bazi_result = ""
-        st.session_state.time_info = ""
-        st.session_state.user_context = ""
-        st.session_state.clicked_topics = set()
-        st.session_state.responses = []
-        st.session_state.show_custom_input = False
-        st.session_state.custom_question_count = 0
-        st.session_state.time_mode = "exact"
-        st.session_state.calendar_mode = "solar"
-        st.session_state.is_first_response = True
-        st.session_state.scroll_to_topic = None
-        st.session_state.clear_storage_requested = True
+        reset_session_state(clear_storage=True)
         st.rerun()
     
     st.markdown("""
@@ -1018,6 +1265,12 @@ with st.sidebar:
     st.markdown("""
     <small style="color: #666;">
     💾 在主界面输入信息后可保存为档案
+    </small>
+    """, unsafe_allow_html=True)
+    app_version = get_app_version()
+    st.markdown(f"""
+    <small style="color: #666;">
+    👤 作者：@daisyluvr | ✉️ daisylur8@gmail.com | 版本：{app_version}
     </small>
     """, unsafe_allow_html=True)
 
@@ -1110,16 +1363,40 @@ if not st.session_state.has_result:
     
     # Show appropriate date input based on calendar mode
     if st.session_state.calendar_mode == "solar":
-        # Solar calendar - use date picker bound to session state
-        birthday = st.date_input(
-            "出生日期",
-            value=st.session_state.input_birth_date,
-            min_value=date(1900, 1, 1),
-            max_value=date.today(),
-            key="input_birth_date_widget",
-            label_visibility="collapsed"
-        )
-        # Sync to session state
+        # Solar calendar - use Chinese selectboxes for consistent locale
+        solar_col1, solar_col2, solar_col3 = st.columns(3)
+        current_year = date.today().year
+        default_date = st.session_state.input_birth_date
+
+        year_options = list(range(current_year, 1899, -1))
+        with solar_col1:
+            solar_year = st.selectbox(
+                "阳历年",
+                options=year_options,
+                index=year_options.index(default_date.year) if default_date.year in year_options else 0,
+                format_func=lambda x: f"{x}年"
+            )
+
+        with solar_col2:
+            solar_month = st.selectbox(
+                "阳历月",
+                options=list(range(1, 13)),
+                index=default_date.month - 1,
+                format_func=lambda x: f"{x}月"
+            )
+
+        days_in_month = calendar.monthrange(solar_year, solar_month)[1]
+        day_options = list(range(1, days_in_month + 1))
+        default_day = min(default_date.day, days_in_month)
+        with solar_col3:
+            solar_day = st.selectbox(
+                "阳历日",
+                options=day_options,
+                index=day_options.index(default_day),
+                format_func=lambda x: f"{x}日"
+            )
+
+        birthday = date(solar_year, solar_month, solar_day)
         st.session_state.input_birth_date = birthday
     else:
         # Lunar calendar - use dropdowns
@@ -1576,125 +1853,17 @@ if not st.session_state.has_result:
 
 
     if start_button:
-        # Calculate Bazi (now returns pattern_info as well)
-        bazi_result, time_info, pattern_info = calculate_bazi(
-            birthday.year,
-            birthday.month,
-            birthday.day,
-            final_hour,
-            final_minute,
-            longitude
+        result = calculate_and_store_single(
+            birthday=birthday,
+            final_hour=final_hour,
+            final_minute=final_minute,
+            longitude=longitude,
+            gender=gender,
+            birthplace=birthplace,
         )
-        
-        # Store in session state
-        st.session_state.bazi_calculated = True
-        st.session_state.has_result = True  # Controls page display
-        st.session_state.bazi_result = bazi_result
-        st.session_state.time_info = time_info
-        st.session_state.pattern_info = pattern_info  # Store pattern info
-        st.session_state.birthplace = birthplace if birthplace != "不选择 (使用北京时间)" else "未指定"
-        st.session_state.gender = gender
-        
-        # Build user context with birth datetime and pattern info
-        current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
-        birth_datetime = f"{birthday.year}年{birthday.month}月{birthday.day}日 {final_hour:02d}:{final_minute:02d}"
-        st.session_state.birth_datetime = birth_datetime
-        st.session_state.user_context = build_user_context(
-            bazi_result,
-            gender,
-            st.session_state.birthplace,
-            current_time,
-            birth_datetime,
-            pattern_info,  # Pass pattern info to user context
-            birthday.year  # Pass birth year for age calculation
-        )
-        
-        # Generate SVG chart with detailed data (ten gods + hidden stems)
-        chart_generator = BaziChartGenerator()
-        
-        # Extract ten_gods and hidden_stems from pattern_info
-        ten_gods = pattern_info.get("ten_gods", {})
-        hidden_stems_info = pattern_info.get("hidden_stems", {})
-        day_master = pattern_info.get("day_master", "")
-        
-        # Helper function to get hidden stems with ten gods
-        def get_hidden_with_gods(branch_name):
-            """Get hidden stems list with ten god for each"""
-            from logic import BaziPatternCalculator
-            calc = BaziPatternCalculator()
-            branch_hidden = hidden_stems_info.get(branch_name, [])
-            result = []
-            for stem in branch_hidden:
-                if day_master:
-                    god = calc.get_ten_god(day_master, stem)
-                    result.append((stem, god))
-                else:
-                    result.append((stem, ""))
-            return result
-        
-        chart_data = {
-            "gender": "乾造" if gender == "男" else "坤造",
-            "year": {
-                "stem": pattern_info.get("year_pillar", "")[0] if pattern_info.get("year_pillar") else "?",
-                "branch": pattern_info.get("year_pillar", "")[1] if len(pattern_info.get("year_pillar", "")) > 1 else "?",
-                "stem_ten_god": ten_gods.get("年干", ""),
-                "hidden_stems": get_hidden_with_gods("年支藏干")  # Fixed: use correct key
-            },
-            "month": {
-                "stem": pattern_info.get("month_pillar", "")[0] if pattern_info.get("month_pillar") else "?",
-                "branch": pattern_info.get("month_pillar", "")[1] if len(pattern_info.get("month_pillar", "")) > 1 else "?",
-                "stem_ten_god": ten_gods.get("月干", ""),
-                "hidden_stems": get_hidden_with_gods("月支藏干")  # Fixed: use correct key
-            },
-            "day": {
-                "stem": pattern_info.get("day_pillar", "")[0] if pattern_info.get("day_pillar") else "?",
-                "branch": pattern_info.get("day_pillar", "")[1] if len(pattern_info.get("day_pillar", "")) > 1 else "?",
-                "stem_ten_god": "日主",  # 日主本身
-                "hidden_stems": get_hidden_with_gods("日支藏干")  # Fixed: use correct key
-            },
-            "hour": {
-                "stem": pattern_info.get("hour_pillar", "")[0] if pattern_info.get("hour_pillar") else "?",
-                "branch": pattern_info.get("hour_pillar", "")[1] if len(pattern_info.get("hour_pillar", "")) > 1 else "?",
-                "stem_ten_god": ten_gods.get("时干", ""),
-                "hidden_stems": get_hidden_with_gods("时支藏干")  # Fixed: use correct key
-            }
-        }
-        st.session_state.bazi_svg = chart_generator.generate_chart(chart_data)
-        
-        # ========== Calculate Five Elements Energy ==========
-        pillars = [
-            pattern_info.get("year_pillar", ""),
-            pattern_info.get("month_pillar", ""),
-            pattern_info.get("day_pillar", ""),
-            pattern_info.get("hour_pillar", "")
-        ]
-        energy_calc = BaziEnergyCalculator()
-        energy_data = energy_calc.calculate_energy(pillars)
-        st.session_state.energy_data = energy_data
-        
-        # Generate Energy Pie Chart SVG
-        energy_chart_gen = EnergyPieChartGenerator()
-        st.session_state.energy_svg = energy_chart_gen.generate_chart(energy_data)
-        
-        # Get dominant and weakest elements
-        dominant_element, dominant_pct = energy_calc.get_dominant_element(pillars)
-        weakest_element, weakest_pct = energy_calc.get_weakest_element(pillars)
-        st.session_state.dominant_element = (dominant_element, dominant_pct)
-        st.session_state.weakest_element = (weakest_element, weakest_pct)
-        
-        # Inject energy data into user context for LLM
-        energy_context = f"""
-【五行能量分布】(System Calculated)
-- 木: {energy_data['木']['score']}分 ({int(energy_data['木']['pct'] * 100)}%)
-- 火: {energy_data['火']['score']}分 ({int(energy_data['火']['pct'] * 100)}%)
-- 土: {energy_data['土']['score']}分 ({int(energy_data['土']['pct'] * 100)}%)
-- 金: {energy_data['金']['score']}分 ({int(energy_data['金']['pct'] * 100)}%)
-- 水: {energy_data['水']['score']}分 ({int(energy_data['水']['pct'] * 100)}%)
-- **最强五行**: {dominant_element} ({int(dominant_pct * 100)}%)
-- **最弱五行**: {weakest_element} ({int(weakest_pct * 100)}%)
-⚠️ 请根据此五行能量分布分析用户的健康、性格倾向和开运建议。
-"""
-        st.session_state.user_context += energy_context
+        chart_generator = result["chart_generator"]
+        pattern_info = result["pattern_info"]
+        bazi_result = result["bazi_result"]
         
         # ========== Compatibility Mode: Calculate Partner's Bazi ==========
         if st.session_state.compatibility_mode:
@@ -2261,13 +2430,11 @@ else:
                         # Stream LLM response
                         with st.spinner("大师正在解读卦象..."):
                             try:
-                                from openai import OpenAI
-                                
                                 if st.session_state.using_default_api:
-                                    client = OpenAI(api_key=DEFAULT_API_KEY, base_url=DEFAULT_BASE_URL)
+                                    client = get_llm_client(DEFAULT_API_KEY, DEFAULT_BASE_URL)
                                     model = DEFAULT_MODEL
                                 else:
-                                    client = OpenAI(api_key=api_config['api_key'], base_url=api_config['base_url'])
+                                    client = get_llm_client(api_config['api_key'], api_config['base_url'])
                                     model = api_config['model']
                                 
                                 response = client.chat.completions.create(

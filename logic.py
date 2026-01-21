@@ -3,11 +3,12 @@ Fortune Teller Logic Module.
 Contains Bazi calculation and LLM interpretation functions.
 """
 import os
+from pathlib import Path
 import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from lunar_python import Solar
-from openai import OpenAI
+from llm_client import get_llm_client
 import svgwrite
 
 # Optional: Tavily for search (may not be installed on all deployments)
@@ -18,7 +19,7 @@ except ImportError:
     TavilyClient = None
     TAVILY_AVAILABLE = False
 
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 # 北京时间基准经度 (东八区中央经线为120°E)
 BEIJING_LONGITUDE = 120.0
@@ -1920,6 +1921,11 @@ ANALYSIS_PROMPTS = {
 """
 }
 
+_BASIC_PATTERN_CALC = BaziPatternCalculator()
+_ADVANCED_PATTERN_CALC = BaziPatternAdvanced()
+_STRENGTH_CALC = BaziStrengthCalculator()
+_AUX_CALC = BaziAuxiliaryCalculator()
+
 
 def calculate_true_solar_time(year: int, month: int, day: int, hour: int, minute: int, longitude: float) -> tuple:
     """
@@ -1984,43 +1990,40 @@ def calculate_bazi(year: int, month: int, day: int, hour: int, minute: int = 0, 
     pattern_type = "普通格局"
     
     # 优先检查特殊格局
-    advanced_calc = BaziPatternAdvanced()
-    special_pattern = advanced_calc.calculate(year_pillar, month_pillar, day_pillar, hour_pillar)
+    special_pattern = _ADVANCED_PATTERN_CALC.calculate(
+        year_pillar, month_pillar, day_pillar, hour_pillar
+    )
     
     if special_pattern:
         pattern = special_pattern
         pattern_type = "特殊格局"
     else:
         # 使用普通格局计算
-        basic_calc = BaziPatternCalculator()
-        pattern = basic_calc.calculate_pattern(day_master, month_branch, other_stems)
+        pattern = _BASIC_PATTERN_CALC.calculate_pattern(day_master, month_branch, other_stems)
         pattern_type = "正格"
     
     # 计算十神
-    basic_calc = BaziPatternCalculator()
     ten_gods = {
-        "年干": basic_calc.get_ten_god(day_master, y_stem),
-        "月干": basic_calc.get_ten_god(day_master, m_stem),
-        "时干": basic_calc.get_ten_god(day_master, h_stem),
+        "年干": _BASIC_PATTERN_CALC.get_ten_god(day_master, y_stem),
+        "月干": _BASIC_PATTERN_CALC.get_ten_god(day_master, m_stem),
+        "时干": _BASIC_PATTERN_CALC.get_ten_god(day_master, h_stem),
     }
     
     # 获取藏干
     hidden_stems_info = {
-        "年支藏干": basic_calc.get_hidden_stems(y_branch),
-        "月支藏干": basic_calc.get_hidden_stems(m_branch),
-        "日支藏干": basic_calc.get_hidden_stems(d_branch),
-        "时支藏干": basic_calc.get_hidden_stems(h_branch),
+        "年支藏干": _BASIC_PATTERN_CALC.get_hidden_stems(y_branch),
+        "月支藏干": _BASIC_PATTERN_CALC.get_hidden_stems(m_branch),
+        "日支藏干": _BASIC_PATTERN_CALC.get_hidden_stems(d_branch),
+        "时支藏干": _BASIC_PATTERN_CALC.get_hidden_stems(h_branch),
     }
     
     # 计算身强身弱
-    strength_calc = BaziStrengthCalculator()
     pillars_list = [y_stem, y_branch, m_stem, m_branch, d_stem, d_branch, h_stem, h_branch]
-    strength_info = strength_calc.calculate_strength(day_master, month_branch, pillars_list)
+    strength_info = _STRENGTH_CALC.calculate_strength(day_master, month_branch, pillars_list)
     
     # 计算辅助信息 (十二长生, 空亡, 神煎, 刑冲合害)
-    aux_calc = BaziAuxiliaryCalculator()
     all_branches = [y_branch, m_branch, d_branch, h_branch]
-    auxiliary_info = aux_calc.calculate_all(day_master, d_branch, all_branches)
+    auxiliary_info = _AUX_CALC.calculate_all(day_master, d_branch, all_branches)
     
     pattern_info = {
         "pattern": pattern,
@@ -2297,6 +2300,68 @@ def is_safe_input(user_text: str) -> bool:
     return True
 
 
+def build_thousand_faces_prompt(bazi_context: str, age: int, gender: str) -> str:
+    """
+    Builds the 'Thousand Faces' analysis prompt with Strict JSON output.
+    """
+    # 1. 动态年龄透镜 (The "Life Stage" Filter)
+    age_lens = ""
+    if age <= 15:
+        age_lens = """
+        - **当前生命阶段**: 少年 (CHILD, 0-15岁)
+        - **核心关注**: 天赋潜力、学业文昌、亲子关系、性格养成。
+        - **❌ 禁忌话题**: 婚姻嫁娶、职场权谋、财富积累。
+        - **语调 (Tone)**: 充满保护欲、鼓励性、像一位慈祥的长辈对父母说话。
+        """
+    elif 16 <= age <= 24:
+        age_lens = """
+        - **当前生命阶段**: 青年 (YOUTH, 16-24岁)
+        - **核心关注**: 学业/考研、迷茫与方向、初恋/桃花、社交关系。
+        - **语调 (Tone)**: 充满激情、共情年轻人的焦虑、富有远见、像一位人生导师。
+        """
+    elif 25 <= age <= 59:
+        age_lens = """
+        - **当前生命阶段**: 成年 (ADULT, 25-59岁)
+        - **核心关注**: 事业晋升、财富杠杆、婚姻经营、家庭责任。
+        - **语调 (Tone)**: 务实、犀利、讲究策略、像一位幕后军师。
+        """
+    else:  # 60+
+        age_lens = """
+        - **当前生命阶段**: 长者 (ELDER, 60+岁)
+        - **核心关注**: 健康养生、心态平和、子女成就、晚年安乐。
+        - **语调 (Tone)**: 沉稳、通透、充满智慧、像一位得道高僧。
+        """
+
+    # 2. 构建 Prompt
+    prompt = f"""
+    # Role: 子平八字宗师 (专注于画面感与精准度)
+
+    # 核心指令 (Core Directives)
+    1. **拒绝巴纳姆效应 (No Barnum Effect)**: 严禁使用“你性格比较随和但有时也会固执”这种放之四海而皆准的废话。必须结合具体的干支组合（如“你日坐羊刃，性格中自带一把刀...”）。
+    2. **高度画面感 (Visual Imagery)**: 使用“日主意象”技术。不要只说“你是乙木”，要说“你是生在冬天的乙木，像一株被冰雪覆盖的兰花，急需丙火太阳的照耀...”。
+    3. **一针见血 (Direct & Sharp)**: 不要在这个环节模棱两可。直接指出命局最大的“病”和“药”。
+    4. **输出语言**: 必须使用优美、专业且易懂的 **中文**。
+
+    # 用户上下文 (Context)
+    {bazi_context}
+    - **当前年龄**: {age}岁
+    - **生理性别**: {gender}
+
+    # 年龄透镜 (Life Stage Lens)
+    {age_lens}
+
+    # 输出格式 (Strict JSON)
+    {{ 
+      "summary": "一句话总结",
+      "core_image": "日主意象的画面感描述",
+      "key_conflict": "命局最大的病灶",
+      "key_cure": "命局最大的解药"
+    }}
+    """
+
+    return prompt
+
+
 def get_fortune_analysis(
     topic: str,
     user_context: str,
@@ -2337,7 +2402,7 @@ def get_fortune_analysis(
         yield "🔮 天机不可泄露，请勿试探。请提出与命理相关的正当问题。"
         return
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    client = get_llm_client(api_key, base_url)
     
     # Get optimal temperature for this model
     temperature = get_optimal_temperature(model)

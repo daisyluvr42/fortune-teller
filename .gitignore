@@ -33,6 +33,7 @@ venv.bak/
 
 # Streamlit
 .streamlit/secrets.toml
+streamlit.log
 
 # MacOS
 .DS_Store
