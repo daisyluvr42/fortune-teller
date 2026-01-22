@@ -4,6 +4,8 @@ Fortune Teller Streamlit App.
 import streamlit as st
 import streamlit.components.v1 as components
 import json
+import io
+import zipfile
 from textwrap import dedent
 import urllib.parse
 import re
@@ -24,7 +26,7 @@ from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_he
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
 from dotenv import load_dotenv
-from pdf_generator import generate_report_pdf
+from pdf_generator import generate_report_pdf, generate_grouped_report_images
 from llm_client import get_llm_client
 from text_utils import clean_markdown_for_display
 from db_utils import init_db, save_profile, profile_exists, get_all_profiles, get_profile_by_id, delete_profile, update_session_data, check_daily_quota, consume_daily_quota
@@ -289,6 +291,8 @@ if "oracle_used_today" not in st.session_state:
     st.session_state.oracle_used_today = False
 if "oracle_usage_date" not in st.session_state:
     st.session_state.oracle_usage_date = None
+if "image_zip" not in st.session_state:
+    st.session_state.image_zip = None
 
 # ========== Form Input Session State Keys ==========
 # These bind to form widgets with key= parameter for auto-update when loading profiles
@@ -1106,6 +1110,7 @@ def reset_session_state(clear_storage: bool) -> None:
     st.session_state.gender = "男"
     st.session_state.birth_datetime = ""
     st.session_state.birth_year = None
+    st.session_state.image_zip = None
     st.session_state.compatibility_mode = False
     st.session_state.partner_bazi = None
     st.session_state.partner_info = None
@@ -3300,7 +3305,7 @@ else:
             '''
             
             # Layout buttons side-by-side using Streamlit columns
-            col_save, col_download = st.columns([1, 1], vertical_alignment="bottom")
+            col_save, col_download, col_images = st.columns([1, 1, 1], vertical_alignment="bottom")
             
             with col_save:
                 # Button to trigger save dialog
@@ -3327,6 +3332,37 @@ else:
             
             with col_download:
                 st.markdown(download_html, unsafe_allow_html=True)
+
+            with col_images:
+                if st.button("🖼️ 生成图片集", key="btn_generate_images", use_container_width=True):
+                    try:
+                        image_files = generate_grouped_report_images(
+                            bazi_result=st.session_state.bazi_result,
+                            time_info=st.session_state.time_info,
+                            gender=getattr(st.session_state, 'gender', '未知'),
+                            birthplace=getattr(st.session_state, 'birthplace', '未指定'),
+                            responses=st.session_state.responses,
+                            birth_datetime=getattr(st.session_state, 'birth_datetime', None),
+                            pattern_info=getattr(st.session_state, 'pattern_info', None),
+                            fortune_cycles=getattr(st.session_state, 'fortune_cycles', None),
+                        )
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                            for filename, data in image_files:
+                                zip_file.writestr(filename, data)
+                        st.session_state.image_zip = zip_buffer.getvalue()
+                    except Exception as e:
+                        st.error(f"生成图片集失败: {str(e)}")
+
+                if st.session_state.image_zip:
+                    img_zip_name = f"命理报告_图片集_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+                    st.download_button(
+                        label="⬇️ 下载图片集",
+                        data=st.session_state.image_zip,
+                        file_name=img_zip_name,
+                        mime="application/zip",
+                        use_container_width=True
+                    )
             
         except Exception as e:
             st.error(f"生成 PDF 时出错: {str(e)}")
