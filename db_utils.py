@@ -24,7 +24,11 @@ def get_supabase_client() -> Optional[Client]:
 
     _supabase_init_attempted = True
     url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_KEY")
+    key: str = (
+        os.environ.get("SUPABASE_KEY")
+        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or os.environ.get("SUPABASE_ANON_KEY")
+    )
 
     if not url or not key:
         # Fail fast if credentials are missing, but allow import for safe checks
