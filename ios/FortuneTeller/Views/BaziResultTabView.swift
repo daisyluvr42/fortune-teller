@@ -133,6 +133,13 @@ struct BaziResultTabView: View {
                 } else if let chartData = viewModel.chartResponse {
                     ChartGridView(chartData: chartData)
                         .padding(.horizontal)
+                    
+                    // Professional Chart Details (十二长生, 空亡, 纳音, 神煞)
+                    if chartData.nayin != nil || chartData.twelveStages != nil || 
+                       chartData.kongWang?.isEmpty == false || chartData.shenSha?.isEmpty == false {
+                        ProfessionalChartView(chartResponse: chartData)
+                            .padding(.horizontal)
+                    }
                 } else {
                     emptyChartState
                 }

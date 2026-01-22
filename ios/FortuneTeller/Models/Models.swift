@@ -92,6 +92,12 @@ struct BaziChartResponse: Codable {
     let joyElements: String    // 喜用神
     let timeCorrection: String? // 真太阳时校正
     
+    // Extended professional chart data
+    let twelveStages: TwelveStages?  // 十二长生
+    let kongWang: [String]?          // 空亡
+    let nayin: NayinInfo?            // 纳音
+    let shenSha: [String]?           // 神煞
+    
     enum CodingKeys: String, CodingKey {
         case yearPillar = "year_pillar"
         case monthPillar = "month_pillar"
@@ -103,6 +109,10 @@ struct BaziChartResponse: Codable {
         case strength
         case joyElements = "joy_elements"
         case timeCorrection = "time_correction"
+        case twelveStages = "twelve_stages"
+        case kongWang = "kong_wang"
+        case nayin
+        case shenSha = "shen_sha"
     }
     
     /// Array of all four pillars for easy iteration
@@ -113,6 +123,39 @@ struct BaziChartResponse: Codable {
             ("日柱", dayPillar),
             ("时柱", hourPillar)
         ]
+    }
+}
+
+/// Twelve Life Stages (十二长生)
+struct TwelveStages: Codable {
+    let yearStage: String
+    let monthStage: String
+    let dayStage: String   // 自坐
+    let hourStage: String
+    
+    enum CodingKeys: String, CodingKey {
+        case yearStage = "year_stage"
+        case monthStage = "month_stage"
+        case dayStage = "day_stage"
+        case hourStage = "hour_stage"
+    }
+    
+    /// Array for easy iteration
+    var allStages: [String] {
+        [yearStage, monthStage, dayStage, hourStage]
+    }
+}
+
+/// Nayin (纳音) for four pillars
+struct NayinInfo: Codable {
+    let year: String
+    let month: String
+    let day: String
+    let hour: String
+    
+    /// Array for easy iteration
+    var allNayin: [String] {
+        [year, month, day, hour]
     }
 }
 

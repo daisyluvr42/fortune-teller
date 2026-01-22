@@ -4,13 +4,14 @@ Fortune Teller Streamlit App.
 import streamlit as st
 import streamlit.components.v1 as components
 import json
+from textwrap import dedent
 import urllib.parse
 import re
 import calendar
 from datetime import date, datetime
 import os
 from pathlib import Path
-from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, ZhouyiCalculator
+from logic import calculate_bazi, get_fortune_analysis, build_user_context, calculate_fortune_cycles, BaziAuxiliaryCalculator, BaziChartGenerator, BaziPatternCalculator, ZhouyiCalculator
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt, BaziEnergyCalculator, EnergyPieChartGenerator
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
@@ -123,6 +124,7 @@ def serialize_session_state() -> str:
         "energy_svg": st.session_state.get("energy_svg"),
         "dominant_element": st.session_state.get("dominant_element"),
         "weakest_element": st.session_state.get("weakest_element"),
+        "fortune_cycles": st.session_state.get("fortune_cycles"),
         "birthplace": st.session_state.get("birthplace"),
         "gender": st.session_state.get("gender"),
         "birth_datetime": st.session_state.get("birth_datetime"),
@@ -151,6 +153,7 @@ def restore_session_state(session_data_json: str) -> bool:
         st.session_state.energy_svg = snapshot.get("energy_svg")
         st.session_state.dominant_element = tuple(snapshot["dominant_element"]) if snapshot.get("dominant_element") else None
         st.session_state.weakest_element = tuple(snapshot["weakest_element"]) if snapshot.get("weakest_element") else None
+        st.session_state.fortune_cycles = snapshot.get("fortune_cycles")
         st.session_state.birthplace = snapshot.get("birthplace")
         st.session_state.gender = snapshot.get("gender")
         st.session_state.birth_datetime = snapshot.get("birth_datetime")
@@ -263,6 +266,8 @@ if "partner_info" not in st.session_state:
     st.session_state.partner_info = None
 if "compatibility_result" not in st.session_state:
     st.session_state.compatibility_result = None
+if "fortune_cycles" not in st.session_state:
+    st.session_state.fortune_cycles = None
 # Oracle (每日一卦) session state
 if "oracle_mode" not in st.session_state:
     st.session_state.oracle_mode = False
@@ -369,6 +374,141 @@ st.markdown("""
         margin: 20px 0;
         box-shadow: 0 8px 32px rgba(255, 215, 0, 0.2);
         backdrop-filter: blur(10px);
+    }
+
+    .bazi-table-wrap {
+        margin: 0;
+        overflow-x: auto;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        padding: 0;
+        background: transparent;
+    }
+
+    .bazi-table-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .bazi-table-stack .bazi-table-wrap + .bazi-table-wrap {
+        margin-top: 0;
+    }
+
+    .bazi-table-stack .bazi-table-wrap {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .basic-info-wrap {
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        background: #ffffff;
+    }
+
+    .bazi-table-stack .bazi-table-wrap:not(:last-child) .bazi-table tr:last-child td,
+    .bazi-table-stack .bazi-table-wrap:not(:last-child) .bazi-table tr:last-child th {
+        border-bottom: none;
+    }
+
+    .bazi-table {
+        width: 100%;
+        min-width: 520px;
+        border-collapse: collapse; /* Keep collapse for clean alignment */
+        background: transparent;
+        border: none;
+        font-family: 'Noto Serif SC', serif;
+        margin: 0;
+        border-spacing: 0;
+    }
+
+    .bazi-table th,
+    .bazi-table td {
+        padding: 14px 10px;
+        text-align: center;
+        border-bottom: 1px solid #f8f8f8; /* Very subtle light line */
+        color: #4a4a4a;
+        font-size: 0.95rem;
+    }
+
+    .bazi-table-wrap + .bazi-table-wrap {
+        margin-top: -1px;
+    }
+
+    .bazi-table.compact th,
+    .bazi-table.compact td {
+        padding: 8px 6px;
+        font-size: 0.9rem;
+    }
+
+    .bazi-table th {
+        background: #fafafa;
+        font-weight: 600;
+        color: #888;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.85rem;
+        letter-spacing: 1px;
+    }
+
+    .bazi-table .row-label {
+        background: #fbfbfb; /* Very light subtle background for labels */
+        font-weight: 600;
+        color: #999;
+        white-space: nowrap;
+        border-right: 1px solid #f8f8f8; /* Subtle vertical divider */
+        text-align: center;
+        width: 80px;
+    }
+
+    .bazi-table tr:hover td {
+        background-color: #fcfcfc;
+    }
+
+    .bazi-table .pillars {
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+
+    .bazi-table .muted {
+        color: #d0d0d0;
+        font-size: 0.8rem;
+    }
+
+    .bazi-table .energy-header {
+        background: #fafafa;
+        color: #999;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    /* ===== Tabs styling for chart modes ===== */
+    div[data-testid="stTabs"] > div:first-child {
+        background: transparent;
+        border-radius: 8px;
+        padding: 6px;
+    }
+    
+    /* Tabs content panel background */
+    div[data-testid="stTabs"] > div:last-child {
+        background: transparent !important;
+    }
+
+    div[data-testid="stTabs"] button {
+        color: #bfbfbf !important;
+        font-family: 'Noto Serif SC', serif;
+        font-weight: 600;
+        border-radius: 6px;
+    }
+
+    div[data-testid="stTabs"] button[aria-selected="true"] {
+        color: #ffd700 !important;
+        background: rgba(255, 215, 0, 0.1) !important;
+        border-bottom: 2px solid #ffd700;
     }
     
     .time-info {
@@ -481,6 +621,11 @@ st.markdown("""
         overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
         text-align: center;
+        /* Match professional table style - white card */
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 20px 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     }
     
     .bazi-chart-container svg {
@@ -877,6 +1022,16 @@ def calculate_and_store_single(
 """
     st.session_state.user_context += energy_context
 
+    st.session_state.fortune_cycles = calculate_fortune_cycles(
+        birthday.year,
+        birthday.month,
+        birthday.day,
+        final_hour,
+        final_minute,
+        gender,
+        longitude
+    )
+
     return {
         "chart_generator": chart_generator,
         "pattern_info": pattern_info,
@@ -934,6 +1089,7 @@ def reset_session_state(clear_storage: bool) -> None:
     st.session_state.energy_svg = None
     st.session_state.dominant_element = None
     st.session_state.weakest_element = None
+    st.session_state.fortune_cycles = None
     st.session_state.birthplace = "未指定"
     st.session_state.gender = "男"
     st.session_state.birth_datetime = ""
@@ -1190,7 +1346,7 @@ with st.sidebar:
                             b_month = int(match.group(2))
                             b_day = int(match.group(3))
                         else:
-                            st.error("无法解析出生日期，请先点击'开始算命'")
+                            st.error("无法解析出生日期，请先点击'查看排盘'")
                             st.stop()
                         
                         # Extract hour if available
@@ -1224,7 +1380,7 @@ with st.sidebar:
                     except Exception as e:
                         st.error(f"保存出错: {str(e)}")
                 else:
-                    st.warning("请先点击'开始算命'计算八字后再保存")
+                    st.warning("请先点击'查看排盘'计算八字后再保存")
         else:
             st.warning("请输入档案ID")
     
@@ -1785,7 +1941,7 @@ if not st.session_state.has_result:
                 st.session_state["_save_is_lunar"] = st.session_state.calendar_mode == "lunar"
                 save_profile_dialog()
         with col3:
-            start_button = st.button("🎴 开始算命", use_container_width=True)
+            start_button = st.button("🎴 查看排盘", use_container_width=True)
 
     # API Configuration (Optional) - Below buttons
     st.markdown("---")
@@ -1966,62 +2122,434 @@ else:
         # Show both genders
         st.markdown(f'<div class="time-info">👤 甲方: {st.session_state.gender} | 👤 乙方: {getattr(st.session_state, "stored_partner_gender", "未知")}</div>', unsafe_allow_html=True)
         
-    elif hasattr(st.session_state, 'bazi_svg') and st.session_state.bazi_svg:
-        # Single person mode - show individual chart
-        centered_svg = f'''
-        <div class="bazi-chart-container">
-            {st.session_state.bazi_svg}
-        </div>
-        '''
-        st.markdown(centered_svg, unsafe_allow_html=True)
-        
+    elif hasattr(st.session_state, 'pattern_info') and st.session_state.pattern_info:
         if st.session_state.time_info:
-            st.markdown(f'<div class="time-info">📐 {st.session_state.time_info} | 出生地: {st.session_state.birthplace} | 性别: {st.session_state.gender}</div>', unsafe_allow_html=True)
-        
-        # ========== Five Elements Energy Pie Chart ==========
-        if hasattr(st.session_state, 'energy_svg') and st.session_state.energy_svg:
-            st.markdown("")
-            
-            # Centered title using HTML
-            st.markdown('<h3 style="text-align: center; color: #FFD700; margin-bottom: 10px;">📊 五行能量分布</h3>', unsafe_allow_html=True)
-            
-            # Render the energy pie chart SVG (centered)
-            import base64
-            energy_svg_b64 = base64.b64encode(st.session_state.energy_svg.encode()).decode()
-            energy_chart_html = f'''
-            <div style="display: flex; justify-content: center; margin: 15px 0;">
-                <img src="data:image/svg+xml;base64,{energy_svg_b64}" style="max-width: 100%; width: 400px; height: auto;"/>
+            st.markdown(
+                f'<div class="time-info">📐 {st.session_state.time_info} | 出生地: {st.session_state.birthplace} | 性别: {st.session_state.gender}</div>',
+                unsafe_allow_html=True
+            )
+
+        tabs = st.tabs(["基本信息", "基本排盘", "专业细盘"])
+
+        with tabs[0]:
+            basic_info_html = f'''
+            <div class="bazi-table-wrap basic-info-wrap">
+                <table class="bazi-table compact">
+                    <tbody>
+                        <tr>
+                            <td class="row-label">出生时间</td>
+                            <td>{st.session_state.birth_datetime or "—"}</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label">出生地</td>
+                            <td>{st.session_state.birthplace or "—"}</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label">性别</td>
+                            <td>{st.session_state.gender or "—"}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             '''
-            st.markdown(energy_chart_html, unsafe_allow_html=True)
-            
-            # Display strongest and weakest elements using st.metric (centered with CSS)
-            if hasattr(st.session_state, 'dominant_element') and hasattr(st.session_state, 'weakest_element'):
-                dominant = st.session_state.dominant_element
-                weakest = st.session_state.weakest_element
-                
-                # Element color mapping
-                element_colors = {"木": "🟢", "火": "🔴", "土": "🟠", "金": "🟡", "水": "🔵"}
-                
-                # Centered metrics using HTML instead of st.columns for better alignment
-                metrics_html = f'''
-                <div style="display: flex; justify-content: center; gap: 60px; margin: 20px 0;">
-                    <div style="text-align: center;">
-                        <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">⬆️ 最强五行</div>
-                        <div style="font-size: 2rem; font-weight: bold; color: #FFFFFF;">{element_colors.get(dominant[0], '')} {dominant[0]}</div>
-                        <div style="color: #2ecc71; font-size: 0.9rem;">↑ {int(dominant[1] * 100)}%</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">⬇️ 最弱五行</div>
-                        <div style="font-size: 2rem; font-weight: bold; color: #FFFFFF;">{element_colors.get(weakest[0], '')} {weakest[0]}</div>
-                        <div style="color: #e74c3c; font-size: 0.9rem;">↓ {int(weakest[1] * 100)}%</div>
-                    </div>
+            st.markdown(basic_info_html, unsafe_allow_html=True)
+
+        with tabs[1]:
+            if hasattr(st.session_state, 'bazi_svg') and st.session_state.bazi_svg:
+                centered_svg = f'''
+                <div class="bazi-chart-container">
+                    {st.session_state.bazi_svg}
                 </div>
                 '''
-                st.markdown(metrics_html, unsafe_allow_html=True)
+                st.markdown(centered_svg, unsafe_allow_html=True)
+
+            if hasattr(st.session_state, 'energy_svg') and st.session_state.energy_svg:
+                st.markdown("")
+                st.markdown('<h3 style="text-align: center; color: #FFD700; margin-bottom: 10px;">📊 五行能量分布</h3>', unsafe_allow_html=True)
+
+                import base64
+                energy_svg_b64 = base64.b64encode(st.session_state.energy_svg.encode()).decode()
+                energy_chart_html = f'''
+                <div style="display: flex; justify-content: center; margin: 15px 0;">
+                    <img src="data:image/svg+xml;base64,{energy_svg_b64}" style="max-width: 100%; width: 400px; height: auto;"/>
+                </div>
+                '''
+                st.markdown(energy_chart_html, unsafe_allow_html=True)
+
+                if hasattr(st.session_state, 'dominant_element') and hasattr(st.session_state, 'weakest_element'):
+                    dominant = st.session_state.dominant_element
+                    weakest = st.session_state.weakest_element
+                    element_colors = {"木": "🟢", "火": "🔴", "土": "🟠", "金": "🟡", "水": "🔵"}
+                    metrics_html = f'''
+                    <div style="display: flex; justify-content: center; gap: 60px; margin: 20px 0;">
+                        <div style="text-align: center;">
+                            <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">⬆️ 最强五行</div>
+                            <div style="font-size: 2rem; font-weight: bold; color: #FFFFFF;">{element_colors.get(dominant[0], '')} {dominant[0]}</div>
+                            <div style="color: #2ecc71; font-size: 0.9rem;">↑ {int(dominant[1] * 100)}%</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">⬇️ 最弱五行</div>
+                            <div style="font-size: 2rem; font-weight: bold; color: #FFFFFF;">{element_colors.get(weakest[0], '')} {weakest[0]}</div>
+                            <div style="color: #e74c3c; font-size: 0.9rem;">↓ {int(weakest[1] * 100)}%</div>
+                        </div>
+                    </div>
+                    '''
+                    st.markdown(metrics_html, unsafe_allow_html=True)
+                st.markdown("")
+
+        with tabs[2]:
+            pattern_info = st.session_state.pattern_info
+            ten_gods = pattern_info.get("ten_gods", {})
+            hidden_stems_info = pattern_info.get("hidden_stems", {})
+            day_master = pattern_info.get("day_master", "")
+            auxiliary = pattern_info.get("auxiliary", {})
+
+            colorizer = BaziChartGenerator()
+            calc = BaziPatternCalculator()
+
+            stage_colors = {
+                "长生": "#2ecc71", "沐浴": "#87ceeb", "冠带": "#87ceeb",
+                "临官": "#2ecc71", "帝旺": "#c9a227",
+                "衰": "#f39c12", "病": "#e74c3c", "死": "#c0392b",
+                "墓": "#8e44ad", "绝": "#c0392b", "胎": "#87ceeb", "养": "#87ceeb"
+            }
+
+            def color_span(char: str, size: str = "1.25rem") -> str:
+                if not char:
+                    return '<span class="muted">—</span>'
+                color = colorizer.get_color(char)
+                return f'<span style="color: {color}; font-weight: 700; font-size: {size};">{char}</span>'
+
+            def format_hidden(key: str) -> str:
+                items = []
+                for stem in hidden_stems_info.get(key, []):
+                    god = calc.get_ten_god(day_master, stem) if day_master else ""
+                    god_display = f'<span class="muted">{god}</span>' if god else ""
+                    items.append(f'<div>{color_span(stem, "1.05rem")} {god_display}</div>')
+                return "".join(items) if items else '<span class="muted">—</span>'
+
+            pillars = [
+                ("年柱", pattern_info.get("year_pillar", "??"), "年干", "年支藏干", "year_stage", "year"),
+                ("月柱", pattern_info.get("month_pillar", "??"), "月干", "月支藏干", "month_stage", "month"),
+                ("日柱", pattern_info.get("day_pillar", "??"), "日主", "日支藏干", "day_stage", "day"),
+                ("时柱", pattern_info.get("hour_pillar", "??"), "时干", "时支藏干", "hour_stage", "hour"),
+            ]
+
+            twelve_stages = auxiliary.get("twelve_stages", {})
+            kong_wang = auxiliary.get("kong_wang", [])
+            nayin = auxiliary.get("nayin", {})
+            shen_sha = auxiliary.get("shen_sha", [])
+            aux_calc = BaziAuxiliaryCalculator()
+
+            def format_hidden_stems(stems):
+                items = []
+                for stem in stems:
+                    god = calc.get_ten_god(day_master, stem) if day_master else ""
+                    god_display = f'<span class="muted">{god}</span>' if god else ""
+                    items.append(f'<div>{color_span(stem, "1.05rem")} {god_display}</div>')
+                return "".join(items) if items else '<span class="muted">—</span>'
+
+            fortune = st.session_state.get("fortune_cycles") or {}
+            liu_nian = fortune.get("liu_nian", [])
+            da_yun = fortune.get("da_yun", [])
+            now_year = datetime.now().year
+
+            current_ln = next((ln for ln in liu_nian if ln.get("year") == now_year), liu_nian[0] if liu_nian else None)
+            current_dy = None
+            for dy in da_yun:
+                start_year = dy.get("start_year")
+                end_year = dy.get("end_year")
+                if start_year and end_year and start_year <= now_year <= end_year:
+                    current_dy = dy
+                    break
+            if not current_dy and da_yun:
+                current_dy = da_yun[0]
+
+            def get_flow_parts(flow):
+                if not flow:
+                    return "", ""
+                gz = flow.get("gan_zhi") or ""
+                return (gz[0], gz[1]) if len(gz) >= 2 else ("", "")
+
+            flow_cols = [
+                ("流年", current_ln),
+                ("大运", current_dy),
+            ]
+
+            column_labels = [col[0] for col in flow_cols] + [p[0] for p in pillars]
+
+            header_cells = "".join([f'<th>{label}</th>' for label in column_labels])
+
+            def normalize_html(html: str) -> str:
+                return dedent(html).strip()
+
+            table_html = normalize_html(f'''
+            <div class="bazi-table-wrap">
+                <table class="bazi-table compact">
+                    <thead>
+                        <tr>
+                            <th class="row-label">项目</th>
+                            {header_cells}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="row-label">主星</td>
+            ''')
+
+            for _, flow in flow_cols:
+                stem, _ = get_flow_parts(flow)
+                table_html += f'<td>{calc.get_ten_god(day_master, stem) if stem else "—"}</td>'
+            for _, _, ten_god_key, _, _, _ in pillars:
+                if ten_god_key == "日主":
+                    table_html += '<td>日主</td>'
+                else:
+                    table_html += f'<td>{ten_gods.get(ten_god_key, "—")}</td>'
+            table_html += "</tr>"
+
+            table_html += '<tr><td class="row-label">天干</td>'
+            for _, flow in flow_cols:
+                stem, _ = get_flow_parts(flow)
+                table_html += f'<td>{color_span(stem) if stem else "—"}</td>'
+            for _, pillar, _, _, _, _ in pillars:
+                stem = pillar[0] if pillar else "?"
+                table_html += f'<td>{color_span(stem)}</td>'
+            table_html += "</tr>"
+
+            table_html += '<tr><td class="row-label">地支</td>'
+            for _, flow in flow_cols:
+                _, branch = get_flow_parts(flow)
+                table_html += f'<td>{color_span(branch) if branch else "—"}</td>'
+            for _, pillar, _, _, _, _ in pillars:
+                branch = pillar[1] if len(pillar) > 1 else "?"
+                table_html += f'<td>{color_span(branch)}</td>'
+            table_html += "</tr>"
+
+            table_html += '<tr><td class="row-label">藏干</td>'
+            for _, flow in flow_cols:
+                _, branch = get_flow_parts(flow)
+                hidden = calc.get_hidden_stems(branch) if branch else []
+                table_html += f'<td>{format_hidden_stems(hidden)}</td>'
+            for _, _, _, hidden_key, _, _ in pillars:
+                table_html += f'<td>{format_hidden(hidden_key)}</td>'
+            table_html += "</tr>"
+
+            table_html += '<tr><td class="row-label">十二长生</td>'
+            for _, flow in flow_cols:
+                _, branch = get_flow_parts(flow)
+                stage = "—"
+                if branch:
+                    stage = aux_calc.get_12_stages(day_master, [branch] * 4).get("year_stage", "—")
+                color = stage_colors.get(stage, "#2c2c2c")
+                table_html += f'<td style="color: {color}; font-weight: 700;">{stage}</td>'
+            for _, _, _, _, stage_key, _ in pillars:
+                stage = twelve_stages.get(stage_key, "—")
+                color = stage_colors.get(stage, "#2c2c2c")
+                table_html += f'<td style="color: {color}; font-weight: 700;">{stage}</td>'
+            table_html += "</tr>"
+
+            table_html += '<tr><td class="row-label">纳音</td>'
+            for _, flow in flow_cols:
+                gz = flow.get("gan_zhi") if flow else ""
+                nayin_val = aux_calc.get_nayin([gz, gz, gz, gz]).get("year") if gz else "—"
+                table_html += f'<td>{nayin_val}</td>'
+            for _, _, _, _, _, nayin_key in pillars:
+                table_html += f'<td>{nayin.get(nayin_key, "—")}</td>'
+            table_html += "</tr>"
+
+            # Build kong wang display with all four pillars
+            all_kong_wang = auxiliary.get("all_kong_wang", {})
+            kong_wang_parts = []
+            if all_kong_wang:
+                for label, key in [("年空", "year_kong"), ("月空", "month_kong"), ("日空", "day_kong"), ("时空", "hour_kong")]:
+                    kw = all_kong_wang.get(key, [])
+                    if kw:
+                        kong_wang_parts.append(f"{label}: {'、'.join(kw)}")
+            kong_wang_display = " | ".join(kong_wang_parts) if kong_wang_parts else ("、".join(kong_wang) if kong_wang else "—")
             
-            st.markdown("")
-        
+            shen_sha_display = "、".join(shen_sha) if shen_sha else "—"
+            table_html += normalize_html(f'''
+                        <tr>
+                            <td class="row-label">空亡</td>
+                            <td colspan="{len(column_labels)}">{kong_wang_display}</td>
+                        </tr>
+                        <tr>
+                            <td class="row-label">神煞</td>
+                            <td colspan="{len(column_labels)}">{shen_sha_display}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            ''')
+
+            tables_html_parts = [table_html]
+
+            fortune = st.session_state.fortune_cycles if hasattr(st.session_state, "fortune_cycles") else None
+            if fortune:
+                def format_ganzhi(gz: str) -> str:
+                    if not gz or len(gz) < 2:
+                        return '<span class="muted">—</span>'
+                    return f"{color_span(gz[0])}{color_span(gz[1])}"
+
+                def format_age(age_val):
+                    return f"{age_val}岁" if age_val is not None else "—"
+
+                da_yun = fortune.get("da_yun", [])
+                liu_nian = fortune.get("liu_nian", [])
+                liu_yue = fortune.get("liu_yue", [])
+                start_info = fortune.get("start_info", {})
+
+                start_year = start_info.get("year")
+                start_month = start_info.get("month")
+                start_day = start_info.get("day")
+                start_age = start_info.get("age")
+                start_time = None
+                if any(val is not None for val in [start_year, start_month, start_day]):
+                    start_time = f"{start_year or '—'}年{start_month or '—'}月{start_day or '—'}天"
+
+                if start_time or start_age is not None:
+                    start_info_html = normalize_html(f'''
+                    <div class="bazi-table-wrap">
+                        <table class="bazi-table compact">
+                            <tbody>
+                                <tr>
+                                    <td class="row-label">起运时间</td>
+                                    <td>{start_time or "—"}</td>
+                                    <td class="row-label">起运年龄</td>
+                                    <td>{format_age(start_age)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    ''')
+                    tables_html_parts.append(start_info_html)
+
+                if da_yun:
+                    header_cells = ""
+                    age_cells = ""
+                    body_cells = ""
+                    for dy in da_yun[:10]:
+                        start_year = dy.get("start_year")
+                        start_age = dy.get("start_age")
+                        header_cells += f'<th>{start_year or "—"}</th>'
+                        age_cells += f'<td class="muted">{format_age(start_age)}</td>'
+                        body_cells += f'<td>{format_ganzhi(dy.get("gan_zhi"))}</td>'
+
+                    da_yun_html = normalize_html(f'''
+                    <div class="bazi-table-wrap">
+                        <table class="bazi-table compact">
+                            <thead>
+                                <tr>
+                                    <th class="row-label">大运</th>
+                                    {header_cells}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="row-label">年龄</td>
+                                    {age_cells}
+                                </tr>
+                                <tr>
+                                    <td class="row-label">干支</td>
+                                    {body_cells}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    ''')
+                    tables_html_parts.append(da_yun_html)
+
+                if liu_nian:
+                    header_cells = ""
+                    body_cells = ""
+                    age_cells = ""
+                    for ln in liu_nian:
+                        ln_year = ln.get("year")
+                        header_cells += f'<th>{ln_year or "—"}</th>'
+                        body_cells += f'<td>{format_ganzhi(ln.get("gan_zhi"))}</td>'
+                        age_cells += f'<td class="muted">{format_age(ln.get("age"))}</td>'
+
+                    liu_nian_html = normalize_html(f'''
+                    <div class="bazi-table-wrap">
+                        <table class="bazi-table compact">
+                            <thead>
+                                <tr>
+                                    <th class="row-label">流年</th>
+                                    {header_cells}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="row-label">干支</td>
+                                    {body_cells}
+                                </tr>
+                                <tr>
+                                    <td class="row-label">年龄</td>
+                                    {age_cells}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    ''')
+                    tables_html_parts.append(liu_nian_html)
+
+                if liu_yue:
+                    # Solar terms mapping (month -> solar term)
+                    solar_terms = {
+                        1: "小寒", 2: "立春", 3: "惊蛰", 4: "清明",
+                        5: "立夏", 6: "芒种", 7: "小暑", 8: "立秋",
+                        9: "白露", 10: "寒露", 11: "立冬", 12: "大雪"
+                    }
+                    
+                    header_cells = ""
+                    jieqi_cells = ""
+                    body_cells = ""
+                    month_name_map = {
+                        "正月": 1, "二月": 2, "三月": 3, "四月": 4,
+                        "五月": 5, "六月": 6, "七月": 7, "八月": 8,
+                        "九月": 9, "十月": 10, "冬月": 11, "腊月": 12
+                    }
+                    for idx, ly in enumerate(liu_yue):
+                        month_val = ly.get("month")
+                        if isinstance(month_val, str):
+                            month_val = month_name_map.get(month_val)
+                        if not isinstance(month_val, int):
+                            month_val = idx + 1
+                        month_label = f"{month_val}月"
+                        header_cells += f'<th>{month_label}</th>'
+                        
+                        # Get solar term for this month
+                        jieqi = solar_terms.get(month_val, "—") if isinstance(month_val, int) else "—"
+                        jieqi_cells += f'<td class="muted">{jieqi}</td>'
+                        
+                        body_cells += f'<td>{format_ganzhi(ly.get("gan_zhi"))}</td>'
+
+                    liu_yue_html = normalize_html(f'''
+                    <div class="bazi-table-wrap">
+                        <table class="bazi-table compact">
+                            <thead>
+                                <tr>
+                                    <th class="row-label">流月</th>
+                                    {header_cells}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="row-label">节气</td>
+                                    {jieqi_cells}
+                                </tr>
+                                <tr>
+                                    <td class="row-label">干支</td>
+                                    {body_cells}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    ''')
+                    tables_html_parts.append(liu_yue_html)
+
+            tables_html = "".join(tables_html_parts)
+            st.markdown(f'<div class="bazi-table-stack">{tables_html}</div>', unsafe_allow_html=True)
     else:
         # Fallback to text display
         st.markdown(f'<div class="bazi-display">{st.session_state.bazi_result}</div>', unsafe_allow_html=True)

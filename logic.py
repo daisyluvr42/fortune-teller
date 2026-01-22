@@ -716,6 +716,40 @@ class BaziAuxiliaryCalculator:
             "乙": 6, "丁": 9, "己": 9, "辛": 0, "癸": 3   # 阴干：午, 酉, 酉, 子, 卯
         }
         self.stages = ["长生", "沐浴", "冠带", "临官", "帝旺", "衰", "病", "死", "墓", "绝", "胎", "养"]
+        
+        # 2. 六十甲子纳音表
+        self.nayin_map = {
+            "甲子": "海中金", "乙丑": "海中金",
+            "丙寅": "炉中火", "丁卯": "炉中火",
+            "戊辰": "大林木", "己巳": "大林木",
+            "庚午": "路旁土", "辛未": "路旁土",
+            "壬申": "剑锋金", "癸酉": "剑锋金",
+            "甲戌": "山头火", "乙亥": "山头火",
+            "丙子": "涧下水", "丁丑": "涧下水",
+            "戊寅": "城头土", "己卯": "城头土",
+            "庚辰": "白蜡金", "辛巳": "白蜡金",
+            "壬午": "杨柳木", "癸未": "杨柳木",
+            "甲申": "泉中水", "乙酉": "泉中水",
+            "丙戌": "屋上土", "丁亥": "屋上土",
+            "戊子": "霹雳火", "己丑": "霹雳火",
+            "庚寅": "松柏木", "辛卯": "松柏木",
+            "壬辰": "长流水", "癸巳": "长流水",
+            "甲午": "沙中金", "乙未": "沙中金",
+            "丙申": "山下火", "丁酉": "山下火",
+            "戊戌": "平地木", "己亥": "平地木",
+            "庚子": "壁上土", "辛丑": "壁上土",
+            "壬寅": "金箔金", "癸卯": "金箔金",
+            "甲辰": "覆灯火", "乙巳": "覆灯火",
+            "丙午": "天河水", "丁未": "天河水",
+            "戊申": "大驿土", "己酉": "大驿土",
+            "庚戌": "钗钏金", "辛亥": "钗钏金",
+            "壬子": "桑柘木", "癸丑": "桑柘木",
+            "甲寅": "大溪水", "乙卯": "大溪水",
+            "丙辰": "沙中土", "丁巳": "沙中土",
+            "戊午": "天上火", "己未": "天上火",
+            "庚申": "石榴木", "辛酉": "石榴木",
+            "壬戌": "大海水", "癸亥": "大海水",
+        }
 
     # ================== 1. 十二长生计算 ==================
     def get_12_stages(self, day_master, branches):
@@ -747,7 +781,7 @@ class BaziAuxiliaryCalculator:
     # ================== 2. 空亡计算 ==================
     def get_kong_wang(self, day_stem, day_branch):
         """
-        计算日柱空亡
+        计算单柱空亡
         口诀：甲子旬中戌亥空...
         算法：(地支索引 - 天干索引) % 12 -> 剩下的两个地支
         """
@@ -764,13 +798,38 @@ class BaziAuxiliaryCalculator:
         kw_idx2 = (diff - 1) % 12
         
         return [self.branches[kw_idx1], self.branches[kw_idx2]]
+    
+    def get_all_kong_wang(self, pillars):
+        """
+        计算年、月、日、时四柱各自的空亡
+        :param pillars: [年柱, 月柱, 日柱, 时柱] 字符串列表，如 ['甲子', '丙寅', '壬辰', '庚午']
+        :return: dict with year_kong, month_kong, day_kong, hour_kong
+        """
+        result = {}
+        keys = ["year_kong", "month_kong", "day_kong", "hour_kong"]
+        labels = ["年", "月", "日", "时"]
+        
+        for i, pillar in enumerate(pillars):
+            if len(pillar) >= 2:
+                stem, branch = pillar[0], pillar[1]
+                if stem in self.stems and branch in self.branches:
+                    kong = self.get_kong_wang(stem, branch)
+                    result[keys[i]] = kong
+                    result[f"{labels[i]}空"] = kong  # Also store with Chinese label
+                else:
+                    result[keys[i]] = []
+            else:
+                result[keys[i]] = []
+        
+        return result
 
     # ================== 3. 核心神煞 (贵人, 桃花, 驿马) ==================
-    def get_shen_sha(self, day_master, day_branch, all_branches):
+    def get_shen_sha(self, day_master, day_branch, all_branches, all_stems=None, year_branch=None, month_branch=None):
         """
         计算核心神煞 (贵人, 桃花, 驿马)
         """
         shen_sha_list = []
+        all_stems = all_stems or []
         
         # A. 天乙贵人 (Day Master -> Branch)
         nobleman_map = {
@@ -807,6 +866,160 @@ class BaziAuxiliaryCalculator:
         if target_horse and target_horse in all_branches:
             shen_sha_list.append(f"驿马({target_horse})")
 
+        # D. 华盖 (以日支查)
+        # 申子辰见辰, 寅午戌见戌, 巳酉丑见丑, 亥卯未见未
+        huagai_map = {
+            "申": "辰", "子": "辰", "辰": "辰",
+            "寅": "戌", "午": "戌", "戌": "戌",
+            "巳": "丑", "酉": "丑", "丑": "丑",
+            "亥": "未", "卯": "未", "未": "未"
+        }
+        target_huagai = huagai_map.get(day_branch)
+        if target_huagai and target_huagai in all_branches:
+            shen_sha_list.append(f"华盖({target_huagai})")
+
+        # E. 将星 (以日支查)
+        # 申子辰见子, 寅午戌见午, 巳酉丑见酉, 亥卯未见卯
+        jiangxing_map = {
+            "申": "子", "子": "子", "辰": "子",
+            "寅": "午", "午": "午", "戌": "午",
+            "巳": "酉", "酉": "酉", "丑": "酉",
+            "亥": "卯", "卯": "卯", "未": "卯"
+        }
+        target_jiangxing = jiangxing_map.get(day_branch)
+        if target_jiangxing and target_jiangxing in all_branches:
+            shen_sha_list.append(f"将星({target_jiangxing})")
+
+        # F. 羊刃 (以日干查)
+        yangren_map = {
+            "甲": "卯", "乙": "寅",
+            "丙": "午", "丁": "巳",
+            "戊": "午", "己": "巳",
+            "庚": "酉", "辛": "申",
+            "壬": "子", "癸": "亥"
+        }
+        target_yangren = yangren_map.get(day_master)
+        if target_yangren and target_yangren in all_branches:
+            shen_sha_list.append(f"羊刃({target_yangren})")
+
+        # G. 文昌贵人 (以日干查)
+        wenchang_map = {
+            "甲": ["巳", "午"], "乙": ["巳", "午"],
+            "丙": ["申", "酉"], "丁": ["申", "酉"],
+            "戊": ["申", "酉"], "己": ["申", "酉"],
+            "庚": ["亥", "子"], "辛": ["亥", "子"],
+            "壬": ["寅", "卯"], "癸": ["寅", "卯"]
+        }
+        for b in all_branches:
+            if b in wenchang_map.get(day_master, []):
+                shen_sha_list.append(f"文昌({b})")
+
+        # H. 太极贵人 (以日干查)
+        taiji_map = {
+            "甲": ["子", "午"], "乙": ["子", "午"],
+            "丙": ["卯", "酉"], "丁": ["卯", "酉"],
+            "戊": ["辰", "戌", "丑", "未"], "己": ["辰", "戌", "丑", "未"],
+            "庚": ["寅", "亥"], "辛": ["寅", "亥"],
+            "壬": ["巳", "申"], "癸": ["巳", "申"]
+        }
+        for b in all_branches:
+            if b in taiji_map.get(day_master, []):
+                shen_sha_list.append(f"太极({b})")
+
+        # I. 福星贵人 (以日干查)
+        fuxing_map = {
+            "甲": ["丑", "未"], "乙": ["丑", "未"],
+            "丙": ["子", "申"], "丁": ["子", "申"],
+            "戊": ["寅", "戌"], "己": ["寅", "戌"],
+            "庚": ["卯", "亥"], "辛": ["卯", "亥"],
+            "壬": ["巳", "酉"], "癸": ["巳", "酉"]
+        }
+        for b in all_branches:
+            if b in fuxing_map.get(day_master, []):
+                shen_sha_list.append(f"福星({b})")
+
+        # J. 国印贵人 (以日干查)
+        guoyin_map = {
+            "甲": ["戌"], "乙": ["亥"], "丙": ["丑"], "丁": ["寅"],
+            "戊": ["丑"], "己": ["寅"], "庚": ["辰"], "辛": ["巳"],
+            "壬": ["未"], "癸": ["申"]
+        }
+        for b in all_branches:
+            if b in guoyin_map.get(day_master, []):
+                shen_sha_list.append(f"国印({b})")
+
+        # K. 禄神 (以日干查)
+        lushen_map = {
+            "甲": "寅", "乙": "卯", "丙": "巳", "丁": "午",
+            "戊": "巳", "己": "午", "庚": "申", "辛": "酉",
+            "壬": "亥", "癸": "子"
+        }
+        target_lushen = lushen_map.get(day_master)
+        if target_lushen and target_lushen in all_branches:
+            shen_sha_list.append(f"禄神({target_lushen})")
+
+        # L. 天德贵人 (以月支查)
+        tiande_map = {
+            "寅": "丁", "卯": "申", "辰": "壬", "巳": "辛",
+            "午": "亥", "未": "甲", "申": "癸", "酉": "寅",
+            "戌": "丙", "亥": "乙", "子": "己", "丑": "庚"
+        }
+        if month_branch:
+            target_tiande = tiande_map.get(month_branch)
+            if target_tiande and target_tiande in all_stems:
+                shen_sha_list.append(f"天德({target_tiande})")
+
+        # M. 月德贵人 (以月支查)
+        yuede_map = {
+            "寅": "丙", "卯": "甲", "辰": "壬", "巳": "庚",
+            "午": "丙", "未": "甲", "申": "壬", "酉": "庚",
+            "戌": "丙", "亥": "甲", "子": "壬", "丑": "庚"
+        }
+        if month_branch:
+            target_yuede = yuede_map.get(month_branch)
+            if target_yuede and target_yuede in all_stems:
+                shen_sha_list.append(f"月德({target_yuede})")
+
+        # N. 红鸾/天喜 (以年支查)
+        hongluan_map = {
+            "子": "卯", "丑": "寅", "寅": "丑", "卯": "子",
+            "辰": "亥", "巳": "戌", "午": "酉", "未": "申",
+            "申": "未", "酉": "午", "戌": "巳", "亥": "辰"
+        }
+        tianxi_map = {
+            "子": "酉", "丑": "申", "寅": "未", "卯": "午",
+            "辰": "巳", "巳": "辰", "午": "卯", "未": "寅",
+            "申": "丑", "酉": "子", "戌": "亥", "亥": "戌"
+        }
+        if year_branch:
+            target_hongluan = hongluan_map.get(year_branch)
+            if target_hongluan and target_hongluan in all_branches:
+                shen_sha_list.append(f"红鸾({target_hongluan})")
+            target_tianxi = tianxi_map.get(year_branch)
+            if target_tianxi and target_tianxi in all_branches:
+                shen_sha_list.append(f"天喜({target_tianxi})")
+
+        # O. 孤辰/寡宿 (以年支查)
+        guchen_map = {
+            "亥": "寅", "子": "寅", "丑": "寅",
+            "寅": "巳", "卯": "巳", "辰": "巳",
+            "巳": "申", "午": "申", "未": "申",
+            "申": "亥", "酉": "亥", "戌": "亥"
+        }
+        guasu_map = {
+            "亥": "戌", "子": "戌", "丑": "戌",
+            "寅": "丑", "卯": "丑", "辰": "丑",
+            "巳": "辰", "午": "辰", "未": "辰",
+            "申": "未", "酉": "未", "戌": "未"
+        }
+        if year_branch:
+            target_guchen = guchen_map.get(year_branch)
+            if target_guchen and target_guchen in all_branches:
+                shen_sha_list.append(f"孤辰({target_guchen})")
+            target_guasu = guasu_map.get(year_branch)
+            if target_guasu and target_guasu in all_branches:
+                shen_sha_list.append(f"寡宿({target_guasu})")
+
         return list(set(shen_sha_list))  # 去重
 
     # ================== 4. 地支刑冲合害 ==================
@@ -840,21 +1053,53 @@ class BaziAuxiliaryCalculator:
 
         return interactions
 
+    # ================== 5. 纳音计算 ==================
+    def get_nayin(self, pillars):
+        """
+        计算四柱纳音
+        :param pillars: [年柱, 月柱, 日柱, 时柱] 如 ["甲子", "丙寅", "壬午", "己酉"]
+        :return: dict
+        """
+        return {
+            "year": self.nayin_map.get(pillars[0], ""),
+            "month": self.nayin_map.get(pillars[1], ""),
+            "day": self.nayin_map.get(pillars[2], ""),
+            "hour": self.nayin_map.get(pillars[3], ""),
+        }
+
     # ================== 综合计算 ==================
-    def calculate_all(self, day_master, day_branch, all_branches):
+    def calculate_all(self, day_master, day_branch, all_branches, pillars=None, all_stems=None, year_branch=None, month_branch=None):
         """
         综合计算所有辅助信息
         :param day_master: 日主天干
         :param day_branch: 日支
         :param all_branches: [年支, 月支, 日支, 时支]
+        :param pillars: [年柱, 月柱, 日柱, 时柱] (可选，用于计算纳音)
+        :param all_stems: [年干, 月干, 日干, 时干] (可选，用于神煞)
+        :param year_branch: 年支 (可选，用于神煞)
+        :param month_branch: 月支 (可选，用于神煞)
         :return: dict
         """
-        return {
+        result = {
             "twelve_stages": self.get_12_stages(day_master, all_branches),
-            "kong_wang": self.get_kong_wang(day_master, day_branch),
-            "shen_sha": self.get_shen_sha(day_master, day_branch, all_branches),
+            "kong_wang": self.get_kong_wang(day_master, day_branch),  # Day pillar kong wang (backward compatible)
+            "shen_sha": self.get_shen_sha(
+                day_master,
+                day_branch,
+                all_branches,
+                all_stems=all_stems,
+                year_branch=year_branch,
+                month_branch=month_branch
+            ),
             "interactions": self.get_interactions(all_branches)
         }
+        
+        # 如果提供了四柱，计算纳音和所有空亡
+        if pillars:
+            result["nayin"] = self.get_nayin(pillars)
+            result["all_kong_wang"] = self.get_all_kong_wang(pillars)
+        
+        return result
 
 
 class TiaoHouCalculator:
@@ -1211,21 +1456,21 @@ class BaziChartGenerator:
     """八字排盘 SVG 图表生成器 - 高级精致版"""
     
     def __init__(self):
-        # 高级配色方案 - 更有层次感
+        # 高级精致版 (Light Mode - matches professional table)
         self.colors = {
             "木": "#2ECC71",  # 翠绿
             "火": "#E74C3C",  # 朱红
-            "土": "#D4A017",  # 土黄金
+            "土": "#D4A017",  # 土黄
             "金": "#F39C12",  # 金橙
             "水": "#3498DB",  # 湛蓝
-            "text_dark": "#2C3E50",
-            "text_light": "#95A5A6",
-            "text_muted": "#BDC3C7",
-            "bg_main": "#FFFEF7",         # 象牙白
-            "bg_header": "#8B7355",       # 深棕色标题栏
-            "header_text": "#FFF8DC",     # 米白色标题字
-            "border": "#C9B99A",
-            "badge_bg": "#F8F4E8",        # 十神标签背景
+            "text_dark": "#2C3E50",       # Dark text for light bg
+            "text_light": "#7F8C8D",      # Grey
+            "text_muted": "#95A5A6",      # Light grey
+            "bg_main": "none",            # Transparent (container has white bg)
+            "bg_header": "none",          # Transparent
+            "header_text": "#8B7355",     # Brown for header
+            "border": "#C9B99A",          # Light border
+            "badge_bg": "#F8F4E8",        # Cream for badges
         }
         
         # 五行映射
@@ -1240,64 +1485,54 @@ class BaziChartGenerator:
     def get_color(self, char):
         """根据干支字符获取对应的五行颜色"""
         wx = self.wuxing_map.get(char, "木")
-        return self.colors.get(wx, "#333")
+        return self.colors.get(wx, "#CCCCCC")
 
     def generate_chart(self, bazi_data, filename="bazi_chart.svg"):
         """
-        生成高级精致的排盘 SVG (支持移动端响应式)
+        生成高级精致的排盘 SVG (透明背景，适配暗色主题)
         """
-        # DEBUG: Print bazi_data structure to verify hidden_stems data
+        # DEBUG: Print bazi_data structure
         print(f"DEBUG: Full bazi_data = {bazi_data}")
         
         width = 480
-        height = 420  # Adjusted to fit content snugly
-        # Create SVG with fixed size, then add viewBox for responsive scaling
+        height = 420
+        # Create SVG
         dwg = svgwrite.Drawing(filename, size=(f"{width}px", f"{height}px"))
         dwg['viewBox'] = f"0 0 {width} {height}"
         dwg['preserveAspectRatio'] = "xMidYMid meet"
-        # CSS will handle responsive sizing via container
         
-        # ========== 1. 背景与边框 ==========
-        # 外边框阴影效果 (用浅色矩形模拟)
-        dwg.add(dwg.rect(insert=(3, 3), size=(width-2, height-2), rx=14, ry=14, 
-                         fill="#E8E4D9", stroke="none"))
-        # 主背景
-        dwg.add(dwg.rect(insert=(0, 0), size=(width, height), rx=14, ry=14, 
-                         fill=self.colors['bg_main'], stroke=self.colors['border'], stroke_width=2))
+        # ========== NO BACKGROUND / NO HEADER BOX ==========
+        # Purely transparent background to blend with app theme
         
-        # ========== 2. 标题栏 (深色渐变感) ==========
-        dwg.add(dwg.rect(insert=(0, 0), size=(width, 52), rx=14, ry=14, 
-                         fill=self.colors['bg_header']))
-        dwg.add(dwg.rect(insert=(0, 28), size=(width, 24), 
-                         fill=self.colors['bg_header']))  # 修正底部圆角
-        
-        # 标题文字 - Using white for maximum visibility against dark header
+        # 标题文字
         gender_text = bazi_data.get('gender', '命盘')
         dwg.add(dwg.text(f"🔮 {gender_text}", insert=(width/2, 35), 
-                         text_anchor="middle", font_size="22px", font_weight="bold", 
-                         fill="#FFFFFF", font_family="SimHei, Microsoft YaHei, sans-serif"))
+                         text_anchor="middle", font_size="24px", font_weight="bold", 
+                         fill=self.colors['header_text'], font_family="SimHei, Microsoft YaHei, sans-serif"))
         
         # ========== 3. 四柱列标题 ==========
         col_width = width / 4
-        header_y = 80
+        header_y = 70
         titles = ["年柱", "月柱", "日柱", "时柱"]
         
         for i, title in enumerate(titles):
             center_x = col_width * i + col_width / 2
             dwg.add(dwg.text(title, insert=(center_x, header_y), 
-                             text_anchor="middle", font_size="15px", font_weight="bold",
+                             text_anchor="middle", font_size="16px", font_weight="bold",
                              fill=self.colors['text_dark'], font_family="SimHei, Microsoft YaHei"))
         
         # ========== 4. 绘制四柱 ==========
         pillar_keys = ["year", "month", "day", "hour"]
         old_keys = ["year_pillar", "month_pillar", "day_pillar", "hour_pillar"]
         
-        ten_god_y = 100      # 十神标签 Y
-        stem_row_y = 140     # 天干圆心 Y
-        branch_row_y = 220   # 地支圆心 Y
-        branch_bottom_y = branch_row_y + 29  # Branch square bottom edge (rect_size/2 = 29)
-        hidden_start_y = branch_bottom_y + 80  # Safe start Y for hidden stems (with margin)
-        hidden_row_y = hidden_start_y  # Y position for hidden stem characters
+        ten_god_y = 100
+        stem_row_y = 145
+        branch_row_y = 230
+        
+        # Calculate Y position for hidden stems
+        rect_size = 62
+        branch_bottom_y = branch_row_y + (rect_size / 2)
+        hidden_row_y = branch_bottom_y + 60  # Position for hidden stems
         
         for i, p_key in enumerate(pillar_keys):
             center_x = col_width * i + col_width / 2
@@ -1325,34 +1560,33 @@ class BaziChartGenerator:
             stem_color = self.get_color(stem_char)
             branch_color = self.get_color(branch_char)
             
-            # --- 十神标签 (徽章样式 - 动态边框颜色) ---
+            # --- 十神标签 ---
             if stem_ten_god:
-                badge_w = 42  # 增加宽度，增加呼吸空间
-                badge_h = 18
-                # 动态边框颜色：匹配天干的五行颜色
-                badge_border_color = stem_color
-                dwg.add(dwg.rect(insert=(center_x - badge_w/2, ten_god_y - badge_h/2 - 2), 
-                                 size=(badge_w, badge_h), rx=9, ry=9,
-                                 fill=self.colors['badge_bg'], stroke=badge_border_color, stroke_width=1.5))
+                badge_w = 46
+                badge_h = 22
+                # Use cream color for badge background
+                dwg.add(dwg.rect(insert=(center_x - badge_w/2, ten_god_y - badge_h/2 - 4), 
+                                 size=(badge_w, badge_h), rx=6, ry=6,
+                                 fill=self.colors['badge_bg'], stroke=stem_color, stroke_width=1))
                 dwg.add(dwg.text(stem_ten_god, insert=(center_x, ten_god_y + 4),
-                                 text_anchor="middle", font_size="11px", font_weight="bold",
+                                 text_anchor="middle", font_size="12px", font_weight="bold",
                                  fill=self.colors['text_dark'], font_family="SimHei, Microsoft YaHei"))
             
-            # --- 天干 (圆形，更大更精致) ---
-            dwg.add(dwg.circle(center=(center_x, stem_row_y), r=30,
-                               fill="white", stroke=stem_color, stroke_width=3.5))
-            dwg.add(dwg.text(stem_char, insert=(center_x, stem_row_y + 12),
-                             text_anchor="middle", font_size="36px", font_weight="bold",
-                             fill=stem_color, font_family="KaiTi, STKaiti, FangSong, serif"))
+            # --- 天干 (透明背景) ---
+            dwg.add(dwg.circle(center=(center_x, stem_row_y), r=32,
+                               fill="none", stroke=stem_color, stroke_width=3))
+            dwg.add(dwg.text(stem_char, insert=(center_x, stem_row_y + 13),
+                             text_anchor="middle", font_size="38px", font_weight="bold",
+                              fill=stem_color, font_family="KaiTi, STKaiti, FangSong, serif"))
             
-            # --- 地支 (圆角方形，更大) ---
-            rect_size = 58
+            # --- 地支 (透明背景) ---
+            rect_size = 62
             dwg.add(dwg.rect(insert=(center_x - rect_size/2, branch_row_y - rect_size/2), 
-                             size=(rect_size, rect_size), rx=10, ry=10,
-                             fill="white", stroke=branch_color, stroke_width=3.5))
-            dwg.add(dwg.text(branch_char, insert=(center_x, branch_row_y + 14),
-                             text_anchor="middle", font_size="36px", font_weight="bold",
-                             fill=branch_color, font_family="KaiTi, STKaiti, FangSong, serif"))
+                             size=(rect_size, rect_size), rx=12, ry=12,
+                             fill="none", stroke=branch_color, stroke_width=3))
+            dwg.add(dwg.text(branch_char, insert=(center_x, branch_row_y + 15),
+                             text_anchor="middle", font_size="38px", font_weight="bold",
+                              fill=branch_color, font_family="KaiTi, STKaiti, FangSong, serif"))
             
             # --- 藏干 (水平排列，更清晰) ---
             # DEBUG: Print hidden_stems data for each pillar
@@ -1938,6 +2172,130 @@ def calculate_true_solar_time(year: int, month: int, day: int, hour: int, minute
     return adjusted_dt, time_diff_minutes
 
 
+def calculate_fortune_cycles(
+    year: int,
+    month: int,
+    day: int,
+    hour: int,
+    minute: int,
+    gender: str,
+    longitude: float = None
+) -> dict:
+    """
+    Calculate DaYun / LiuNian / LiuYue cycles using lunar-python.
+    Fallbacks are used when specific APIs are unavailable.
+    """
+    try:
+        if longitude is not None:
+            adjusted_dt, _ = calculate_true_solar_time(year, month, day, hour, minute, longitude)
+            year, month, day, hour, minute = (
+                adjusted_dt.year,
+                adjusted_dt.month,
+                adjusted_dt.day,
+                adjusted_dt.hour,
+                adjusted_dt.minute,
+            )
+
+        solar = Solar.fromYmdHms(year, month, day, hour, minute, 0)
+        lunar = solar.getLunar()
+        eight_char = lunar.getEightChar()
+    except Exception:
+        return {"da_yun": [], "liu_nian": [], "liu_yue": [], "start_info": {}}
+
+    gender_flag = 1 if gender == "男" else 0
+    yun = None
+
+    def try_get_yun(target):
+        for args in [(gender_flag, 1), (gender_flag, 2), (gender_flag,), (1,), (0, 1), (0, 2)]:
+            try:
+                return target.getYun(*args)
+            except Exception:
+                continue
+        return None
+
+    yun = try_get_yun(lunar) or try_get_yun(eight_char)
+
+    def safe_call(obj, name, *args):
+        try:
+            method = getattr(obj, name)
+            return method(*args)
+        except Exception:
+            return None
+
+    result = {"da_yun": [], "liu_nian": [], "liu_yue": [], "start_info": {}}
+    now_year = datetime.now().year
+    ln_obj_map = {}
+
+    if yun:
+        result["start_info"] = {
+            "year": safe_call(yun, "getStartYear"),
+            "month": safe_call(yun, "getStartMonth"),
+            "day": safe_call(yun, "getStartDay"),
+            "age": safe_call(yun, "getStartAge"),
+        }
+
+        da_yun_list = safe_call(yun, "getDaYun") or safe_call(yun, "getDaYunList") or []
+        for dy in da_yun_list:
+            gan_zhi = safe_call(dy, "getGanZhi") or safe_call(dy, "getGanZhiName")
+            result["da_yun"].append({
+                "gan_zhi": gan_zhi or "",
+                "start_year": safe_call(dy, "getStartYear"),
+                "end_year": safe_call(dy, "getEndYear"),
+                "start_age": safe_call(dy, "getStartAge"),
+                "end_age": safe_call(dy, "getEndAge"),
+            })
+
+            ln_list = safe_call(dy, "getLiuNian") or []
+            for ln in ln_list:
+                ln_year = safe_call(ln, "getYear")
+                if ln_year is None:
+                    continue
+                ln_obj_map[ln_year] = ln
+                if ln_year >= now_year:
+                    result["liu_nian"].append({
+                        "year": ln_year,
+                        "gan_zhi": safe_call(ln, "getGanZhi") or safe_call(ln, "getGanZhiName") or "",
+                        "age": safe_call(ln, "getAge"),
+                    })
+
+        result["liu_nian"] = sorted(result["liu_nian"], key=lambda item: item.get("year", 0))[:10]
+
+    if not result["liu_nian"]:
+        for y in range(now_year, now_year + 10):
+            try:
+                y_solar = Solar.fromYmdHms(y, 6, 15, 12, 0, 0)
+                y_lunar = y_solar.getLunar()
+                y_gz = y_lunar.getEightChar().getYear()
+                result["liu_nian"].append({
+                    "year": y,
+                    "gan_zhi": y_gz,
+                    "age": y - year,
+                })
+            except Exception:
+                continue
+
+    current_ln = ln_obj_map.get(now_year)
+    if current_ln:
+        ly_list = safe_call(current_ln, "getLiuYue") or []
+        for ly in ly_list:
+            result["liu_yue"].append({
+                "month": safe_call(ly, "getMonth"),
+                "gan_zhi": safe_call(ly, "getGanZhi") or safe_call(ly, "getGanZhiName") or "",
+            })
+
+    if not result["liu_yue"]:
+        for m in range(1, 13):
+            try:
+                m_solar = Solar.fromYmdHms(now_year, m, 15, 12, 0, 0)
+                m_lunar = m_solar.getLunar()
+                m_gz = m_lunar.getEightChar().getMonth()
+                result["liu_yue"].append({"month": m, "gan_zhi": m_gz})
+            except Exception:
+                continue
+
+    return result
+
+
 def calculate_bazi(year: int, month: int, day: int, hour: int, minute: int = 0, longitude: float = None) -> tuple:
     """
     Calculate Bazi (Four Pillars of Destiny) from a given date and time.
@@ -2021,9 +2379,19 @@ def calculate_bazi(year: int, month: int, day: int, hour: int, minute: int = 0, 
     pillars_list = [y_stem, y_branch, m_stem, m_branch, d_stem, d_branch, h_stem, h_branch]
     strength_info = _STRENGTH_CALC.calculate_strength(day_master, month_branch, pillars_list)
     
-    # 计算辅助信息 (十二长生, 空亡, 神煎, 刑冲合害)
+    # 计算辅助信息 (十二长生, 空亡, 神煞, 纳音, 刑冲合害)
     all_branches = [y_branch, m_branch, d_branch, h_branch]
-    auxiliary_info = _AUX_CALC.calculate_all(day_master, d_branch, all_branches)
+    all_pillars = [year_pillar, month_pillar, day_pillar, hour_pillar]
+    all_stems = [y_stem, m_stem, d_stem, h_stem]
+    auxiliary_info = _AUX_CALC.calculate_all(
+        day_master,
+        d_branch,
+        all_branches,
+        pillars=all_pillars,
+        all_stems=all_stems,
+        year_branch=y_branch,
+        month_branch=m_branch
+    )
     
     pattern_info = {
         "pattern": pattern,

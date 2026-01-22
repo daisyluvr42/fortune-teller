@@ -50,6 +50,22 @@ class Pillar(BaseModel):
     hidden_stems: Optional[List[str]] = Field(None, description="Hidden stems in the branch (藏干)")
 
 
+class TwelveStages(BaseModel):
+    """Twelve Life Stages (十二长生)."""
+    year_stage: str = Field(..., description="Year pillar stage")
+    month_stage: str = Field(..., description="Month pillar stage")
+    day_stage: str = Field(..., description="Day pillar stage (自坐)")
+    hour_stage: str = Field(..., description="Hour pillar stage")
+
+
+class NayinInfo(BaseModel):
+    """Nayin (纳音) for four pillars."""
+    year: str = Field(..., description="Year pillar Nayin")
+    month: str = Field(..., description="Month pillar Nayin")
+    day: str = Field(..., description="Day pillar Nayin")
+    hour: str = Field(..., description="Hour pillar Nayin")
+
+
 class ChartResponse(BaseModel):
     """Response for /api/chart endpoint."""
     year_pillar: Pillar
@@ -62,6 +78,11 @@ class ChartResponse(BaseModel):
     strength: str = Field(..., description="Strength (身强/身弱)")
     joy_elements: str = Field(..., description="Joy elements (喜用神)")
     time_correction: Optional[str] = Field(None, description="True solar time correction info")
+    # Extended data for professional chart
+    twelve_stages: Optional[TwelveStages] = Field(None, description="Twelve Life Stages (十二长生)")
+    kong_wang: Optional[List[str]] = Field(None, description="Empty/Void branches (空亡)")
+    nayin: Optional[NayinInfo] = Field(None, description="Nayin (纳音)")
+    shen_sha: Optional[List[str]] = Field(None, description="Spirit Stars (神煞)")
 
 
 class AnalysisRequest(BaseModel):
@@ -104,7 +125,7 @@ class CompatibilityResponse(BaseModel):
 app = FastAPI(
     title="命理大师 API",
     description="八字算命后端 API - 支持八字排盘、命理分析、合盘分析",
-    version="1.0.0"
+    version="v0.6.2 beta"
 )
 
 # Configure CORS for mobile/web access
@@ -160,6 +181,11 @@ async def get_bazi_chart(data: BirthData):
         
         day_master = pattern_info["day_master"]
         hidden = pattern_info.get("hidden_stems", {})
+        auxiliary = pattern_info.get("auxiliary", {})
+        
+        # Build extended data
+        twelve_stages_data = auxiliary.get("twelve_stages")
+        nayin_data = auxiliary.get("nayin")
         
         return ChartResponse(
             year_pillar=extract_pillar_data(
@@ -187,7 +213,12 @@ async def get_bazi_chart(data: BirthData):
             day_master=day_master,
             strength=pattern_info.get("strength", {}).get("result", "未知"),
             joy_elements=pattern_info.get("strength", {}).get("joy_elements", "未知"),
-            time_correction=time_info
+            time_correction=time_info,
+            # Extended professional chart data
+            twelve_stages=TwelveStages(**twelve_stages_data) if twelve_stages_data else None,
+            kong_wang=auxiliary.get("kong_wang"),
+            nayin=NayinInfo(**nayin_data) if nayin_data else None,
+            shen_sha=auxiliary.get("shen_sha")
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Bazi calculation error: {str(e)}")
