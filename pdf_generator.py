@@ -6,6 +6,7 @@ Uses ReportLab for creating professional PDF reports with Chinese text support.
 import io
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -13,36 +14,17 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-from reportlab.pdfbase.ttfonts import TTFont
-from pathlib import Path
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from text_utils import clean_text_for_pdf
 
-# Register preferred Chinese font (local OTF), fallback to CID font.
-_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSansCJKsc-Regular.otf"
-_FONT_MEDIUM_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSansCJKsc-Medium.otf"
-CHINESE_FONT_TITLE = None
+# Prefer stable built-in CID font for consistent CJK rendering.
 try:
-    if _FONT_PATH.exists():
-        pdfmetrics.registerFont(TTFont("NotoSansCJKsc", str(_FONT_PATH)))
-        CHINESE_FONT = "NotoSansCJKsc"
-        if _FONT_MEDIUM_PATH.exists():
-            pdfmetrics.registerFont(TTFont("NotoSansCJKsc-Medium", str(_FONT_MEDIUM_PATH)))
-            CHINESE_FONT_TITLE = "NotoSansCJKsc-Medium"
-    else:
-        raise FileNotFoundError(_FONT_PATH)
+    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+    CHINESE_FONT = 'STSong-Light'
 except Exception:
-    try:
-        pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
-        CHINESE_FONT = 'STSong-Light'
-        CHINESE_FONT_TITLE = 'STSong-Light'
-    except Exception:
-        # Fallback to Helvetica (won't display Chinese properly, but won't crash)
-        CHINESE_FONT = 'Helvetica'
-        CHINESE_FONT_TITLE = 'Helvetica'
-
-if CHINESE_FONT_TITLE is None:
-    CHINESE_FONT_TITLE = CHINESE_FONT
+    # Fallback to Helvetica (won't display Chinese properly, but won't crash)
+    CHINESE_FONT = 'Helvetica'
+CHINESE_FONT_TITLE = CHINESE_FONT
 
 
 
@@ -325,14 +307,14 @@ def generate_grouped_report_pdf(
         value = value.strip()
         value = re.sub(r'(\d{1,2}日)\s*(\d{1,2}:\d{2})', r'\1 · \2', value)
         value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
-        return add_digit_spacing(value)
+        return to_fullwidth_digits(value)
 
-    def add_digit_spacing(value: str) -> str:
-        return re.sub(r'(?<=\d)(?=\d)', '\u2009', value)
+    def to_fullwidth_digits(value: str) -> str:
+        return value.translate(str.maketrans("0123456789", "０１２３４５６７８９"))
 
     def format_generated_time() -> str:
-        now = datetime.now()
-        return add_digit_spacing(f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}")
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        return to_fullwidth_digits(f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}")
 
     def add_response_block(title: str, text: str) -> None:
         story.append(Paragraph(f"【{title}】", styles['ChineseSectionHeader']))
