@@ -125,7 +125,7 @@ class CompatibilityResponse(BaseModel):
 app = FastAPI(
     title="命理大师 API",
     description="八字算命后端 API - 支持八字排盘、命理分析、合盘分析",
-    version="v0.6.2 beta"
+    version="v0.6.3 beta"
 )
 
 # Configure CORS for mobile/web access
