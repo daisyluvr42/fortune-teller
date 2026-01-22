@@ -4,6 +4,7 @@ Uses ReportLab for creating professional PDF reports with Chinese text support.
 """
 
 import io
+import re
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -318,6 +319,14 @@ def generate_grouped_report_pdf(
         age = safe_text(value, allow_zero=False)
         return f"{age}岁" if age != "—" else "—"
 
+    def format_birth_datetime(value: str | None) -> str | None:
+        if not value:
+            return value
+        value = value.strip()
+        value = re.sub(r'(\d{1,2}日)(\d{1,2}:\d{2})', r'\1 \2', value)
+        value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
+        return value
+
     def add_response_block(title: str, text: str) -> None:
         story.append(Paragraph(f"【{title}】", styles['ChineseSectionHeader']))
         clean_response = clean_text_for_pdf(text)
@@ -347,7 +356,7 @@ def generate_grouped_report_pdf(
         ["出生地点", birthplace if birthplace != "未指定" else "未指定（使用北京时间）"],
     ]
     if birth_datetime:
-        info_data.insert(0, ["出生时间", birth_datetime])
+        info_data.insert(0, ["出生时间", format_birth_datetime(birth_datetime)])
     if time_info:
         info_data.append(["时间校正", time_info])
     info_table = Table(info_data, colWidths=[3*cm, 12*cm])

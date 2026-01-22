@@ -113,6 +113,8 @@ def clean_text_for_pdf(text: str) -> str:
     text = re.sub(r'([\u4e00-\u9fff])\s+([\u4e00-\u9fff])', r'\1\2', text)
     text = re.sub(r'([\u4e00-\u9fff])\s+([，。！？；：、”’》）】])', r'\1\2', text)
     text = re.sub(r'([“‘《（【])\s+([\u4e00-\u9fff])', r'\1\2', text)
+    text = re.sub(r'([“‘])\s+', r'\1', text)
+    text = re.sub(r'\s+([”’])', r'\1', text)
 
     # Clean up extra newlines
     text = _MD_PDF_EXTRA_NEWLINES_RE.sub('\n\n', text)
