@@ -325,11 +325,14 @@ def generate_grouped_report_pdf(
         value = value.strip()
         value = re.sub(r'(\d{1,2}日)\s*(\d{1,2}:\d{2})', r'\1 · \2', value)
         value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
-        return value
+        return add_digit_spacing(value)
+
+    def add_digit_spacing(value: str) -> str:
+        return re.sub(r'(?<=\d)(?=\d)', '\u2009', value)
 
     def format_generated_time() -> str:
         now = datetime.now()
-        return f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}"
+        return add_digit_spacing(f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}")
 
     def add_response_block(title: str, text: str) -> None:
         story.append(Paragraph(f"【{title}】", styles['ChineseSectionHeader']))
