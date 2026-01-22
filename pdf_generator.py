@@ -12,16 +12,36 @@ from reportlab.lib.units import mm, cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.pdfbase.ttfonts import TTFont
+from pathlib import Path
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from text_utils import clean_text_for_pdf
 
-# Register Chinese CID font (built-in, no external file needed)
+# Register preferred Chinese font (local OTF), fallback to CID font.
+_FONT_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSansCJKsc-Regular.otf"
+_FONT_MEDIUM_PATH = Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSansCJKsc-Medium.otf"
+CHINESE_FONT_TITLE = None
 try:
-    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
-    CHINESE_FONT = 'STSong-Light'
+    if _FONT_PATH.exists():
+        pdfmetrics.registerFont(TTFont("NotoSansCJKsc", str(_FONT_PATH)))
+        CHINESE_FONT = "NotoSansCJKsc"
+        if _FONT_MEDIUM_PATH.exists():
+            pdfmetrics.registerFont(TTFont("NotoSansCJKsc-Medium", str(_FONT_MEDIUM_PATH)))
+            CHINESE_FONT_TITLE = "NotoSansCJKsc-Medium"
+    else:
+        raise FileNotFoundError(_FONT_PATH)
 except Exception:
-    # Fallback to Helvetica (won't display Chinese properly, but won't crash)
-    CHINESE_FONT = 'Helvetica'
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+        CHINESE_FONT = 'STSong-Light'
+        CHINESE_FONT_TITLE = 'STSong-Light'
+    except Exception:
+        # Fallback to Helvetica (won't display Chinese properly, but won't crash)
+        CHINESE_FONT = 'Helvetica'
+        CHINESE_FONT_TITLE = 'Helvetica'
+
+if CHINESE_FONT_TITLE is None:
+    CHINESE_FONT_TITLE = CHINESE_FONT
 
 
 
@@ -33,7 +53,7 @@ def create_styles():
     # Title style
     styles.add(ParagraphStyle(
         name='ChineseTitle',
-        fontName=CHINESE_FONT,
+        fontName=CHINESE_FONT_TITLE,
         fontSize=24,
         leading=30,
         alignment=TA_CENTER,
@@ -55,7 +75,7 @@ def create_styles():
     # Section header style
     styles.add(ParagraphStyle(
         name='ChineseSectionHeader',
-        fontName=CHINESE_FONT,
+        fontName=CHINESE_FONT_TITLE,
         fontSize=16,
         leading=22,
         alignment=TA_LEFT,
@@ -144,7 +164,7 @@ def generate_report_pdf(
     story = []
     
     # ========== Title Section ==========
-    story.append(Paragraph("🔮 八字命理分析报告", styles['ChineseTitle']))
+    story.append(Paragraph("八字命理分析报告", styles['ChineseTitle']))
     story.append(Paragraph(
         f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
         styles['ChineseSubtitle']
@@ -152,7 +172,7 @@ def generate_report_pdf(
     story.append(Spacer(1, 10))
     
     # ========== User Info Section ==========
-    story.append(Paragraph("📋 基本信息", styles['ChineseSectionHeader']))
+    story.append(Paragraph("基本信息", styles['ChineseSectionHeader']))
     
     info_data = [
         ["性别", gender],
@@ -179,7 +199,7 @@ def generate_report_pdf(
     story.append(Spacer(1, 15))
     
     # ========== Bazi Display ==========
-    story.append(Paragraph("🎴 八字排盘", styles['ChineseSectionHeader']))
+    story.append(Paragraph("八字排盘", styles['ChineseSectionHeader']))
     story.append(Paragraph(bazi_result, styles['ChineseBazi']))
     story.append(Spacer(1, 20))
     
@@ -282,6 +302,22 @@ def generate_grouped_report_pdf(
     styles = create_styles()
     story = []
 
+    def safe_text(value, fallback: str = "—", allow_zero: bool = True) -> str:
+        if value is None:
+            return fallback
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped or stripped.lower() == "none":
+                return fallback
+            return stripped
+        if not allow_zero and value == 0:
+            return fallback
+        return str(value)
+
+    def format_age(value) -> str:
+        age = safe_text(value, allow_zero=False)
+        return f"{age}岁" if age != "—" else "—"
+
     def add_response_block(title: str, text: str) -> None:
         story.append(Paragraph(f"【{title}】", styles['ChineseSectionHeader']))
         clean_response = clean_text_for_pdf(text)
@@ -304,7 +340,7 @@ def generate_grouped_report_pdf(
     ))
     story.append(Spacer(1, 10))
 
-    # Page 1: Basic info + chart + overall
+    # Page 1: Basic info + chart
     story.append(Paragraph("📋 基本信息", styles['ChineseSectionHeader']))
     info_data = [
         ["性别", gender],
@@ -338,14 +374,19 @@ def generate_grouped_report_pdf(
         clean_topic = topic_display.replace("📌 ", "").replace("💬 ", "").strip()
         response_map[topic_key] = (clean_topic, response_text)
 
+    story.append(PageBreak())
+
+    # Page 2: Overall
     if "整体命格" in response_map:
         title, text = response_map["整体命格"]
         add_response_block(title, text)
+    else:
+        story.append(Paragraph("暂无整体命格分析。", styles['ChineseInfo']))
 
     story.append(PageBreak())
 
-    # Page 2: Professional chart details
-    story.append(Paragraph("📜 专业排盘详情", styles['ChineseSectionHeader']))
+    # Page 3: Professional chart details
+    story.append(Paragraph("专业排盘详情", styles['ChineseSectionHeader']))
     if pattern_info:
         auxiliary = pattern_info.get("auxiliary", {})
         pillars = [
@@ -404,9 +445,13 @@ def generate_grouped_report_pdf(
 
         if fortune_cycles:
             start_info = fortune_cycles.get("start_info", {})
+            start_year = safe_text(start_info.get("year"), allow_zero=False)
+            start_month = safe_text(start_info.get("month"), allow_zero=False)
+            start_day = safe_text(start_info.get("day"), allow_zero=False)
+            start_age = safe_text(start_info.get("age"), allow_zero=False)
             start_table = Table([
-                ["起运时间", f"{start_info.get('year', '—')}年{start_info.get('month', '—')}月{start_info.get('day', '—')}天",
-                 "起运年龄", f"{start_info.get('age', '—')}岁"]
+                ["起运时间", f"{start_year}年{start_month}月{start_day}天",
+                 "起运年龄", f"{start_age}岁" if start_age != "—" else "—"]
             ], colWidths=[3*cm, 6*cm, 3*cm, 3*cm])
             start_table.setStyle(TableStyle([
                 ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
@@ -421,9 +466,9 @@ def generate_grouped_report_pdf(
 
             da_yun = fortune_cycles.get("da_yun", [])
             if da_yun:
-                header = ["大运"] + [str(item.get("start_year", "—")) for item in da_yun[:10]]
-                ages = ["年龄"] + [f"{item.get('start_age', '—')}岁" for item in da_yun[:10]]
-                gz = ["干支"] + [item.get("gan_zhi", "—") for item in da_yun[:10]]
+                header = ["大运"] + [safe_text(item.get("start_year")) for item in da_yun[:10]]
+                ages = ["年龄"] + [format_age(item.get("start_age")) for item in da_yun[:10]]
+                gz = ["干支"] + [safe_text(item.get("gan_zhi")) for item in da_yun[:10]]
                 table = Table([header, ages, gz], colWidths=[3*cm] + [2.2*cm]*10)
                 table.setStyle(TableStyle([
                     ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
@@ -437,9 +482,9 @@ def generate_grouped_report_pdf(
 
             liu_nian = fortune_cycles.get("liu_nian", [])
             if liu_nian:
-                header = ["流年"] + [str(item.get("year", "—")) for item in liu_nian[:10]]
-                gz = ["干支"] + [item.get("gan_zhi", "—") for item in liu_nian[:10]]
-                ages = ["年龄"] + [f"{item.get('age', '—')}岁" for item in liu_nian[:10]]
+                header = ["流年"] + [safe_text(item.get("year")) for item in liu_nian[:10]]
+                gz = ["干支"] + [safe_text(item.get("gan_zhi")) for item in liu_nian[:10]]
+                ages = ["年龄"] + [format_age(item.get("age")) for item in liu_nian[:10]]
                 table = Table([header, gz, ages], colWidths=[3*cm] + [2.2*cm]*10)
                 table.setStyle(TableStyle([
                     ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
@@ -453,8 +498,15 @@ def generate_grouped_report_pdf(
 
             liu_yue = fortune_cycles.get("liu_yue", [])
             if liu_yue:
-                header = ["流月"] + [f"{item.get('month', '—')}月" for item in liu_yue[:12]]
-                gz = ["干支"] + [item.get("gan_zhi", "—") for item in liu_yue[:12]]
+                header = ["流月"]
+                gz = ["干支"]
+                for idx, item in enumerate(liu_yue[:12], start=1):
+                    month_value = item.get("month")
+                    if month_value is None or str(month_value).strip().lower() in ("", "none"):
+                        month_value = idx
+                    month_text = safe_text(month_value, allow_zero=False)
+                    header.append(f"{month_text}月" if month_text != "—" else "—")
+                    gz.append(safe_text(item.get("gan_zhi")))
                 table = Table([header, gz], colWidths=[3*cm] + [1.6*cm]*12)
                 table.setStyle(TableStyle([
                     ('FONTNAME', (0, 0), (-1, -1), CHINESE_FONT),
@@ -475,6 +527,7 @@ def generate_grouped_report_pdf(
         "感情运势",
         "健康建议",
         "开运建议",
+        "大运流年",
         "大师解惑",
         "oracle",
     ]

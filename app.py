@@ -222,7 +222,7 @@ AI_PROVIDERS = {
 }
 
 # Fortune analysis topics
-ANALYSIS_TOPICS = ["整体命格", "事业运势", "感情运势", "喜用忌用", "健康建议", "开运建议", "大师解惑"]
+ANALYSIS_TOPICS = ["整体命格", "事业运势", "感情运势", "健康建议", "开运建议", "大运流年", "大师解惑"]
 
 # Page Configuration
 st.set_page_config(
@@ -2688,7 +2688,7 @@ else:
         # Second row: Remaining 2 topics + Oracle button + 大师解惑
         cols2 = st.columns(4)
         
-        # 健康建议 (index 4)
+        # 开运建议 (index 4)
         with cols2[0]:
             topic = ANALYSIS_TOPICS[4]
             is_clicked = topic in st.session_state.clicked_topics
@@ -2704,7 +2704,7 @@ else:
                     st.session_state.is_generating = True
                     st.rerun()
         
-        # 开运建议 (index 5)
+        # 大运流年 (index 5)
         with cols2[1]:
             topic = ANALYSIS_TOPICS[5]
             is_clicked = topic in st.session_state.clicked_topics
@@ -3193,6 +3193,9 @@ else:
             finally:
                 # Force reset loading state
                 st.session_state.is_generating = False
+
+        if not response_text.strip():
+            response_text = "⚠️ 未收到模型回复。请检查 API Key、额度或网络连接后重试。"
         
         # Store response and update flags
         st.session_state.responses.append((topic_key, topic_display, response_text))

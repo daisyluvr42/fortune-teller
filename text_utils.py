@@ -24,6 +24,10 @@ _MD_PDF_ITALIC_ASTERISK_RE = re.compile(r'\*([^*\n]+?)\*')
 _MD_PDF_ITALIC_UNDERSCORE_RE = re.compile(r'_([^_\n]+?)_')
 _MD_PDF_BULLET_RE = re.compile(r'^\s*[-*•]\s+', re.MULTILINE)
 _MD_PDF_EXTRA_NEWLINES_RE = re.compile(r'\n{3,}')
+_MD_PDF_BLOCKQUOTE_RE = re.compile(r'^\s*>\s?', re.MULTILINE)
+_MD_PDF_RULE_RE = re.compile(r'^\s*[-—–]{2,}\s*$', re.MULTILINE)
+_MD_PDF_CODE_BLOCK_RE = re.compile(r'```.*?```', re.DOTALL)
+_MD_PDF_INLINE_CODE_RE = re.compile(r'`([^`]+)`')
 
 
 def clean_markdown_for_display(text: str) -> str:
@@ -72,8 +76,20 @@ def clean_text_for_pdf(text: str) -> str:
     if not text:
         return text
 
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+
     # Remove HTML tags
     text = _HTML_TAG_RE.sub('', text)
+
+    # Remove invisible characters and normalize spacing
+    text = text.replace('\ufeff', '').replace('\u200b', '').replace('\u2060', '')
+    text = text.replace('\u3000', ' ')
+
+    # Remove code blocks and blockquotes
+    text = _MD_PDF_CODE_BLOCK_RE.sub('', text)
+    text = _MD_PDF_RULE_RE.sub('', text)
+    text = _MD_PDF_BLOCKQUOTE_RE.sub('', text)
+    text = _MD_PDF_INLINE_CODE_RE.sub(r'\1', text)
 
     # Convert markdown headers to plain text with newlines
     text = _MD_PDF_HEADER_RE.sub(r'\n\1\n', text)
@@ -86,6 +102,17 @@ def clean_text_for_pdf(text: str) -> str:
 
     # Convert bullet points
     text = _MD_PDF_BULLET_RE.sub(r'• ', text)
+
+    # Normalize spaces per line
+    lines = []
+    for line in text.split('\n'):
+        lines.append(re.sub(r'[ \t]+', ' ', line).strip())
+    text = '\n'.join(lines)
+
+    # Remove unintended spacing between CJK characters and punctuation
+    text = re.sub(r'([\u4e00-\u9fff])\s+([\u4e00-\u9fff])', r'\1\2', text)
+    text = re.sub(r'([\u4e00-\u9fff])\s+([，。！？；：、”’》）】])', r'\1\2', text)
+    text = re.sub(r'([“‘《（【])\s+([\u4e00-\u9fff])', r'\1\2', text)
 
     # Clean up extra newlines
     text = _MD_PDF_EXTRA_NEWLINES_RE.sub('\n\n', text)
