@@ -2785,13 +2785,21 @@ def get_fortune_analysis(
     # Get optimal temperature for this model
     temperature = get_optimal_temperature(model)
     
-    # Build conversation history with full Q&A records if available
+    # Build conversation history: full context only for custom questions to avoid topic leakage
     history_summary = ""
     if conversation_history and len(conversation_history) > 0:
-        history_lines = []
-        for prev_topic, prev_response in conversation_history:
-            history_lines.append(f"### 【{prev_topic}】\n{prev_response}")
-        history_summary = "\n\n---\n\n【之前的完整问答记录】\n\n" + "\n\n---\n\n".join(history_lines) + "\n\n---\n\n**请注意**：基于以上分析记录保持连贯性，避免重复已分析的内容，并在必要时引用之前的结论。\n"
+        if topic == "大师解惑":
+            history_lines = []
+            for prev_topic, prev_response in conversation_history:
+                history_lines.append(f"### 【{prev_topic}】\n{prev_response}")
+            history_summary = "\n\n---\n\n【之前的完整问答记录】\n\n" + "\n\n---\n\n".join(history_lines) + "\n\n---\n\n**请注意**：基于以上分析记录保持连贯性，避免重复已分析的内容，并在必要时引用之前的结论。\n"
+        else:
+            prev_topics = [prev_topic for prev_topic, _ in conversation_history]
+            history_summary = (
+                "\n\n---\n\n【已分析主题】\n"
+                + "、".join(prev_topics)
+                + "\n\n**请注意**：不要复述已分析主题，只针对当前主题输出内容。\n"
+            )
     
     # Build system prompt based on whether this is the first response
     if is_first_response:
