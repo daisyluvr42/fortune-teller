@@ -159,7 +159,7 @@ def generate_report_pdf(
 
     def format_generated_time() -> str:
         now = datetime.now(ZoneInfo("Asia/Shanghai"))
-        return to_fullwidth_digits(f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}")
+        return f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}"
     
     # ========== Title Section ==========
     story.append(Paragraph("八字命理分析报告", styles['ChineseTitle']))
