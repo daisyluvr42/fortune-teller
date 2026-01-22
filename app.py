@@ -3278,14 +3278,11 @@ else:
                 birth_datetime=getattr(st.session_state, 'birth_datetime', None),
             )
             
-            # Use base64 data URL to bypass iframe sandboxing issues on mobile browsers
+            pdf_filename = f"fortune_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
             import base64
             b64_pdf = base64.b64encode(pdf_bytes).decode()
-            pdf_filename = f"命理报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-            
-            # Create styled download link
-            download_html = f'''
-            <a href="data:application/pdf;base64,{b64_pdf}" 
+            pdf_download_html = f'''
+            <a href="data:application/pdf;base64,{b64_pdf}"
                download="{pdf_filename}"
                style="
                    display: inline-flex;
@@ -3334,7 +3331,7 @@ else:
                     save_profile_dialog()
             
             with col_download:
-                st.markdown(download_html, unsafe_allow_html=True)
+                st.markdown(pdf_download_html, unsafe_allow_html=True)
 
             with col_images:
                 if st.button("🖼️ 生成图片集", key="btn_generate_images", use_container_width=True):
@@ -3358,14 +3355,31 @@ else:
                         st.error(f"生成图片集失败: {str(e)}")
 
                 if st.session_state.image_zip:
-                    img_zip_name = f"命理报告_图片集_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
-                    st.download_button(
-                        label="⬇️ 下载图片集",
-                        data=st.session_state.image_zip,
-                        file_name=img_zip_name,
-                        mime="application/zip",
-                        use_container_width=True
-                    )
+                    img_zip_name = f"fortune_report_images_{datetime.now().strftime('%Y%m%d_%H%M')}.zip"
+                    b64_zip = base64.b64encode(st.session_state.image_zip).decode()
+                    img_download_html = f'''
+                    <a href="data:application/zip;base64,{b64_zip}"
+                       download="{img_zip_name}"
+                       style="
+                           display: inline-flex;
+                           align-items: center;
+                           justify-content: center;
+                           padding: 10px 20px;
+                           background: linear-gradient(145deg, #4A90D9, #357ABD);
+                           color: white;
+                           text-decoration: none;
+                           border-radius: 8px;
+                           font-size: 16px;
+                           font-weight: 500;
+                           box-shadow: 0 4px 15px rgba(74, 144, 217, 0.3);
+                           transition: all 0.3s ease;
+                           width: 100%;
+                           border: none;
+                       ">
+                        ⬇️ 下载图片集
+                    </a>
+                    '''
+                    st.markdown(img_download_html, unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"生成 PDF 时出错: {str(e)}")

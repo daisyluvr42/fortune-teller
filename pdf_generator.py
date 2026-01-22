@@ -2,6 +2,7 @@
 PDF Report Generator for Fortune Teller App.
 Uses ReportLab for creating professional PDF reports with Chinese text support.
 """
+from __future__ import annotations
 
 import io
 import re
@@ -16,15 +17,31 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from text_utils import clean_text_for_pdf
+import unicodedata
 
-# Prefer stable built-in CID font for consistent CJK rendering.
+# Use STSong-Light CID font for CJK rendering (supports Chinese but NOT emoji).
 try:
     pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
     CHINESE_FONT = 'STSong-Light'
+    CHINESE_FONT_TITLE = 'STSong-Light'
 except Exception:
     # Fallback to Helvetica (won't display Chinese properly, but won't crash)
     CHINESE_FONT = 'Helvetica'
-CHINESE_FONT_TITLE = CHINESE_FONT
+    CHINESE_FONT_TITLE = 'Helvetica-Bold'
+
+
+def strip_emoji(text: str) -> str:
+    """Remove emoji and other symbols that CID fonts cannot render."""
+    if not text:
+        return text
+    filtered = []
+    for ch in text:
+        cat = unicodedata.category(ch)
+        # Skip symbols (So=other symbol, Sk=modifier symbol, Cs=surrogate)
+        if cat in ("So", "Sk", "Cs") or ch in ("\ufe0f", "\u200d"):
+            continue
+        filtered.append(ch)
+    return "".join(filtered)
 
 
 
@@ -146,16 +163,13 @@ def generate_report_pdf(
     styles = create_styles()
     story = []
 
-    def to_fullwidth_digits(value: str) -> str:
-        return value.translate(str.maketrans("0123456789", "０１２３４５６７８９"))
-
     def format_birth_datetime(value: str | None) -> str | None:
         if not value:
             return value
         value = value.strip()
         value = re.sub(r'(\d{1,2}日)\s*(\d{1,2}:\d{2})', r'\1 · \2', value)
         value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
-        return to_fullwidth_digits(value)
+        return value
 
     def format_generated_time() -> str:
         now = datetime.now(ZoneInfo("Asia/Shanghai"))
@@ -208,7 +222,7 @@ def generate_report_pdf(
         
         for i, (topic_key, topic_display, response_text) in enumerate(responses):
             # Clean up topic display
-            clean_topic = topic_display.replace("📌 ", "").replace("💬 ", "")
+            clean_topic = strip_emoji(topic_display.replace("📌 ", "").replace("💬 ", ""))
             
             # Add topic header
             story.append(Paragraph(
@@ -322,17 +336,14 @@ def generate_grouped_report_pdf(
         value = value.strip()
         value = re.sub(r'(\d{1,2}日)\s*(\d{1,2}:\d{2})', r'\1 · \2', value)
         value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
-        return to_fullwidth_digits(value)
-
-    def to_fullwidth_digits(value: str) -> str:
-        return value.translate(str.maketrans("0123456789", "０１２３４５６７８９"))
+        return value
 
     def format_generated_time() -> str:
         now = datetime.now(ZoneInfo("Asia/Shanghai"))
-        return to_fullwidth_digits(f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}")
+        return f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}"
 
     def add_response_block(title: str, text: str) -> None:
-        story.append(Paragraph(f"【{title}】", styles['ChineseSectionHeader']))
+        story.append(Paragraph(f"【{strip_emoji(title)}】", styles['ChineseSectionHeader']))
         clean_response = clean_text_for_pdf(text)
         paragraphs = clean_response.split('\n\n')
         for para in paragraphs:
@@ -346,7 +357,7 @@ def generate_grouped_report_pdf(
         story.append(Spacer(1, 12))
 
     # Title
-    story.append(Paragraph("🔮 八字命理分析报告", styles['ChineseTitle']))
+    story.append(Paragraph("八字命理分析报告", styles['ChineseTitle']))
     story.append(Paragraph(
         f"生成时间：{format_generated_time()}",
         styles['ChineseSubtitle']
@@ -354,7 +365,7 @@ def generate_grouped_report_pdf(
     story.append(Spacer(1, 10))
 
     # Page 1: Basic info + chart
-    story.append(Paragraph("📋 基本信息", styles['ChineseSectionHeader']))
+    story.append(Paragraph("基本信息", styles['ChineseSectionHeader']))
     info_data = [
         ["性别", gender],
         ["出生地点", birthplace if birthplace != "未指定" else "未指定（使用北京时间）"],
@@ -378,7 +389,7 @@ def generate_grouped_report_pdf(
     story.append(info_table)
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph("🎴 八字排盘", styles['ChineseSectionHeader']))
+    story.append(Paragraph("八字排盘", styles['ChineseSectionHeader']))
     story.append(Paragraph(bazi_result, styles['ChineseBazi']))
     story.append(Spacer(1, 12))
 

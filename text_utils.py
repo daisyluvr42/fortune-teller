@@ -4,6 +4,7 @@ Text cleanup helpers shared by UI and PDF rendering.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 _MD_HEADER_RE = re.compile(r'^#{1,6}\s*(.+?)$', re.MULTILINE)
 _MD_BOLD_ASTERISK_RE = re.compile(r'\*\*(.+?)\*\*')
@@ -81,9 +82,26 @@ def clean_text_for_pdf(text: str) -> str:
     # Remove HTML tags
     text = _HTML_TAG_RE.sub('', text)
 
+    # Strip emojis/symbols that CID fonts cannot render reliably
+    filtered_chars = []
+    for ch in text:
+        category = unicodedata.category(ch)
+        if category in ("So", "Sk", "Cs") or ch in ("\ufe0f", "\u200d"):
+            continue
+        filtered_chars.append(ch)
+    text = "".join(filtered_chars)
+
     # Remove invisible characters and normalize spacing
     text = text.replace('\ufeff', '').replace('\u200b', '').replace('\u2060', '')
     text = text.replace('\u3000', ' ')
+
+    # Replace triangle bullets with simple bullet
+    text = text.replace('▲', '·').replace('▼', '·').replace('►', '·').replace('◄', '·')
+    text = text.replace('△', '·').replace('▽', '·').replace('▷', '·').replace('◁', '·')
+    text = text.replace('▸', '·').replace('▹', '·').replace('◂', '·').replace('◃', '·')
+    text = text.replace('▴', '·').replace('▵', '·').replace('▾', '·').replace('▿', '·')
+    text = text.replace('◆', '·').replace('◇', '·').replace('★', '·').replace('☆', '·')
+    text = text.replace('●', '·').replace('○', '·').replace('■', '·').replace('□', '·')
 
     # Remove code blocks and blockquotes
     text = _MD_PDF_CODE_BLOCK_RE.sub('', text)
@@ -101,7 +119,7 @@ def clean_text_for_pdf(text: str) -> str:
     text = _MD_PDF_ITALIC_UNDERSCORE_RE.sub(r'\1', text)
 
     # Convert bullet points
-    text = _MD_PDF_BULLET_RE.sub(r'• ', text)
+    text = _MD_PDF_BULLET_RE.sub(r'· ', text)
 
     # Normalize spaces per line
     lines = []
@@ -115,6 +133,10 @@ def clean_text_for_pdf(text: str) -> str:
     text = re.sub(r'([“‘《（【])\s+([\u4e00-\u9fff])', r'\1\2', text)
     text = re.sub(r'([“‘])\s+', r'\1', text)
     text = re.sub(r'\s+([”’])', r'\1', text)
+
+    # Add thin space between CJK and Latin/digits for better readability
+    text = re.sub(r'([\u4e00-\u9fff])([A-Za-z0-9])', r'\1 \2', text)
+    text = re.sub(r'([A-Za-z0-9])([\u4e00-\u9fff])', r'\1 \2', text)
 
     # Clean up extra newlines
     text = _MD_PDF_EXTRA_NEWLINES_RE.sub('\n\n', text)
