@@ -11,7 +11,15 @@ import calendar
 from datetime import date, datetime
 import os
 from pathlib import Path
-from logic import calculate_bazi, get_fortune_analysis, build_user_context, calculate_fortune_cycles, BaziAuxiliaryCalculator, BaziChartGenerator, BaziPatternCalculator, ZhouyiCalculator
+from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, BaziPatternCalculator, ZhouyiCalculator
+try:
+    from logic import calculate_fortune_cycles
+except Exception:
+    calculate_fortune_cycles = None
+try:
+    from logic import BaziAuxiliaryCalculator
+except Exception:
+    BaziAuxiliaryCalculator = None
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, draw_hexagram_svg, build_oracle_prompt, BaziEnergyCalculator, EnergyPieChartGenerator
 from china_cities import CHINA_CITIES, SHICHEN_HOURS, get_shichen_mid_hour
 from lunar_python import Lunar, LunarYear
@@ -1022,15 +1030,18 @@ def calculate_and_store_single(
 """
     st.session_state.user_context += energy_context
 
-    st.session_state.fortune_cycles = calculate_fortune_cycles(
-        birthday.year,
-        birthday.month,
-        birthday.day,
-        final_hour,
-        final_minute,
-        gender,
-        longitude
-    )
+    if calculate_fortune_cycles:
+        st.session_state.fortune_cycles = calculate_fortune_cycles(
+            birthday.year,
+            birthday.month,
+            birthday.day,
+            final_hour,
+            final_minute,
+            gender,
+            longitude
+        )
+    else:
+        st.session_state.fortune_cycles = None
 
     return {
         "chart_generator": chart_generator,
@@ -2239,7 +2250,7 @@ else:
             kong_wang = auxiliary.get("kong_wang", [])
             nayin = auxiliary.get("nayin", {})
             shen_sha = auxiliary.get("shen_sha", [])
-            aux_calc = BaziAuxiliaryCalculator()
+            aux_calc = BaziAuxiliaryCalculator() if BaziAuxiliaryCalculator else None
 
             def format_hidden_stems(stems):
                 items = []
@@ -2335,13 +2346,13 @@ else:
             table_html += "</tr>"
 
             table_html += '<tr><td class="row-label">十二长生</td>'
-            for _, flow in flow_cols:
-                _, branch = get_flow_parts(flow)
-                stage = "—"
-                if branch:
-                    stage = aux_calc.get_12_stages(day_master, [branch] * 4).get("year_stage", "—")
-                color = stage_colors.get(stage, "#2c2c2c")
-                table_html += f'<td style="color: {color}; font-weight: 700;">{stage}</td>'
+                for _, flow in flow_cols:
+                    _, branch = get_flow_parts(flow)
+                    stage = "—"
+                    if branch and aux_calc:
+                        stage = aux_calc.get_12_stages(day_master, [branch] * 4).get("year_stage", "—")
+                    color = stage_colors.get(stage, "#2c2c2c")
+                    table_html += f'<td style="color: {color}; font-weight: 700;">{stage}</td>'
             for _, _, _, _, stage_key, _ in pillars:
                 stage = twelve_stages.get(stage_key, "—")
                 color = stage_colors.get(stage, "#2c2c2c")
@@ -2349,10 +2360,10 @@ else:
             table_html += "</tr>"
 
             table_html += '<tr><td class="row-label">纳音</td>'
-            for _, flow in flow_cols:
-                gz = flow.get("gan_zhi") if flow else ""
-                nayin_val = aux_calc.get_nayin([gz, gz, gz, gz]).get("year") if gz else "—"
-                table_html += f'<td>{nayin_val}</td>'
+                for _, flow in flow_cols:
+                    gz = flow.get("gan_zhi") if flow else ""
+                    nayin_val = aux_calc.get_nayin([gz, gz, gz, gz]).get("year") if (gz and aux_calc) else "—"
+                    table_html += f'<td>{nayin_val}</td>'
             for _, _, _, _, _, nayin_key in pillars:
                 table_html += f'<td>{nayin.get(nayin_key, "—")}</td>'
             table_html += "</tr>"
