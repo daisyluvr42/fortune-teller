@@ -323,9 +323,13 @@ def generate_grouped_report_pdf(
         if not value:
             return value
         value = value.strip()
-        value = re.sub(r'(\d{1,2}日)(\d{1,2}:\d{2})', r'\1 \2', value)
+        value = re.sub(r'(\d{1,2}日)\s*(\d{1,2}:\d{2})', r'\1 · \2', value)
         value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
         return value
+
+    def format_generated_time() -> str:
+        now = datetime.now()
+        return f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}"
 
     def add_response_block(title: str, text: str) -> None:
         story.append(Paragraph(f"【{title}】", styles['ChineseSectionHeader']))
@@ -344,7 +348,7 @@ def generate_grouped_report_pdf(
     # Title
     story.append(Paragraph("🔮 八字命理分析报告", styles['ChineseTitle']))
     story.append(Paragraph(
-        f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
+        f"生成时间：{format_generated_time()}",
         styles['ChineseSubtitle']
     ))
     story.append(Spacer(1, 10))
