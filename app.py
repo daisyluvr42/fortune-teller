@@ -222,7 +222,7 @@ AI_PROVIDERS = {
 }
 
 # Fortune analysis topics
-ANALYSIS_TOPICS = ["整体命格", "事业运势", "感情运势", "健康建议", "开运建议", "大运流年", "大师解惑"]
+ANALYSIS_TOPICS = ["整体命格", "大运流年", "事业运势", "感情运势", "开运建议", "健康建议", "大师解惑"]
 
 # Page Configuration
 st.set_page_config(

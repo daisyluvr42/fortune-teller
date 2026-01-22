@@ -145,11 +145,26 @@ def generate_report_pdf(
     
     styles = create_styles()
     story = []
+
+    def to_fullwidth_digits(value: str) -> str:
+        return value.translate(str.maketrans("0123456789", "０１２３４５６７８９"))
+
+    def format_birth_datetime(value: str | None) -> str | None:
+        if not value:
+            return value
+        value = value.strip()
+        value = re.sub(r'(\d{1,2}日)\s*(\d{1,2}:\d{2})', r'\1 · \2', value)
+        value = re.sub(r'(\d{1,2}月)(\d{1,2}日)', r'\1\2', value)
+        return to_fullwidth_digits(value)
+
+    def format_generated_time() -> str:
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        return to_fullwidth_digits(f"{now.strftime('%Y年%m月%d日')} · {now.strftime('%H:%M')}")
     
     # ========== Title Section ==========
     story.append(Paragraph("八字命理分析报告", styles['ChineseTitle']))
     story.append(Paragraph(
-        f"生成时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}",
+        f"生成时间：{format_generated_time()}",
         styles['ChineseSubtitle']
     ))
     story.append(Spacer(1, 10))
@@ -162,7 +177,7 @@ def generate_report_pdf(
         ["出生地点", birthplace if birthplace != "未指定" else "未指定（使用北京时间）"],
     ]
     if birth_datetime:
-        info_data.insert(0, ["出生时间", birth_datetime])
+        info_data.insert(0, ["出生时间", format_birth_datetime(birth_datetime)])
     if time_info:
         info_data.append(["时间校正", time_info])
     
@@ -188,7 +203,7 @@ def generate_report_pdf(
     
     # ========== Analysis Responses ==========
     if responses:
-        story.append(Paragraph("📜 命理分析", styles['ChineseSectionHeader']))
+        story.append(Paragraph("命理分析", styles['ChineseSectionHeader']))
         story.append(Spacer(1, 10))
         
         for i, (topic_key, topic_display, response_text) in enumerate(responses):
