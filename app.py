@@ -11,6 +11,7 @@ import urllib.parse
 import re
 import calendar
 from datetime import date, datetime
+import time
 import os
 from pathlib import Path
 from logic import calculate_bazi, get_fortune_analysis, build_user_context, BaziChartGenerator, BaziPatternCalculator, ZhouyiCalculator
@@ -183,7 +184,7 @@ def restore_session_state(session_data_json: str) -> bool:
 # IMPORTANT: Set GEMINI_API_KEY in .env file, do NOT hardcode API keys!
 DEFAULT_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-DEFAULT_MODEL = "gemini-3-pro-preview"
+DEFAULT_MODEL = "gemini-3-flash-preview"
 
 # Predefined AI providers (updated 2026-01)
 AI_PROVIDERS = {
@@ -2997,15 +2998,33 @@ else:
                                 
                                 oracle_response = ""
                                 response_placeholder = st.empty()
+                                last_render_len = 0
+                                last_render_time = time.monotonic()
+                                render_min_chars = 120
+                                render_min_interval = 0.15
                                 
                                 for chunk in response:
                                     if chunk.choices[0].delta.content:
                                         oracle_response += chunk.choices[0].delta.content
-                                        cleaned = clean_markdown_for_display(oracle_response)
-                                        response_placeholder.markdown(
-                                            f'<div class="fortune-text">{cleaned}</div>',
-                                            unsafe_allow_html=True
-                                        )
+                                        now = time.monotonic()
+                                        if (
+                                            len(oracle_response) - last_render_len >= render_min_chars
+                                            or now - last_render_time >= render_min_interval
+                                        ):
+                                            cleaned = clean_markdown_for_display(oracle_response)
+                                            response_placeholder.markdown(
+                                                f'<div class="fortune-text">{cleaned}</div>',
+                                                unsafe_allow_html=True
+                                            )
+                                            last_render_len = len(oracle_response)
+                                            last_render_time = now
+                                
+                                if last_render_len != len(oracle_response):
+                                    cleaned = clean_markdown_for_display(oracle_response)
+                                    response_placeholder.markdown(
+                                        f'<div class="fortune-text">{cleaned}</div>',
+                                        unsafe_allow_html=True
+                                    )
                                 
                                 # Save response and mark daily usage
                                 st.session_state.clicked_topics.add("oracle")
@@ -3121,6 +3140,10 @@ else:
             # Use couple prompt instead of generic user_context
             with st.spinner("正在解析二人的红线羁绊..."):
                 response_placeholder = st.empty()
+                last_render_len = 0
+                last_render_time = time.monotonic()
+                render_min_chars = 120
+                render_min_interval = 0.15
                 try:
                     for chunk in get_fortune_analysis(
                         topic,
@@ -3133,7 +3156,14 @@ else:
                         conversation_history=conversation_history if not st.session_state.is_first_response else None
                     ):
                         response_text += chunk
-                        response_placeholder.markdown(response_text)
+                        now = time.monotonic()
+                        if (
+                            len(response_text) - last_render_len >= render_min_chars
+                            or now - last_render_time >= render_min_interval
+                        ):
+                            response_placeholder.markdown(response_text)
+                            last_render_len = len(response_text)
+                            last_render_time = now
                         
                 except Exception as e:
                     response_text = f"分析时出错: {str(e)}"
@@ -3156,6 +3186,10 @@ else:
         
         with st.spinner(f"正在分析 {topic}..."):
             response_placeholder = st.empty()
+            last_render_len = 0
+            last_render_time = time.monotonic()
+            render_min_chars = 120
+            render_min_interval = 0.15
             try:
                 for chunk in get_fortune_analysis(
                     topic,
@@ -3174,12 +3208,19 @@ else:
                         response_text = "⚠️ 默认 API 已达到使用限额。请在输入页面的「AI 模型设置」中配置您自己的 API Key 后重试。"
                         break
                     
-                    # For first response, show full text; for subsequent, we'll strip intro later
-                    display_text = clean_markdown_for_display(response_text)
-                    response_placeholder.markdown(
-                        f'<div class="topic-header">{topic_display}</div><div class="fortune-text">{display_text}</div>',
-                        unsafe_allow_html=True
-                    )
+                    now = time.monotonic()
+                    if (
+                        len(response_text) - last_render_len >= render_min_chars
+                        or now - last_render_time >= render_min_interval
+                    ):
+                        # For first response, show full text; for subsequent, we'll strip intro later
+                        display_text = clean_markdown_for_display(response_text)
+                        response_placeholder.markdown(
+                            f'<div class="topic-header">{topic_display}</div><div class="fortune-text">{display_text}</div>',
+                            unsafe_allow_html=True
+                        )
+                        last_render_len = len(response_text)
+                        last_render_time = now
             except Exception as e:
                 error_str = str(e).lower()
                 if "quota" in error_str or "limit" in error_str or "429" in error_str:
@@ -3196,6 +3237,13 @@ else:
 
         if not response_text.strip():
             response_text = "⚠️ 未收到模型回复。请检查 API Key、额度或网络连接后重试。"
+        
+        if last_render_len != len(response_text):
+            display_text = clean_markdown_for_display(response_text)
+            response_placeholder.markdown(
+                f'<div class="topic-header">{topic_display}</div><div class="fortune-text">{display_text}</div>',
+                unsafe_allow_html=True
+            )
         
         # Store response and update flags
         st.session_state.responses.append((topic_key, topic_display, response_text))
