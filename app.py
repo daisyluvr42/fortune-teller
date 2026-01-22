@@ -2346,13 +2346,13 @@ else:
             table_html += "</tr>"
 
             table_html += '<tr><td class="row-label">十二长生</td>'
-                for _, flow in flow_cols:
-                    _, branch = get_flow_parts(flow)
-                    stage = "—"
-                    if branch and aux_calc:
-                        stage = aux_calc.get_12_stages(day_master, [branch] * 4).get("year_stage", "—")
-                    color = stage_colors.get(stage, "#2c2c2c")
-                    table_html += f'<td style="color: {color}; font-weight: 700;">{stage}</td>'
+            for _, flow in flow_cols:
+                _, branch = get_flow_parts(flow)
+                stage = "—"
+                if branch and aux_calc:
+                    stage = aux_calc.get_12_stages(day_master, [branch] * 4).get("year_stage", "—")
+                color = stage_colors.get(stage, "#2c2c2c")
+                table_html += f'<td style="color: {color}; font-weight: 700;">{stage}</td>'
             for _, _, _, _, stage_key, _ in pillars:
                 stage = twelve_stages.get(stage_key, "—")
                 color = stage_colors.get(stage, "#2c2c2c")
@@ -2360,10 +2360,10 @@ else:
             table_html += "</tr>"
 
             table_html += '<tr><td class="row-label">纳音</td>'
-                for _, flow in flow_cols:
-                    gz = flow.get("gan_zhi") if flow else ""
-                    nayin_val = aux_calc.get_nayin([gz, gz, gz, gz]).get("year") if (gz and aux_calc) else "—"
-                    table_html += f'<td>{nayin_val}</td>'
+            for _, flow in flow_cols:
+                gz = flow.get("gan_zhi") if flow else ""
+                nayin_val = aux_calc.get_nayin([gz, gz, gz, gz]).get("year") if (gz and aux_calc) else "—"
+                table_html += f'<td>{nayin_val}</td>'
             for _, _, _, _, _, nayin_key in pillars:
                 table_html += f'<td>{nayin.get(nayin_key, "—")}</td>'
             table_html += "</tr>"
