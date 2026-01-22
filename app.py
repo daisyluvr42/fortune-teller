@@ -941,6 +941,7 @@ def calculate_and_store_single(
     current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
     birth_datetime = f"{birthday.year}年{birthday.month}月{birthday.day}日 {final_hour:02d}:{final_minute:02d}"
     st.session_state.birth_datetime = birth_datetime
+    st.session_state.birth_year = birthday.year
     st.session_state.user_context = build_user_context(
         bazi_result,
         gender,
@@ -1104,6 +1105,7 @@ def reset_session_state(clear_storage: bool) -> None:
     st.session_state.birthplace = "未指定"
     st.session_state.gender = "男"
     st.session_state.birth_datetime = ""
+    st.session_state.birth_year = None
     st.session_state.compatibility_mode = False
     st.session_state.partner_bazi = None
     st.session_state.partner_info = None
@@ -2414,6 +2416,8 @@ else:
                 start_month = start_info.get("month")
                 start_day = start_info.get("day")
                 start_age = start_info.get("age")
+                if start_age is None and start_year and st.session_state.get("birth_year"):
+                    start_age = max(start_year - st.session_state.birth_year, 0)
                 start_time = None
                 if any(val is not None for val in [start_year, start_month, start_day]):
                     start_time = f"{start_year or '—'}年{start_month or '—'}月{start_day or '—'}天"
