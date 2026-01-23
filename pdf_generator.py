@@ -87,6 +87,18 @@ def create_styles():
         borderPadding=5,
         leftIndent=0,
     ))
+
+    # Sub-Section header style (for H2/H3 inside content)
+    styles.add(ParagraphStyle(
+        name='ChineseSubHeader',
+        fontName=CHINESE_FONT_TITLE,
+        fontSize=13,
+        leading=18,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor('#8B4513'),
+        spaceBefore=12,
+        spaceAfter=8,
+    ))
     
     # Body text style
     styles.add(ParagraphStyle(
@@ -241,6 +253,8 @@ def generate_report_pdf(
                     # Handle bullet points specially
                     if para.startswith('•'):
                         story.append(Paragraph(para, styles['ChineseInfo']))
+                    elif para.startswith('##HEADER##'):
+                        story.append(Paragraph(para.replace('##HEADER##', ''), styles['ChineseSubHeader']))
                     else:
                         story.append(Paragraph(para, styles['ChineseBody']))
             
@@ -352,6 +366,8 @@ def generate_grouped_report_pdf(
                 continue
             if para.startswith('•'):
                 story.append(Paragraph(para, styles['ChineseInfo']))
+            elif para.startswith('##HEADER##'):
+                story.append(Paragraph(para.replace('##HEADER##', ''), styles['ChineseSubHeader']))
             else:
                 story.append(Paragraph(para, styles['ChineseBody']))
         story.append(Spacer(1, 12))

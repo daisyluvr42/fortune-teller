@@ -109,8 +109,9 @@ def clean_text_for_pdf(text: str) -> str:
     text = _MD_PDF_BLOCKQUOTE_RE.sub('', text)
     text = _MD_PDF_INLINE_CODE_RE.sub(r'\1', text)
 
-    # Convert markdown headers to plain text with newlines
-    text = _MD_PDF_HEADER_RE.sub(r'\n\1\n', text)
+    # Convert markdown headers to plain text with unique marker and newlines
+    # Allow leading whitespace
+    text = re.sub(r'^\s*#{1,6}\s*(.+?)$', r'\n\n##HEADER##\1\n\n', text, flags=re.MULTILINE)
 
     # Remove bold/italic markers
     text = _MD_PDF_BOLD_ASTERISK_RE.sub(r'\1', text)
@@ -128,11 +129,12 @@ def clean_text_for_pdf(text: str) -> str:
     text = '\n'.join(lines)
 
     # Remove unintended spacing between CJK characters and punctuation
-    text = re.sub(r'([\u4e00-\u9fff])\s+([\u4e00-\u9fff])', r'\1\2', text)
-    text = re.sub(r'([\u4e00-\u9fff])\s+([，。！？；：、”’》）】])', r'\1\2', text)
-    text = re.sub(r'([“‘《（【])\s+([\u4e00-\u9fff])', r'\1\2', text)
-    text = re.sub(r'([“‘])\s+', r'\1', text)
-    text = re.sub(r'\s+([”’])', r'\1', text)
+    # NOTE: We use [ \t]+ instead of \s+ to avoid eating newlines (paragraph breaks)
+    text = re.sub(r'([\u4e00-\u9fff])[ \t]+([\u4e00-\u9fff])', r'\1\2', text)
+    text = re.sub(r'([\u4e00-\u9fff])[ \t]+([，。！？；：、”’》）】])', r'\1\2', text)
+    text = re.sub(r'([“‘《（【])[ \t]+([\u4e00-\u9fff])', r'\1\2', text)
+    text = re.sub(r'([“‘])[ \t]+', r'\1', text)
+    text = re.sub(r'[ \t]+([”’])', r'\1', text)
 
     # Add thin space between CJK and Latin/digits for better readability
     text = re.sub(r'([\u4e00-\u9fff])([A-Za-z0-9])', r'\1 \2', text)

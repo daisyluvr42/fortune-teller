@@ -34,6 +34,7 @@ from db_utils import init_db, save_profile, profile_exists, get_all_profiles, ge
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
+PERF_LOG = os.getenv("PERF_LOG") == "1"
 
 
 def get_app_version() -> str:
@@ -3002,6 +3003,9 @@ else:
                                 last_render_time = time.monotonic()
                                 render_min_chars = 120
                                 render_min_interval = 0.15
+                                render_updates = 0
+                                first_render_time = None
+                                start_time = time.monotonic()
                                 
                                 for chunk in response:
                                     if chunk.choices[0].delta.content:
@@ -3016,6 +3020,9 @@ else:
                                                 f'<div class="fortune-text">{cleaned}</div>',
                                                 unsafe_allow_html=True
                                             )
+                                            render_updates += 1
+                                            if first_render_time is None:
+                                                first_render_time = now
                                             last_render_len = len(oracle_response)
                                             last_render_time = now
                                 
@@ -3024,6 +3031,21 @@ else:
                                     response_placeholder.markdown(
                                         f'<div class="fortune-text">{cleaned}</div>',
                                         unsafe_allow_html=True
+                                    )
+                                    render_updates += 1
+                                    if first_render_time is None:
+                                        first_render_time = time.monotonic()
+                                
+                                if PERF_LOG:
+                                    total_ms = int((time.monotonic() - start_time) * 1000)
+                                    first_render_ms = (
+                                        int((first_render_time - start_time) * 1000)
+                                        if first_render_time else "NA"
+                                    )
+                                    print(
+                                        f"[PERF] oracle_ui total_ms={total_ms} first_render_ms={first_render_ms} "
+                                        f"renders={render_updates} chars={len(oracle_response)}",
+                                        flush=True
                                     )
                                 
                                 # Save response and mark daily usage
@@ -3144,6 +3166,9 @@ else:
                 last_render_time = time.monotonic()
                 render_min_chars = 120
                 render_min_interval = 0.15
+                render_updates = 0
+                first_render_time = None
+                start_time = time.monotonic()
                 try:
                     for chunk in get_fortune_analysis(
                         topic,
@@ -3162,6 +3187,9 @@ else:
                             or now - last_render_time >= render_min_interval
                         ):
                             response_placeholder.markdown(response_text)
+                            render_updates += 1
+                            if first_render_time is None:
+                                first_render_time = now
                             last_render_len = len(response_text)
                             last_render_time = now
                         
@@ -3171,6 +3199,17 @@ else:
                 finally:
                     # Force reset loading state even if error occurs
                     st.session_state.is_generating = False
+                    if PERF_LOG:
+                        total_ms = int((time.monotonic() - start_time) * 1000)
+                        first_render_ms = (
+                            int((first_render_time - start_time) * 1000)
+                            if first_render_time else "NA"
+                        )
+                        print(
+                            f"[PERF] couple_ui total_ms={total_ms} first_render_ms={first_render_ms} "
+                            f"renders={render_updates} chars={len(response_text)}",
+                            flush=True
+                        )
             
             # Store response and update state
             st.session_state.responses.append((topic_key, topic_display, response_text))
@@ -3190,6 +3229,9 @@ else:
             last_render_time = time.monotonic()
             render_min_chars = 120
             render_min_interval = 0.15
+            render_updates = 0
+            first_render_time = None
+            start_time = time.monotonic()
             try:
                 for chunk in get_fortune_analysis(
                     topic,
@@ -3219,6 +3261,9 @@ else:
                             f'<div class="topic-header">{topic_display}</div><div class="fortune-text">{display_text}</div>',
                             unsafe_allow_html=True
                         )
+                        render_updates += 1
+                        if first_render_time is None:
+                            first_render_time = now
                         last_render_len = len(response_text)
                         last_render_time = now
             except Exception as e:
@@ -3243,6 +3288,21 @@ else:
             response_placeholder.markdown(
                 f'<div class="topic-header">{topic_display}</div><div class="fortune-text">{display_text}</div>',
                 unsafe_allow_html=True
+            )
+            render_updates += 1
+            if first_render_time is None:
+                first_render_time = time.monotonic()
+        
+        if PERF_LOG:
+            total_ms = int((time.monotonic() - start_time) * 1000)
+            first_render_ms = (
+                int((first_render_time - start_time) * 1000)
+                if first_render_time else "NA"
+            )
+            print(
+                f"[PERF] analysis_ui total_ms={total_ms} first_render_ms={first_render_ms} "
+                f"renders={render_updates} chars={len(response_text)} topic={topic}",
+                flush=True
             )
         
         # Store response and update flags
