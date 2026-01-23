@@ -139,6 +139,7 @@ def build_couple_prompt(person_a, person_b, comp_data, relation_type="恋人/伴
     - **八字**：{person_a['year_pillar']}  {person_a['month_pillar']}  {person_a['day_pillar']}  {person_a['hour_pillar']}
     - **核心格局**：{person_a.get('pattern_name', '普通格局')}
     - **五行能量**：{person_a.get('strength', '未知')} (喜：{person_a.get('joy_elements', '未知')})
+    - **纳音意象**：年-{person_a.get('nayin', {}).get('year', '未知')}, 日-{person_a.get('nayin', {}).get('day', '未知')}
     - **本命画像**：(请基于其日主和格局，用一句话描述甲方的性格底色，如"固执但有责任感的磐石")
     
     **【乙方 (User B)】**
@@ -146,6 +147,7 @@ def build_couple_prompt(person_a, person_b, comp_data, relation_type="恋人/伴
     - **八字**：{person_b['year_pillar']}  {person_b['month_pillar']}  {person_b['day_pillar']}  {person_b['hour_pillar']}
     - **核心格局**：{person_b.get('pattern_name', '普通格局')}
     - **五行能量**：{person_b.get('strength', '未知')} (喜：{person_b.get('joy_elements', '未知')})
+    - **纳音意象**：年-{person_b.get('nayin', {}).get('year', '未知')}, 日-{person_b.get('nayin', {}).get('day', '未知')}
     - **本命画像**：(请基于其日主和格局，用一句话描述乙方的性格底色)
 
     ---

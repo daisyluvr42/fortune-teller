@@ -3124,7 +3124,8 @@ else:
                 "hour_pillar": pattern_a.get("hour_pillar", "??"),
                 "pattern_name": pattern_a.get("pattern_name", "普通格局"),
                 "strength": pattern_a.get("strength_result", {}).get("strength", "未知"),
-                "joy_elements": ", ".join(pattern_a.get("strength_result", {}).get("joy_elements", [])) or "未知"
+                "joy_elements": ", ".join(pattern_a.get("strength_result", {}).get("joy_elements", [])) or "未知",
+                "nayin": pattern_a.get("auxiliary", {}).get("nayin", {})
             }
             
             # Build person_b data (乙方)
@@ -3137,7 +3138,8 @@ else:
                 "hour_pillar": pattern_b.get("hour_pillar", "??"),
                 "pattern_name": pattern_b.get("pattern_name", "普通格局"),
                 "strength": pattern_b.get("strength_result", {}).get("strength", "未知"),
-                "joy_elements": ", ".join(pattern_b.get("strength_result", {}).get("joy_elements", [])) or "未知"
+                "joy_elements": ", ".join(pattern_b.get("strength_result", {}).get("joy_elements", [])) or "未知",
+                "nayin": pattern_b.get("auxiliary", {}).get("nayin", {})
             }
             
             # Get compatibility result
