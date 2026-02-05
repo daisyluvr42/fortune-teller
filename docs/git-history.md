@@ -2,6 +2,11 @@
 
 Generated: 2026-02-05
 
+Company: Monad-lab Works LLC (Delaware, USA)
+Founder/Author: Xiangyu
+Contact: founder@monad-lab.com
+Tagline: 封装复杂性。
+
 Command:
 ```
 git log --oneline --decorate -n 50

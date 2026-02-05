@@ -48,7 +48,8 @@ streamlit.log
 fortune_teller_agent/temp/
 
 # Local iOS project (kept in repo workspace, not tracked)
-ios/
+# ios/ (Uncommented to allow sync)
+
 
 # Logs
 start.log

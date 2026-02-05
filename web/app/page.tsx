@@ -244,11 +244,6 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="py-8 text-center">
-        <p className="text-[10px] text-[#1A1A1A]/20 tracking-[0.3em]">
-          VERSION 0.7.0 BETA · 禅意命理
-        </p>
-      </footer>
     </div>
   );
 }

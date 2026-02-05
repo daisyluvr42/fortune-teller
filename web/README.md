@@ -1,3 +1,12 @@
+## 公司与作者
+
+- 公司：Monad-lab Works LLC（美国特拉华州注册）
+- 创始人 / 作者：Xiangyu
+- 联系方式：founder@monad-lab.com
+- 标语：封装复杂性。
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
