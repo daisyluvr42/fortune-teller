@@ -75,14 +75,13 @@
 ## 运行方式
 
 ```bash
-uv run streamlit run app.py
+# 一键启动（FastAPI + Next.js）
+./start.sh
 ```
 
-访问 http://localhost:8501
-
-## 在线访问
-
-🌐 **Streamlit Cloud**: https://fortune-teller-bazi.streamlit.app
+访问：
+- 后端：`http://localhost:8000`
+- 前端：`http://127.0.0.1:3001`
 
 📦 **GitHub**: https://github.com/daisyluvr42/fortune-teller
 

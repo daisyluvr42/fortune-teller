@@ -49,3 +49,7 @@ fortune_teller_agent/temp/
 
 # Local iOS project (kept in repo workspace, not tracked)
 ios/
+
+# Logs
+start.log
+

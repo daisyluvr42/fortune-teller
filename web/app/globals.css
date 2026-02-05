@@ -1,0 +1,454 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap');
+@import "tailwindcss";
+
+/* =====================================================
+   禅意 UI 系统 - Zen UI System
+   =====================================================
+   风格: 禅意 (Zen) · 呼吸感 · 纸质触感 · 墨色调
+   ===================================================== */
+
+/* ===== 主题变量 ===== */
+:root {
+  /* 调色板 */
+  --color-paper: #F8F8F0;
+  /* 宣纸底色 */
+  --color-card: #FFFFFF;
+  /* 卡片白 */
+  --color-ink: #1A1A1A;
+  /* 浓墨色 */
+  --color-ink-light: #666666;
+  /* 暮灰色 */
+  --color-ink-muted: #999999;
+  /* 淡灰 */
+  --color-bronze: #B8860B;
+  /* 哑光金/古铜 */
+  --color-divider: rgba(26, 26, 26, 0.08);
+
+  /* 阴影 */
+  --shadow-soft: 0 2px 20px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 4px 32px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 8px 40px rgba(0, 0, 0, 0.08);
+
+  /* 字体 */
+  --font-sans: "PingFang SC", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Noto Sans SC", sans-serif;
+
+  /* 间距 */
+  --spacing-breathe: 2rem;
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  /* 动画 */
+  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== 全局样式 ===== */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: var(--color-paper);
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+  min-height: 100vh;
+
+  /* 宣纸纹理 - 极细微的颗粒感 */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-blend-mode: overlay;
+  background-size: 200px 200px;
+}
+
+/* ===== 动画 ===== */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-subtle {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes breathe {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* 3D Coin Animation & Styles */
+.coin-scene {
+  perspective: 1200px;
+  width: 90px;
+  height: 90px;
+  position: absolute;
+  /* Top/Left will be set via inline styles for random positioning */
+  will-change: transform;
+}
+
+.coin-object {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  /* Shadow for the coin itself (thickness illusion) */
+  border-radius: 50%;
+}
+
+.coin-edge {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #f8d37b 0%, #d8a74b 35%, #8b5a2b 70%, #5a3a1f 100%);
+  transform: translateZ(-6px) scale(0.98);
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.35), inset 0 0 12px rgba(0, 0, 0, 0.25);
+}
+
+.coin-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.18);
+}
+
+.coin-front {
+  z-index: 2;
+  transform: translateZ(6px) rotateY(0deg);
+}
+
+.coin-back {
+  transform: translateZ(-6px) rotateY(180deg);
+}
+
+
+.coin-face img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+/* The Toss Animation */
+@keyframes toss-3d {
+  0% {
+    transform: translateY(-600px) translateX(0px) scale(1.5);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  60% {
+    /* Maximum height spin */
+    transform: translateY(-40px) translateX(10px) scale(1);
+  }
+
+  75% {
+    /* Bounce up */
+    transform: translateY(-80px) translateX(-6px) scale(1.05);
+  }
+
+  100% {
+    transform: translateY(0) translateX(0) scale(1);
+  }
+}
+
+.coin-tossing {
+  animation: toss-3d 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* Floor Shadow */
+.coin-shadow {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: -6px;
+  height: 28%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, transparent 70%);
+  filter: blur(4px);
+  opacity: 0;
+  z-index: -1;
+  animation: shadow-fade 2.5s ease-out forwards;
+}
+
+@keyframes shadow-fade {
+
+  0%,
+  50% {
+    opacity: 0;
+    transform: scale(0.2) translateY(8px);
+  }
+
+  100% {
+    opacity: 0.6;
+    transform: scale(1) translateY(0);
+  }
+}
+
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out forwards;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 4s linear infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* ===== 容器卡片 ===== */
+.zen-card {
+  background: var(--color-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  padding: 2rem;
+  transition: box-shadow var(--transition-smooth), transform var(--transition-smooth);
+}
+
+.zen-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* ===== 输入控件 ===== */
+.zen-input {
+  width: 100%;
+  background: var(--color-paper);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 14px 24px;
+  font-size: 15px;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  text-align: center;
+  letter-spacing: 0.02em;
+  transition: all var(--transition-smooth);
+}
+
+.zen-input:focus {
+  outline: none;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.15);
+}
+
+.zen-input::placeholder {
+  color: var(--color-ink-muted);
+}
+
+.zen-select {
+  appearance: none;
+  width: 100%;
+  background: var(--color-paper);
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  font-size: 15px;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+}
+
+.zen-select:focus {
+  outline: none;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.15);
+}
+
+/* ===== 按钮 ===== */
+.zen-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-ink);
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 16px 40px;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-smooth);
+}
+
+.zen-button:hover:not(:disabled) {
+  transform: scale(1.02);
+  box-shadow: var(--shadow-card);
+}
+
+.zen-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.zen-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zen-button-ghost {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-divider);
+  padding: 12px 24px;
+}
+
+.zen-button-ghost:hover:not(:disabled) {
+  background: var(--color-paper);
+  border-color: var(--color-ink-muted);
+}
+
+/* ===== 八字表格 ===== */
+.bazi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .bazi-grid {
+    gap: 8px;
+  }
+}
+
+.bazi-pillar {
+  background: var(--color-paper);
+  border-radius: var(--radius-md);
+  padding: 20px 12px;
+  text-align: center;
+  transition: all var(--transition-smooth);
+}
+
+.bazi-pillar:hover {
+  background: #FFFFFF;
+  box-shadow: var(--shadow-soft);
+}
+
+.bazi-label {
+  font-size: 11px;
+  color: var(--color-ink-light);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.bazi-stem {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.2;
+}
+
+.bazi-branch {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--color-bronze);
+  line-height: 1.2;
+  margin-top: 4px;
+}
+
+.bazi-tengod {
+  font-size: 11px;
+  color: var(--color-ink-light);
+  margin-top: 12px;
+  padding: 4px 10px;
+  background: rgba(26, 26, 26, 0.04);
+  border-radius: var(--radius-full);
+  display: inline-block;
+}
+
+/* ===== 标签 ===== */
+.zen-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--color-paper);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  color: var(--color-ink-light);
+  letter-spacing: 0.02em;
+}
+
+.zen-tag-bronze {
+  background: rgba(184, 134, 11, 0.08);
+  color: var(--color-bronze);
+}
+
+/* ===== 分割线 ===== */
+.zen-divider {
+  height: 1px;
+  background: var(--color-divider);
+  margin: var(--spacing-breathe) 0;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 640px) {
+  .zen-card {
+    padding: 1.5rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .bazi-stem,
+  .bazi-branch {
+    font-size: 26px;
+  }
+
+  .bazi-pillar {
+    padding: 16px 8px;
+  }
+}
+
+.font-song {
+  font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
+}

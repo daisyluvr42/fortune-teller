@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { Hexagon, User, LogOut, ChevronDown, Trash2, Pencil } from "lucide-react";
+import Link from "next/link";
+import { useAuth } from "@/lib/AuthContext";
+import { useUserProfile } from "@/lib/context";
+
+export default function Header() {
+    const { user, isAuthenticated, signOut, isLoading } = useAuth();
+    const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
+    const [showUserMenu, setShowUserMenu] = useState(false);
+
+    const handleSignOut = async () => {
+        await signOut();
+        setShowUserMenu(false);
+    };
+
+    const handleDeleteProfile = async () => {
+        if (!activeProfileId) return;
+        const current = profiles.find((p) => p.id === activeProfileId);
+        const name = current?.profileName || "当前档案";
+        if (!confirm(`确定删除「${name}」吗？此操作不可恢复。`)) return;
+        await deleteProfile(activeProfileId);
+    };
+
+    const handleRenameProfile = async () => {
+        if (!activeProfileId) return;
+        const current = profiles.find((p) => p.id === activeProfileId);
+        const name = current?.profileName || "";
+        const next = prompt("请输入新的档案名称：", name);
+        if (next === null) return;
+        await renameProfile(activeProfileId, next);
+    };
+
+    return (
+        <header className="w-full py-6 px-6">
+            <div className="max-w-3xl mx-auto flex items-center justify-between gap-6">
+                <div className="flex items-center gap-6">
+                    {/* Logo - 抽象线条风格 */}
+                    <Link href="/" className="flex items-center gap-3">
+                        <div className="relative">
+                            <Hexagon
+                                className="w-8 h-8 text-[#1A1A1A]"
+                                strokeWidth={1}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-xs font-medium text-[#1A1A1A]">命</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-medium tracking-wide text-[#1A1A1A]">
+                                命理
+                            </h1>
+                        </div>
+                    </Link>
+
+                    {/* 导航链接（移至左侧） */}
+                    <nav className="flex items-center gap-4">
+                        <Link href="/" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                            排盘
+                        </Link>
+                        <Link href="/analysis" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                            分析
+                        </Link>
+                        <Link href="/compatibility" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                            合盘
+                        </Link>
+                        <Link href="/oracle" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                            一卦
+                        </Link>
+                    </nav>
+                </div>
+
+                {/* 右侧：档案选择 + 用户区域 */}
+                <div className="flex items-center gap-3">
+                    {isAuthenticated && user && (
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={activeProfileId || ""}
+                                onChange={(e) => loadProfile(e.target.value)}
+                                className="text-xs px-3 py-1.5 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors min-w-[140px]"
+                                disabled={isLoadingProfiles || profiles.length === 0}
+                            >
+                                {profiles.length === 0 && (
+                                    <option value="">暂无档案</option>
+                                )}
+                                {profiles.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.profileName}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={handleRenameProfile}
+                                className="p-2 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors"
+                                title="重命名当前档案"
+                                disabled={!activeProfileId || profiles.length === 0}
+                            >
+                                <Pencil className="w-4 h-4 text-[#1A1A1A]/60" />
+                            </button>
+                            <button
+                                onClick={handleDeleteProfile}
+                                className="p-2 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors"
+                                title="删除当前档案"
+                                disabled={!activeProfileId || profiles.length === 0}
+                            >
+                                <Trash2 className="w-4 h-4 text-[#1A1A1A]/60" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* 用户区域 */}
+                    {isLoading ? (
+                        <div className="w-8 h-8 rounded-full bg-[#1A1A1A]/5 animate-pulse" />
+                    ) : isAuthenticated && user ? (
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowUserMenu(!showUserMenu)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors"
+                            >
+                                <User className="w-4 h-4 text-[#1A1A1A]/60" />
+                                <span className="text-xs text-[#1A1A1A]/70 max-w-[80px] truncate">
+                                    {user.email?.split('@')[0]}
+                                </span>
+                                <ChevronDown className="w-3 h-3 text-[#1A1A1A]/40" />
+                            </button>
+
+                            {/* 下拉菜单 */}
+                            {showUserMenu && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-10"
+                                        onClick={() => setShowUserMenu(false)}
+                                    />
+                                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-[#1A1A1A]/10 py-2 z-20">
+                                        <div className="px-4 py-2 border-b border-[#1A1A1A]/5">
+                                            <p className="text-xs text-[#1A1A1A]/40">登录账户</p>
+                                            <p className="text-sm text-[#1A1A1A] truncate">{user.email}</p>
+                                        </div>
+                                        <button
+                                            onClick={handleSignOut}
+                                            className="w-full px-4 py-2 text-left text-sm text-[#1A1A1A]/70 hover:bg-[#1A1A1A]/5 flex items-center gap-2 transition-colors"
+                                        >
+                                            <LogOut className="w-4 h-4" />
+                                            退出登录
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        <Link
+                            href="/login"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#B8860B] to-[#DAA520] text-white text-xs hover:opacity-90 transition-opacity"
+                        >
+                            <User className="w-3.5 h-3.5" />
+                            登录
+                        </Link>
+                    )}
+                </div>
+            </div>
+        </header>
+    );
+}

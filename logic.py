@@ -1324,58 +1324,81 @@ class ZhouyiCalculator:
 
     def cast_hexagram(self):
         """
-        模拟金钱课起卦 (3枚硬币摇6次)
-        老阴(6): 变阳, 少阳(7): 不变, 少阴(8): 不变, 老阳(9): 变阴
+        模拟金钱课起卦 (3枚硬币摇6次) - 核心算法 V2
+        
+        数理逻辑 (基于铜钱正反面):
+        - 字 (Front/Yang) = 2
+        - 背 (Back/Yin) = 3
+        
+        概率分布:
+        - 1背2字 (3+2+2=7): 少阳 (不变) - 概率 3/8
+        - 2背1字 (3+3+2=8): 少阴 (不变) - 概率 3/8
+        - 3背0字 (3+3+3=9): 老阳 (变阴) - 概率 1/8
+        - 0背3字 (2+2+2=6): 老阴 (变阳) - 概率 1/8
         
         Returns:
-            dict: 包含本卦、变卦、动爻等信息
+            dict: 包含本卦、变卦、动爻、以及每一爻的铜钱详情 (coins_detail)
         """
-        lines = []  # 存储本卦爻 (0为阴, 1为阳)
+        lines = []           # 存储本卦爻 (0为阴, 1为阳)
         changing_lines = []  # 存储变爻索引 (1-6)
+        coins_detail = []    # 存储每一爻的3枚铜钱状态 (0=字/正面, 1=背/反面)
+        line_objects = []    # 存储结构化爻对象，供前端/其它模块直接使用
         
         original_binary = ""
         future_binary = ""
         
         details = []
-        line_types = []
 
         for i in range(6):
-            # 模拟投硬币：2为字(背)，3为花(面)
-            # 6=2+2+2(老阴), 7=2+2+3(少阳), 8=2+3+3(少阴), 9=3+3+3(老阳)
-            toss = sum([self.random.choice([2, 3]) for _ in range(3)])
+            # 1. 模拟投掷：生成3枚硬币的状态
+            # 2 = 字 (正面/Yang), 3 = 背 (反面/Yin)
+            current_coins = [self.random.choice([2, 3]) for _ in range(3)]
+            toss_sum = sum(current_coins)
+            
+            # 转换为前端可视化的 0/1 状态 (0=正面/2, 1=反面/3)
+            # 例如 [2, 3, 2] -> [0, 1, 0]
+            display_coins = [0 if c == 2 else 1 for c in current_coins]
+            coins_detail.append(display_coins)
             
             line_val = 0
             is_change = False
             note = ""
             
-            if toss == 6:  # 老阴 -> 变阳
-                line_val = 0
+            # 2. 爻象判定
+            if toss_sum == 6:    # 0背3字：老阴 (变阳)
+                line_val = 0     # 阴
                 is_change = True
                 note = "⚋ 老阴 (动爻)"
-                line_types.append("老阴")
-            elif toss == 7:  # 少阳 -> 阳
-                line_val = 1
+            elif toss_sum == 7:  # 1背2字：少阳 (阳)
+                line_val = 1     # 阳
                 note = "⚊ 少阳"
-                line_types.append("少阳")
-            elif toss == 8:  # 少阴 -> 阴
-                line_val = 0
+            elif toss_sum == 8:  # 2背1字：少阴 (阴)
+                line_val = 0     # 阴
                 note = "⚋ 少阴"
-                line_types.append("少阴")
-            elif toss == 9:  # 老阳 -> 变阴
-                line_val = 1
+            elif toss_sum == 9:  # 3背0字：老阳 (变阴)
+                line_val = 1     # 阳
                 is_change = True
                 note = "⚊ 老阳 (动爻)"
-                line_types.append("老阳")
             
             lines.append(line_val)
             details.append(f"第{i+1}爻: {note}")
             
             original_binary += str(line_val)
+
+            # 结构化爻对象（本卦信息）
+            line_objects.append({
+                "line_index": i + 1,  # 1=初爻, 6=上爻
+                "coins": display_coins,  # 0=正面(字), 1=反面(背)
+                "back_count": display_coins.count(1),
+                "line_value": line_val,  # 0=阴, 1=阳
+                "line_symbol": "⚋" if line_val == 0 else "⚊",
+                "is_change": is_change
+            })
             
-            # 计算变卦
+            # 3. 计算变卦
             if is_change:
                 future_binary += str(1 - line_val)  # 阴阳互变
-                changing_lines.append(i + 1)  # 记录是第几爻动了 (1-6)
+                changing_lines.append(i + 1)
             else:
                 future_binary += str(line_val)
 
@@ -1383,33 +1406,22 @@ class ZhouyiCalculator:
         original_info = self.hexagram_names.get(original_binary, ("未知卦", "未知", ""))
         future_info = self.hexagram_names.get(future_binary, ("未知卦", "未知", ""))
         
-        # 获取上下卦信息
-        lower_trigram = original_binary[:3]  # 初爻到三爻 (下卦/内卦)
-        upper_trigram = original_binary[3:]  # 四爻到上爻 (上卦/外卦)
-        
-        lower_info = self.bagua.get(lower_trigram, ("未知", "", "", ""))
-        upper_info = self.bagua.get(upper_trigram, ("未知", "", "", ""))
-        
         return {
-            "original_hex": original_info[0],      # 本卦全名
-            "original_short": original_info[1],    # 本卦简称
-            "original_meaning": original_info[2],  # 本卦含义
-            "original_binary": original_binary,    # 本卦二进制
+            "original_hex": original_info[0],
+            "original_short": original_info[1],
+            "original_meaning": original_info[2],
+            "original_binary": original_binary,
             
-            "future_hex": future_info[0] if changing_lines else None,       # 变卦全名
-            "future_short": future_info[1] if changing_lines else None,     # 变卦简称
-            "future_meaning": future_info[2] if changing_lines else None,   # 变卦含义
-            "future_binary": future_binary if changing_lines else None,     # 变卦二进制
+            "future_hex": future_info[0] if changing_lines else None,
+            "future_short": future_info[1] if changing_lines else None,
             
-            "changing_lines": changing_lines,   # 动爻列表 (1-6)
-            "details": details,                 # 每爻详情
-            "line_types": line_types,           # 爻的类型列表
-            
-            "lower_trigram": f"{lower_info[2]} {lower_info[0]}({lower_info[1]})",  # 下卦
-            "upper_trigram": f"{upper_info[2]} {upper_info[0]}({upper_info[1]})",  # 上卦
-            
-            "has_change": len(changing_lines) > 0  # 是否有变卦
+            "changing_lines": changing_lines,
+            "details": details,
+            "coins_detail": coins_detail,  # 新增: 铜钱详情
+            "lines": line_objects  # 新增: 结构化爻对象数组
         }
+
+
     
     def get_hexagram_by_binary(self, binary_str):
         """
@@ -2358,6 +2370,7 @@ def build_user_context(bazi_text: str, gender: str, birthplace: str, current_tim
 # Model-specific optimal temperature settings
 MODEL_TEMPERATURES = {
     # Gemini - works best with moderate temperature for creative tasks
+    "gemini-2.0-flash": 0.8,
     "gemini-2.0-flash-exp": 0.8,
     "gemini-1.5-pro": 0.7,
     "gemini-1.5-flash": 0.8,

@@ -66,6 +66,12 @@ class NayinInfo(BaseModel):
     hour: str = Field(..., description="Hour pillar Nayin")
 
 
+class EnergyItem(BaseModel):
+    """Energy score and percentage for one element."""
+    score: float
+    pct: float
+
+
 class ChartResponse(BaseModel):
     """Response for /api/chart endpoint."""
     year_pillar: Pillar
@@ -77,6 +83,7 @@ class ChartResponse(BaseModel):
     day_master: str = Field(..., description="Day Master (日主)")
     strength: str = Field(..., description="Strength (身强/身弱)")
     joy_elements: str = Field(..., description="Joy elements (喜用神)")
+    energy_distribution: Optional[dict[str, EnergyItem]] = Field(None, description="Five Elements energy distribution")
     time_correction: Optional[str] = Field(None, description="True solar time correction info")
     # Extended data for professional chart
     twelve_stages: Optional[TwelveStages] = Field(None, description="Twelve Life Stages (十二长生)")
@@ -85,12 +92,53 @@ class ChartResponse(BaseModel):
     shen_sha: Optional[List[str]] = Field(None, description="Spirit Stars (神煞)")
 
 
+class OracleRequest(BaseModel):
+    """Request for /api/oracle endpoint."""
+    question: str
+    user_data: Optional[BirthData] = None
+
+
+class OracleResponse(BaseModel):
+    """Response for /api/oracle endpoint."""
+    original_hex: str
+    original_short: str
+    original_meaning: str
+    original_binary: str
+    future_hex: Optional[str] = None
+    future_short: Optional[str] = None
+    changing_lines: List[int]
+    details: List[str]
+    coins_detail: Optional[List[List[int]]] = Field(None, description="Detail status of 3 coins for each line (6 lines)")
+    lines: Optional[List[dict]] = Field(None, description="Structured line objects for each of 6 lines")
+    svg: str
+
+
+class CycleItem(BaseModel):
+    """A single cycle (DaYun or LiuNian)."""
+    gan_zhi: str
+    year: Optional[int] = None
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
+    age: Optional[int] = None
+    start_age: Optional[int] = None
+    end_age: Optional[int] = None
+
+
+class CycleResponse(BaseModel):
+    """Response for /api/cycles endpoint."""
+    da_yun: List[CycleItem]
+    liu_nian: List[CycleItem]
+    liu_yue: List[dict]
+    start_info: dict
+
+
 class AnalysisRequest(BaseModel):
     """Request for /api/analysis endpoint."""
     user_data: BirthData
     question_type: str = Field(..., description="Analysis topic (e.g., 整体命格, 事业运势)")
     custom_question: Optional[str] = Field(None, description="Custom question for 大师解惑")
     birthplace: Optional[str] = Field("未指定", description="Birthplace name")
+    oracle_data: Optional[OracleResponse] = None  # To support Oracle + Bazi combined analysis
 
 
 class AnalysisResponse(BaseModel):
@@ -106,12 +154,6 @@ class CompatibilityRequest(BaseModel):
     relation_type: str = Field("恋人/伴侣", description="Relationship type")
 
 
-class CompatibilityDetail(BaseModel):
-    """A single compatibility finding."""
-    description: str
-    is_positive: bool
-
-
 class CompatibilityResponse(BaseModel):
     """Response for /api/compatibility endpoint."""
     base_score: int = Field(..., ge=0, le=100, description="Compatibility score (0-100)")
@@ -124,8 +166,8 @@ class CompatibilityResponse(BaseModel):
 
 app = FastAPI(
     title="命理大师 API",
-    description="八字算命后端 API - 支持八字排盘、命理分析、合盘分析",
-    version="v0.6.4 beta"
+    description="八字算命后端 API - 支持八字排盘、命理分析、合盘分析、周易起卦",
+    version="v0.7.0 beta"
 )
 
 # Configure CORS for mobile/web access
@@ -142,6 +184,7 @@ app.add_middleware(
 
 def extract_pillar_data(pillar_str: str, day_master: str, hidden_stems_list: List[str]) -> Pillar:
     """Extract Pillar data from a pillar string like '甲子'."""
+    from logic import BaziPatternCalculator
     calc = BaziPatternCalculator()
     gan = pillar_str[0]
     zhi = pillar_str[1]
@@ -159,17 +202,18 @@ def extract_pillar_data(pillar_str: str, day_master: str, hidden_stems_list: Lis
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "ok", "message": "命理大师 API is running"}
+    return {"status": "ok", "version": "v0.7.0 beta", "message": "命理大师 API is running"}
 
 
 @app.post("/api/chart", response_model=ChartResponse)
 async def get_bazi_chart(data: BirthData):
     """
     Calculate Bazi Four Pillars and return structured data.
-    
-    This endpoint returns the core Bazi chart without LLM interpretation.
     """
     try:
+        from logic import calculate_bazi
+        from bazi_utils import BaziEnergyCalculator
+
         bazi_str, time_info, pattern_info = calculate_bazi(
             year=data.birth_year,
             month=data.month,
@@ -182,6 +226,16 @@ async def get_bazi_chart(data: BirthData):
         day_master = pattern_info["day_master"]
         hidden = pattern_info.get("hidden_stems", {})
         auxiliary = pattern_info.get("auxiliary", {})
+        
+        # Calculate Energy Distribution
+        pillars_list = [
+            pattern_info["year_pillar"],
+            pattern_info["month_pillar"],
+            pattern_info["day_pillar"],
+            pattern_info["hour_pillar"]
+        ]
+        energy_calc = BaziEnergyCalculator()
+        energy_data = energy_calc.calculate_energy(pillars_list)
         
         # Build extended data
         twelve_stages_data = auxiliary.get("twelve_stages")
@@ -213,8 +267,8 @@ async def get_bazi_chart(data: BirthData):
             day_master=day_master,
             strength=pattern_info.get("strength", {}).get("result", "未知"),
             joy_elements=pattern_info.get("strength", {}).get("joy_elements", "未知"),
+            energy_distribution=energy_data,
             time_correction=time_info,
-            # Extended professional chart data
             twelve_stages=TwelveStages(**twelve_stages_data) if twelve_stages_data else None,
             kong_wang=auxiliary.get("kong_wang"),
             nayin=NayinInfo(**nayin_data) if nayin_data else None,
@@ -224,24 +278,76 @@ async def get_bazi_chart(data: BirthData):
         raise HTTPException(status_code=400, detail=f"Bazi calculation error: {str(e)}")
 
 
+@app.post("/api/oracle", response_model=OracleResponse)
+async def get_oracle(request: OracleRequest):
+    """
+    Perform a Zhouyi Oracle (divination).
+    """
+    try:
+        from logic import ZhouyiCalculator
+        from bazi_utils import draw_hexagram_svg
+        
+        calc = ZhouyiCalculator()
+        result = calc.cast_hexagram()
+        
+        return OracleResponse(
+            original_hex=result["original_hex"],
+            original_short=result["original_short"],
+            original_meaning=result["original_meaning"],
+            original_binary=result["original_binary"],
+            future_hex=result.get("future_hex"),
+            future_short=result.get("future_short"),
+            changing_lines=result.get("changing_lines", []),
+            details=result.get("details", []),
+            coins_detail=result.get("coins_detail"),
+            lines=result.get("lines"),
+            svg=draw_hexagram_svg(result["original_binary"])
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Oracle error: {str(e)}")
+
+
+@app.post("/api/cycles", response_model=CycleResponse)
+async def get_cycles(data: BirthData):
+    """
+    Calculate fortune cycles (DaYun and LiuNian).
+    """
+    try:
+        from logic import calculate_fortune_cycles
+        
+        result = calculate_fortune_cycles(
+            year=data.birth_year,
+            month=data.month,
+            day=data.day,
+            hour=data.hour,
+            minute=data.minute,
+            gender=data.gender,
+            longitude=data.longitude
+        )
+        return CycleResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cycles calculation error: {str(e)}")
+
+
 @app.post("/api/analysis", response_model=AnalysisResponse)
 async def get_analysis(request: AnalysisRequest):
     """
     Get AI-powered fortune analysis for a specific topic.
-    
-    Uses Google Gemini API (configured via GEMINI_API_KEY environment variable).
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
     
+    from logic import is_safe_input, calculate_bazi, build_user_context, get_fortune_analysis
+    from bazi_utils import build_oracle_prompt
+    
     # Safety check
-    text_to_check = request.custom_question or request.question_type
+    text_to_check = (request.custom_question or "") + request.question_type
     if not is_safe_input(text_to_check):
         raise HTTPException(status_code=400, detail="Invalid input detected")
     
     try:
-        # Calculate Bazi first
+        # Calculate Bazi
         bazi_str, time_info, pattern_info = calculate_bazi(
             year=request.user_data.birth_year,
             month=request.user_data.month,
@@ -264,15 +370,33 @@ async def get_analysis(request: AnalysisRequest):
             pattern_info=pattern_info
         )
         
+        # Special handling for Oracle + Bazi combined analysis
+        custom_question = request.custom_question
+        if request.question_type == "大师解惑" and request.oracle_data:
+            # Reconstruct Oracle data for build_oracle_prompt
+            hex_data = {
+                "original_hex": request.oracle_data.original_hex,
+                "future_hex": request.oracle_data.future_hex,
+                "changing_lines": request.oracle_data.changing_lines,
+                "details": request.oracle_data.details
+            }
+            bazi_data = {
+                "day_pillar": (pattern_info["day_pillar"][0], pattern_info["day_pillar"][1]),
+                "pattern_name": pattern_info.get("pattern", "普通格局"),
+                "strength": pattern_info.get("strength", {}).get("result", "未知"),
+                "joy_elements": pattern_info.get("strength", {}).get("joy_elements", "未知")
+            }
+            custom_question = build_oracle_prompt(request.custom_question or "请解一卦", hex_data, bazi_data)
+
         # Collect streamed response
         full_response = ""
         for chunk in get_fortune_analysis(
             topic=request.question_type,
             user_context=user_context,
-            custom_question=request.custom_question,
+            custom_question=custom_question,
             api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.0-flash",
             is_first_response=True,
             conversation_history=None
         ):
@@ -290,10 +414,11 @@ async def get_analysis(request: AnalysisRequest):
 async def get_compatibility(request: CompatibilityRequest):
     """
     Analyze compatibility between two people based on their Bazi.
-    
-    Returns a compatibility score and detailed analysis.
     """
     try:
+        from logic import calculate_bazi
+        from bazi_utils import BaziCompatibilityCalculator
+        
         # Calculate Bazi for both users
         _, _, pattern_a = calculate_bazi(
             year=request.user_a_data.birth_year,
@@ -322,7 +447,8 @@ async def get_compatibility(request: CompatibilityRequest):
             "gender": request.user_a_data.gender,
             "pattern_name": pattern_a.get("pattern", "普通格局"),
             "strength": pattern_a.get("strength", {}).get("result", "未知"),
-            "joy_elements": pattern_a.get("strength", {}).get("joy_elements", "未知")
+            "joy_elements": pattern_a.get("strength", {}).get("joy_elements", "未知"),
+            "nayin": pattern_a.get("auxiliary", {}).get("nayin", {})
         }
         
         person_b = {
@@ -333,7 +459,8 @@ async def get_compatibility(request: CompatibilityRequest):
             "gender": request.user_b_data.gender,
             "pattern_name": pattern_b.get("pattern", "普通格局"),
             "strength": pattern_b.get("strength", {}).get("result", "未知"),
-            "joy_elements": pattern_b.get("strength", {}).get("joy_elements", "未知")
+            "joy_elements": pattern_b.get("strength", {}).get("joy_elements", "未知"),
+            "nayin": pattern_b.get("auxiliary", {}).get("nayin", {})
         }
         
         # Run compatibility analysis
@@ -350,7 +477,6 @@ async def get_compatibility(request: CompatibilityRequest):
         raise HTTPException(status_code=500, detail=f"Compatibility analysis error: {str(e)}")
 
 
-# --- Run with: uvicorn main:app --reload ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
