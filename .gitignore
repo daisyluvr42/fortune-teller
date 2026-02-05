@@ -24,6 +24,7 @@ MANIFEST
 # Virtual Environment
 .env
 .env.local
+.env.*.local
 .venv
 env/
 venv/
@@ -42,10 +43,27 @@ streamlit.log
 .idea/
 .vscode/
 
+# Node/Next
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+web/.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 # Project specific
 *.db
 *.sqlite3
 fortune_teller_agent/temp/
+
+# Python caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Local iOS project (kept in repo workspace, not tracked)
 # ios/ (Uncommented to allow sync)
@@ -53,4 +71,3 @@ fortune_teller_agent/temp/
 
 # Logs
 start.log
-
