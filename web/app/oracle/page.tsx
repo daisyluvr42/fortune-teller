@@ -5,7 +5,12 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import CoinTossScene from '@/components/CoinTossScene';
+import dynamic from 'next/dynamic';
+
+const CoinTossScene = dynamic(() => import('@/components/CoinTossScene'), {
+    ssr: false,
+    loading: () => <div className="w-full h-full flex items-center justify-center text-[#B8860B]/50 animate-pulse">加载3D罗盘中...</div>
+});
 import { getOracle, getAnalysis, OracleResponse } from '@/lib/api';
 import { useUserProfile } from '@/lib/context';
 import { useShakeTrigger } from '@/lib/useShakeTrigger';
