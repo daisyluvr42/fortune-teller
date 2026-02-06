@@ -15,8 +15,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY main.py logic.py bazi_utils.py china_cities.py text_utils.py ./
-COPY llm_client.py db_utils.py pdf_generator.py ./
+COPY main.py logic.py bazi_utils.py llm_client.py ./
 
 # Expose port
 EXPOSE 8000
