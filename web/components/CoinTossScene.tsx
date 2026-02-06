@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+// @ts-ignore
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import type { Group, Object3D } from "three";
 import { SRGBColorSpace } from "three";
