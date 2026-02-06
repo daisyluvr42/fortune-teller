@@ -1,0 +1,25 @@
+# Ignore everything in root
+*.py
+*.txt
+*.toml
+*.json
+*.sh
+*.sql
+*.log
+Dockerfile
+.env*
+.venv
+__pycache__
+bazi_utils.py
+china_cities.py
+db_utils.py
+llm_client.py
+logic.py
+main.py
+pdf_generator.py
+text_utils.py
+
+# Unignore web directory and its contents
+!web/
+!web/**
+!vercel.json
