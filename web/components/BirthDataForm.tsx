@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BirthData } from "@/lib/api";
 import { LunarMonth } from "lunar-javascript";
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 
 // 中国主要城市及经度
 // 城市分组数据
@@ -100,6 +100,8 @@ interface BirthDataFormProps {
 export default function BirthDataForm({ onSubmit, isLoading, initialData }: BirthDataFormProps) {
     const t = useTranslations('BirthDataForm');
     const commonT = useTranslations('Common');
+    const locale = useLocale();
+    const isZh = locale === 'zh';
     const currentYear = new Date().getFullYear();
 
     const [birthYear, setBirthYear] = useState(initialData?.birth_year ?? 1990);
@@ -111,7 +113,16 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
     const [city, setCity] = useState("北京");
     const [isInternational, setIsInternational] = useState(false);
     const [isLunar, setIsLunar] = useState<boolean>(initialData?.is_lunar ?? false);
-    const [timeMode, setTimeMode] = useState<"time" | "shichen">(initialData?.time_mode ?? "time");
+    const [timeMode, setTimeMode] = useState<"time" | "shichen">(
+        initialData?.time_mode ?? (isZh ? "time" : "time")
+    );
+
+    // Force time mode if not Chinese
+    useEffect(() => {
+        if (!isZh && timeMode === 'shichen') {
+            setTimeMode('time');
+        }
+    }, [isZh, timeMode]);
     const [shichen, setShichen] = useState<BirthData["shichen"]>(initialData?.shichen ?? "子时");
 
     const SHICHEN_OPTIONS: BirthData["shichen"][] = [
@@ -163,119 +174,144 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
 
             <div className="space-y-6">
                 {/* 出生日期 */}
-                <div>
-                    <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        {t('dateLabel')}
-                    </label>
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                        <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={isLunar}
-                                onChange={(e) => setIsLunar(e.target.checked)}
-                                className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
-                            />
-                            {t('lunarLabel')}
-                        </label>
-                    </div>
+                {/* Date & Time Section */}
+                <div className="space-y-6">
+                    {/* Row 1: Year, Month, Day */}
                     <div className="grid grid-cols-3 gap-3">
-                        <select
-                            value={birthYear}
-                            onChange={(e) => setBirthYear(Number(e.target.value))}
-                            className="zen-select"
-                        >
-                            {Array.from({ length: 100 }, (_, i) => currentYear - i).map((y) => (
-                                <option key={y} value={y}>{y}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={month}
-                            onChange={(e) => setMonth(Number(e.target.value))}
-                            className="zen-select"
-                        >
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                <option key={m} value={m}>{m}{commonT('month')}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={day}
-                            onChange={(e) => setDay(Number(e.target.value))}
-                            className="zen-select"
-                        >
-                            {Array.from({ length: isLunar ? 30 : 31 }, (_, i) => i + 1).map((d) => (
-                                <option key={d} value={d}>{d}{commonT('day')}</option>
-                            ))}
-                        </select>
+                        <div className="space-y-1">
+                            <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
+                                {t('birthYear')}
+                            </label>
+                            <select
+                                value={birthYear}
+                                onChange={(e) => setBirthYear(Number(e.target.value))}
+                                className="zen-select text-center"
+                            >
+                                {Array.from({ length: 100 }, (_, i) => currentYear - i).map((y) => (
+                                    <option key={y} value={y}>{y}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
+                                {t('birthMonth')}
+                            </label>
+                            <select
+                                value={month}
+                                onChange={(e) => setMonth(Number(e.target.value))}
+                                className="zen-select text-center"
+                            >
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
+                                {t('birthDay')}
+                            </label>
+                            <select
+                                value={day}
+                                onChange={(e) => setDay(Number(e.target.value))}
+                                className="zen-select text-center"
+                            >
+                                {Array.from({ length: isLunar ? 30 : 31 }, (_, i) => i + 1).map((d) => (
+                                    <option key={d} value={d}>{d}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
+
+                    {/* Lunar Toggle (Chinese Only) */}
+                    {isZh && (
+                        <div className="flex items-center justify-center">
+                            <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 flex items-center gap-2 cursor-pointer hover:text-[#B8860B] transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isLunar}
+                                    onChange={(e) => setIsLunar(e.target.checked)}
+                                    className="w-3.5 h-3.5 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
+                                />
+                                {t('lunarLabel')}
+                            </label>
+                        </div>
+                    )}
+
+                    {/* Row 2: Hour & Minute & Toggle */}
+                    <div className="grid grid-cols-3 gap-3">
+                        {timeMode === "shichen" ? (
+                            <>
+                                <div className="col-span-2 space-y-1">
+                                    <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
+                                        {t('shichenLabel')}
+                                    </label>
+                                    <select
+                                        value={shichen}
+                                        onChange={(e) => setShichen(e.target.value as BirthData["shichen"])}
+                                        className="zen-select text-center"
+                                    >
+                                        {SHICHEN_OPTIONS.map((s) => (
+                                            <option key={s} value={s}>{s}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
+                                        {t('birthHour')}
+                                    </label>
+                                    <select
+                                        value={hour}
+                                        onChange={(e) => setHour(Number(e.target.value))}
+                                        className="zen-select text-center"
+                                    >
+                                        {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                                            <option key={h} value={h}>{h.toString().padStart(2, "0")}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
+                                        {t('birthMinute')}
+                                    </label>
+                                    <select
+                                        value={minute}
+                                        onChange={(e) => setMinute(Number(e.target.value))}
+                                        className="zen-select text-center"
+                                    >
+                                        {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                                            <option key={m} value={m}>{m.toString().padStart(2, "0")}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Shichen Toggle Button (Placed in the 3rd column) */}
+                        <div className="flex items-end justify-center pb-2">
+                            {isZh && (
+                                <button
+                                    type="button"
+                                    onClick={() => setTimeMode(timeMode === "time" ? "shichen" : "time")}
+                                    className="text-[10px] text-[#B8860B] tracking-widest hover:underline whitespace-nowrap"
+                                >
+                                    {timeMode === "time" ? "切换到时辰" : "切换到时间"}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     {isLunar && (
-                        <p className={`text-[11px] text-center mt-2 ${lunarError ? "text-red-800/70" : "text-[#999999]"}`}>
+                        <p className={`text-[11px] text-center mt-1 ${lunarError ? "text-red-800/70" : "text-[#999999]"}`}>
                             {lunarError || t('lunarHint')}
                         </p>
                     )}
                 </div>
 
-                {/* 出生时间 */}
-                <div>
-                    <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        {t('timeLabel')}
-                    </label>
-                    <div className="flex items-center justify-center gap-4 mb-3">
-                        <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={timeMode === "shichen"}
-                                onChange={(e) => setTimeMode(e.target.checked ? "shichen" : "time")}
-                                className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
-                            />
-                            {t('shichenLabel')}
-                        </label>
-                        <span className="text-xs text-[#999999] tracking-widest">
-                            {timeMode === "shichen" ? t('shichenSelected') : t('timeSelected')}
-                        </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        {timeMode === "shichen" ? (
-                            <>
-                                <select
-                                    value={shichen}
-                                    onChange={(e) => setShichen(e.target.value as BirthData["shichen"])}
-                                    className="zen-select col-span-2"
-                                >
-                                    {SHICHEN_OPTIONS.map((s) => (
-                                        <option key={s} value={s}>{s}</option>
-                                    ))}
-                                </select>
-                            </>
-                        ) : (
-                            <>
-                                <select
-                                    value={hour}
-                                    onChange={(e) => setHour(Number(e.target.value))}
-                                    className="zen-select"
-                                >
-                                    {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                                        <option key={h} value={h}>{h.toString().padStart(2, "0")} {commonT('hour')}</option>
-                                    ))}
-                                </select>
-                                <select
-                                    value={minute}
-                                    onChange={(e) => setMinute(Number(e.target.value))}
-                                    className="zen-select"
-                                >
-                                    {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                                        <option key={m} value={m}>{m.toString().padStart(2, "0")} {commonT('minute')}</option>
-                                    ))}
-                                </select>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* 性别 */}
-                <div>
-                    <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        {t('genderLabel')}
-                    </label>
+                {/* Gender */}
+                <div className="pt-2">
                     <div className="flex justify-center gap-6">
                         {(["男", "女"] as const).map((g) => (
                             <label

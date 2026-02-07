@@ -42,10 +42,6 @@
         "recalculate": "重新排盘",
         "newProfile": "新建档案",
         "saveProfileLabel": "保存档案（下次自动加载）",
-        "profileRestored": "✓ 已恢复您的档案",
-        "calculating": "正在演化命盘...",
-        "calculationFailed": "排盘失败",
-        "reenter": "重新输入",
         "defaultError": "请求失败，请稍后重试"
     },
     "Hero": {
@@ -94,7 +90,12 @@
         "internationalLabel": "国际",
         "cityHintInternational": "选择最近的国际城市（用于时区和经度校正）",
         "startButton": "开始排盘",
-        "calculating": "推演中"
+        "calculating": "推演中",
+        "birthYear": "出生年",
+        "birthMonth": "月",
+        "birthDay": "日",
+        "birthHour": "时",
+        "birthMinute": "分"
     },
     "Analysis": {
         "title": "深度析命",

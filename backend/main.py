@@ -35,6 +35,21 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
 
+def _log_supabase_env_status() -> None:
+    def _status(key: str) -> str:
+        return "set" if os.getenv(key) else "missing"
+
+    print(
+        "[env] SUPABASE_URL="
+        + _status("SUPABASE_URL")
+        + " SUPABASE_SERVICE_KEY="
+        + _status("SUPABASE_SERVICE_KEY")
+        + " SUPABASE_KEY="
+        + _status("SUPABASE_KEY")
+    )
+
+_log_supabase_env_status()
+
 def get_supabase_admin():
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         raise HTTPException(status_code=500, detail="Supabase service key not configured")

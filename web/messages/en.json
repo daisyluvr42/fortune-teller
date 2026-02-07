@@ -42,10 +42,6 @@
         "recalculate": "Recalculate",
         "newProfile": "New Profile",
         "saveProfileLabel": "Save Profile (Auto-load next time)",
-        "profileRestored": "✓ Profile Restored",
-        "calculating": "Calculating Chart...",
-        "calculationFailed": "Calculation Failed",
-        "reenter": "Re-enter",
         "defaultError": "Request failed, please try again later"
     },
     "Hero": {
@@ -94,7 +90,12 @@
         "internationalLabel": "International",
         "cityHintInternational": "Select nearest international city for time zone correction",
         "startButton": "Calculate Chart",
-        "calculating": "Calculating..."
+        "calculating": "Calculating...",
+        "birthYear": "Birth Year",
+        "birthMonth": "Month",
+        "birthDay": "Day",
+        "birthHour": "Hour",
+        "birthMinute": "Minute"
     },
     "Analysis": {
         "title": "Bazi Analysis",
