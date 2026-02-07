@@ -30,11 +30,13 @@ fi
 # 启动后端
 echo -e "${GREEN}▶ 启动 FastAPI 后端 (端口 8000)...${NC}"
 source .venv/bin/activate
+pushd backend >/dev/null
 pip install -q -r requirements.txt 2>/dev/null
 
 # 后台启动后端
 uvicorn main:app --reload --port 8000 &
 BACKEND_PID=$!
+popd >/dev/null
 
 # 等待后端启动
 sleep 2

@@ -101,3 +101,74 @@ END $$;
 -- 3. 在 Authentication → Settings 
 --    确认 "Enable email confirmations" 已开启
 -- ==============================================
+
+-- ==============================================
+-- 5. 每日卜卦次数与充值额度（oracle_credits）
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.oracle_credits (
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    daily_limit INTEGER NOT NULL DEFAULT 1,
+    daily_used INTEGER NOT NULL DEFAULT 0,
+    extra_credits INTEGER NOT NULL DEFAULT 0,
+    last_reset_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT oracle_credits_pkey PRIMARY KEY (user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_oracle_credits_user_id ON public.oracle_credits(user_id);
+
+ALTER TABLE public.oracle_credits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own oracle credits"
+    ON public.oracle_credits FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own oracle credits"
+    ON public.oracle_credits FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own oracle credits"
+    ON public.oracle_credits FOR UPDATE
+    USING (auth.uid() = user_id);
+
+DROP TRIGGER IF EXISTS update_oracle_credits_updated_at ON public.oracle_credits;
+CREATE TRIGGER update_oracle_credits_updated_at
+    BEFORE UPDATE ON public.oracle_credits
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ==============================================
+-- 6. 合盘信用额度（compatibility_credits）
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.compatibility_credits (
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    total_credits INTEGER NOT NULL DEFAULT 3,
+    used_credits INTEGER NOT NULL DEFAULT 0,
+    extra_credits INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT compatibility_credits_pkey PRIMARY KEY (user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_compatibility_credits_user_id ON public.compatibility_credits(user_id);
+
+ALTER TABLE public.compatibility_credits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own compatibility credits"
+    ON public.compatibility_credits FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own compatibility credits"
+    ON public.compatibility_credits FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own compatibility credits"
+    ON public.compatibility_credits FOR UPDATE
+    USING (auth.uid() = user_id);
+
+DROP TRIGGER IF EXISTS update_compatibility_credits_updated_at ON public.compatibility_credits;
+CREATE TRIGGER update_compatibility_credits_updated_at
+    BEFORE UPDATE ON public.compatibility_credits
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();

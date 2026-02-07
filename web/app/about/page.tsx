@@ -4,9 +4,9 @@ import Header from "@/components/Header";
 
 export default function AboutPage() {
   return (
-    <main className="min-h-screen pt-24 pb-16 px-6 bg-[#F8F8F0]">
+    <main className="min-h-screen bg-[#F8F8F0]">
       <Header />
-      <div className="max-w-3xl mx-auto space-y-10 animate-fade-in">
+      <div className="page-shell space-y-10 animate-fade-in">
         <section className="text-center space-y-4">
           <p className="text-xs tracking-[0.3em] text-[#1A1A1A]/50">关于</p>
           <h1 className="text-3xl font-light tracking-[0.3em] text-[#1A1A1A]">

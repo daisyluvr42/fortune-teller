@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import BirthDataForm from "@/components/BirthDataForm";
 import BaziChart from "@/components/BaziChart";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { calculateBazi, getCycles, BirthData, ChartResponse, CycleResponse } from "@/lib/api";
+import { calculateBazi, getCycles, BirthData, ChartResponse, CycleResponse, normalizeBirthDataForApi } from "@/lib/api";
 import { useUserProfile } from "@/lib/context";
 import { AlertCircle, RotateCcw, Sparkles, Target, Users, Save } from "lucide-react";
 
@@ -22,6 +22,7 @@ export default function Home() {
     setCycleData,
     saveProfile,
     clearProfile,
+    createNewProfile,
     hasProfile,
     profiles
   } = useUserProfile();
@@ -62,9 +63,10 @@ export default function Home() {
     setLocalCycleData(null);
 
     try {
+      const normalized = normalizeBirthDataForApi(data);
       const [baziResult, cycleResult] = await Promise.all([
-        calculateBazi(data),
-        getCycles(data)
+        calculateBazi(normalized),
+        getCycles(normalized)
       ]);
 
       // 存入本地状态
@@ -97,6 +99,13 @@ export default function Home() {
     clearProfile();
   };
 
+  const handleNewProfile = () => {
+    setLocalChartData(null);
+    setLocalCycleData(null);
+    setError(null);
+    createNewProfile();
+  };
+
   const handleNavigate = (path: string) => {
     router.push(path);
   };
@@ -118,7 +127,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-[#F8F8F0]">
       <Header />
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-6 py-12">
+      <main className="flex-1">
         {showNameModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
             <div className="bg-white rounded-xl shadow-lg border border-[#1A1A1A]/10 w-[90%] max-w-sm p-6">
@@ -144,6 +153,7 @@ export default function Home() {
             </div>
           </div>
         )}
+        <div className="page-shell">
         {!chartData && !isLoading && (
           <div className="max-w-xl mx-auto space-y-6">
             <BirthDataForm
@@ -234,14 +244,19 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="text-center">
-              <button onClick={handleReset} className="zen-button-ghost">
-                <RotateCcw className="w-4 h-4 text-[#1A1A1A]" strokeWidth={1.5} />
+            <div className="flex justify-center gap-3">
+              <button onClick={handleReset} className="zen-button-ghost text-xs px-4 py-2">
+                <RotateCcw className="w-3.5 h-3.5 text-[#1A1A1A]" strokeWidth={1.5} />
                 <span>重新排盘</span>
+              </button>
+              <button onClick={handleNewProfile} className="zen-button-ghost text-xs px-4 py-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#1A1A1A]" strokeWidth={1.5} />
+                <span>新建档案</span>
               </button>
             </div>
           </div>
         )}
+        </div>
       </main>
 
     </div>

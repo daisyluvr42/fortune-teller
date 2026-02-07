@@ -112,6 +112,12 @@ body {
   }
 }
 
+@layer utilities {
+  .page-shell {
+    @apply w-full max-w-3xl mx-auto px-6 pt-24 pb-12;
+  }
+}
+
 /* 3D Coin Animation & Styles */
 .coin-scene {
   perspective: 1200px;

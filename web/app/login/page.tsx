@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import Header from "@/components/Header";
@@ -20,9 +20,14 @@ export default function LoginPage() {
     const [success, setSuccess] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    // 如果已登录，重定向到首页
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            router.replace("/");
+        }
+    }, [authLoading, isAuthenticated, router]);
+
+    // 如果已登录，避免渲染表单
     if (!authLoading && isAuthenticated) {
-        router.push("/");
         return null;
     }
 
@@ -88,7 +93,8 @@ export default function LoginPage() {
         <div className="min-h-screen flex flex-col bg-[#F8F8F0]">
             <Header />
 
-            <main className="flex-1 flex items-center justify-center px-6 py-12">
+            <main className="flex-1">
+                <div className="page-shell flex justify-center">
                 <div className="w-full max-w-md">
                     {/* 标题 */}
                     <div className="text-center mb-8">
@@ -222,6 +228,7 @@ export default function LoginPage() {
                             先不登录，体验一下 →
                         </button>
                     </div>
+                </div>
                 </div>
             </main>
         </div>

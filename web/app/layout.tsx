@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { UserProfileProvider } from "@/lib/context";
 import { AuthProvider } from "@/lib/AuthContext";
+import { UserStatusProvider } from "@/lib/UserStatusContext";
 import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
@@ -21,10 +22,12 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className="antialiased">
         <AuthProvider>
-          <UserProfileProvider>
-            {children}
-            <Footer />
-          </UserProfileProvider>
+          <UserStatusProvider>
+            <UserProfileProvider>
+              {children}
+              <Footer />
+            </UserProfileProvider>
+          </UserStatusProvider>
         </AuthProvider>
       </body>
     </html>

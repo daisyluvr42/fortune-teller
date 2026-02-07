@@ -3,9 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { getCompatibility, BirthData, CompatibilityResponse } from '@/lib/api';
+import { getCompatibility, BirthData, CompatibilityResponse, normalizeBirthDataForApi, getCreditStatus, consumeCredit } from '@/lib/api';
 import { Users, Heart, Briefcase, UserPlus, Info } from 'lucide-react';
 import { useUserProfile } from '@/lib/context';
+import { LunarMonth } from 'lunar-javascript';
+import { useAuth } from '@/lib/AuthContext';
+import { useUserStatus } from '@/lib/UserStatusContext';
 
 const RELATION_TYPES = [
     { id: '恋人/伴侣', label: '恋人伴侣', icon: Heart },
@@ -15,10 +18,18 @@ const RELATION_TYPES = [
 
 export default function CompatibilityPage() {
     const { birthData: savedBirthData, activeProfileId, profiles } = useUserProfile();
+    const { isAuthenticated, isLoading: authLoading, session } = useAuth();
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<CompatibilityResponse | null>(null);
     const [relationType, setRelationType] = useState('恋人/伴侣');
     const [error, setError] = useState<string | null>(null);
+    const { credits, updateCredit } = useUserStatus();
+    // Use credit info from context
+    const creditInfo = credits.compatibility ? {
+        remaining: credits.compatibility.remaining,
+        cycle_limit: credits.compatibility.cycle_limit,
+        cycle_used: credits.compatibility.cycle_used
+    } : null;
 
     // 默认初始数据
     const initialBirthData: BirthData = {
@@ -32,6 +43,9 @@ export default function CompatibilityPage() {
 
     const [personA, setPersonA] = useState<BirthData>(savedBirthData || initialBirthData);
     const [personB, setPersonB] = useState<BirthData>({ ...initialBirthData, gender: '女' });
+    const lunarErrorA = getLunarError(personA);
+    const lunarErrorB = getLunarError(personB);
+    const hasLunarError = !!(lunarErrorA || lunarErrorB);
 
     useEffect(() => {
         const activeProfile = profiles.find((p) => p.id === activeProfileId);
@@ -47,16 +61,32 @@ export default function CompatibilityPage() {
     }, [activeProfileId, profiles, savedBirthData]);
 
     const handleCompatibility = async () => {
+        if (!authLoading && !isAuthenticated) {
+            setError("请先登录后使用合盘功能");
+            return;
+        }
+        if (!session?.access_token) {
+            setError("登录状态异常，请刷新后重试");
+            return;
+        }
         try {
             setLoading(true);
             setError(null);
             setResult(null);
 
+            const credit = await consumeCredit("compatibility", session?.access_token);
+            if (!credit) {
+                setError("合盘次数已用完，请充值或开通 VIP");
+                setLoading(false);
+                return;
+            }
+            updateCredit("compatibility", credit);
+
             const res = await getCompatibility({
-                user_a_data: personA,
-                user_b_data: personB,
+                user_a_data: normalizeBirthDataForApi(personA),
+                user_b_data: normalizeBirthDataForApi(personB),
                 relation_type: relationType,
-            });
+            }, session.access_token);
 
             setResult(res);
         } catch (err: any) {
@@ -66,136 +96,169 @@ export default function CompatibilityPage() {
         }
     };
 
+
+
     return (
-        <main className="min-h-screen pt-24 pb-12 px-6">
+        <main className="min-h-screen">
             <Header />
+            <div className="page-shell">
+                <div className="w-full space-y-12">
+                    <section className="text-center space-y-4 animate-fade-in">
+                        <h2 className="text-3xl font-light tracking-[0.3em] text-[#1A1A1A]">
+                            双人合盘
+                        </h2>
+                        <p className="text-[#1A1A1A]/60 font-light tracking-widest text-sm">
+                            看缘分深浅，析相处之道
+                        </p>
+                    </section>
 
-            <div className="max-w-4xl mx-auto space-y-12">
-                <section className="text-center space-y-4 animate-fade-in">
-                    <h2 className="text-3xl font-light tracking-[0.3em] text-[#1A1A1A]">
-                        双人合盘
-                    </h2>
-                    <p className="text-[#1A1A1A]/60 font-light tracking-widest text-sm">
-                        看缘分深浅，析相处之道
-                    </p>
-                </section>
+                    {/* Input Section */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden md:flex items-center justify-center w-12 h-12 bg-[#F8F8F0] border border-[#1A1A1A]/10 rounded-full text-[#B8860B]">
+                            <Users className="w-5 h-5" />
+                        </div>
 
-                {/* Input Section */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden md:flex items-center justify-center w-12 h-12 bg-[#F8F8F0] border border-[#1A1A1A]/10 rounded-full text-[#B8860B]">
-                        <Users className="w-5 h-5" />
+                        {/* Person A */}
+                        <div className="zen-card p-6 space-y-6">
+                            <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">甲方 (User A)</h3>
+                            <BirthFormBrief data={personA} setData={setPersonA} lunarError={lunarErrorA} />
+                        </div>
+
+                        {/* Person B */}
+                        <div className="zen-card p-6 space-y-6">
+                            <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">乙方 (User B)</h3>
+                            <BirthFormBrief data={personB} setData={setPersonB} lunarError={lunarErrorB} />
+                        </div>
                     </div>
 
-                    {/* Person A */}
-                    <div className="zen-card p-6 space-y-6">
-                        <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">甲方 (User A)</h3>
-                        <BirthFormBrief data={personA} setData={setPersonA} />
-                    </div>
-
-                    {/* Person B */}
-                    <div className="zen-card p-6 space-y-6">
-                        <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">乙方 (User B)</h3>
-                        <BirthFormBrief data={personB} setData={setPersonB} />
-                    </div>
-                </div>
-
-                {/* Relation Type Selector */}
-                <div className="flex justify-center gap-4">
-                    {RELATION_TYPES.map((type) => (
-                        <button
-                            key={type.id}
-                            onClick={() => setRelationType(type.id)}
-                            className={`
+                    {/* Relation Type Selector */}
+                    <div className="flex justify-center gap-4">
+                        {RELATION_TYPES.map((type) => (
+                            <button
+                                key={type.id}
+                                onClick={() => setRelationType(type.id)}
+                                className={`
                 flex items-center gap-2 px-6 py-3 rounded-full border transition-all duration-300
                 ${relationType === type.id
-                                    ? 'bg-[#1A1A1A] border-[#1A1A1A] text-white'
-                                    : 'bg-white border-[#1A1A1A]/10 text-[#1A1A1A]/60 hover:border-[#1A1A1A]/30'}
+                                        ? 'bg-[#1A1A1A] border-[#1A1A1A] text-white'
+                                        : 'bg-white border-[#1A1A1A]/10 text-[#1A1A1A]/60 hover:border-[#1A1A1A]/30'}
               `}
-                        >
-                            <type.icon className="w-4 h-4" />
-                            <span className="text-sm tracking-widest">{type.label}</span>
-                        </button>
-                    ))}
-                </div>
-
-                <div className="text-center">
-                    <button
-                        onClick={handleCompatibility}
-                        disabled={loading}
-                        className="zen-button px-12"
-                    >
-                        {loading ? "正在推演姻缘..." : "开始合盘分析"}
-                    </button>
-                </div>
-
-                {/* Result Section */}
-                {loading ? (
-                    <div className="py-20 flex justify-center">
-                        <LoadingSpinner />
+                            >
+                                <type.icon className="w-4 h-4" />
+                                <span className="text-sm tracking-widest">{type.label}</span>
+                            </button>
+                        ))}
                     </div>
-                ) : result ? (
-                    <div className="space-y-8 animate-fade-in">
-                        <div className="zen-card p-12 text-center space-y-8">
-                            <div className="relative inline-block">
-                                <div className="w-32 h-32 rounded-full border-2 border-[#B8860B]/20 flex items-center justify-center">
-                                    <span className="text-4xl font-light text-[#1A1A1A] tracking-tighter">
-                                        {result.base_score}
-                                    </span>
-                                    <span className="text-xs ml-1 text-[#1A1A1A]/40">分</span>
-                                </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <h3 className="text-xl font-light tracking-[0.3em]">契合总评</h3>
-                                <p className="text-[#1A1A1A]/60 text-sm tracking-widest italic">
-                                    两人缘分天定，相处需修。
-                                </p>
-                            </div>
+                    <div className="text-center">
+                        <button
+                            onClick={handleCompatibility}
+                            disabled={loading || hasLunarError}
+                            className="zen-button px-12"
+                        >
+                            {loading ? "正在推演姻缘..." : "开始合盘分析"}
+                        </button>
+                    </div>
 
-                            <div className="zen-divider" />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left max-w-2xl mx-auto">
-                                <div className="space-y-4">
-                                    <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A]/40 uppercase flex items-center gap-2">
-                                        <Info className="w-3 h-3" /> 甲方分析
-                                    </h4>
-                                    <p className="text-sm font-light leading-relaxed">{result.user_a_summary}</p>
-                                </div>
-                                <div className="space-y-4">
-                                    <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A]/40 uppercase flex items-center gap-2">
-                                        <Info className="w-3 h-3" /> 乙方分析
-                                    </h4>
-                                    <p className="text-sm font-light leading-relaxed">{result.user_b_summary}</p>
-                                </div>
-                            </div>
+                    {!authLoading && !isAuthenticated && (
+                        <div className="text-center text-xs text-[#1A1A1A]/50 tracking-widest">
+                            合盘功能需要登录使用
                         </div>
+                    )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {result.details.map((detail, idx) => (
-                                <div key={idx} className="zen-card p-6 flex items-start gap-4">
-                                    <div className="mt-1">
-                                        <div className="w-2 h-2 rounded-full bg-[#B8860B]" />
+                    {/* Buttons removed as requested. Recharging is triggered by insufficient credits error. */}
+                    {isAuthenticated && creditInfo && (
+                        <div className="text-center text-xs text-[#1A1A1A]/50 tracking-widest">
+                            赠送额度：<span className="text-[#B8860B] font-medium">{(creditInfo.cycle_limit ?? 3) - (creditInfo.cycle_used ?? 0)}/{creditInfo.cycle_limit ?? 3}</span>
+                        </div>
+                    )}
+
+                    {/* Result Section */}
+                    {loading ? (
+                        <div className="py-20 flex justify-center">
+                            <LoadingSpinner />
+                        </div>
+                    ) : result ? (
+                        <div className="space-y-8 animate-fade-in">
+                            <div className="zen-card p-12 text-center space-y-8">
+                                <div className="relative inline-block">
+                                    <div className="w-32 h-32 rounded-full border-2 border-[#B8860B]/20 flex items-center justify-center">
+                                        <span className="text-4xl font-light text-[#1A1A1A] tracking-tighter">
+                                            {result.base_score}
+                                        </span>
+                                        <span className="text-xs ml-1 text-[#1A1A1A]/40">分</span>
                                     </div>
-                                    <p className="text-sm font-light text-[#1A1A1A]/90 leading-relaxed tracking-wide">
-                                        {detail.replace(/\*\*(.*?)\*\*/g, '$1')}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-light tracking-[0.3em]">契合总评</h3>
+                                    <p className="text-[#1A1A1A]/60 text-sm tracking-widest italic">
+                                        两人缘分天定，相处需修。
                                     </p>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : null}
 
-                {error && (
-                    <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-800/70 text-sm tracking-widest text-center">
-                        {error}
-                    </div>
-                )}
+                                <div className="zen-divider" />
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left max-w-2xl mx-auto">
+                                    <div className="space-y-4">
+                                        <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A]/40 uppercase flex items-center gap-2">
+                                            <Info className="w-3 h-3" /> 甲方分析
+                                        </h4>
+                                        <p className="text-sm font-light leading-relaxed">{result.user_a_summary}</p>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A]/40 uppercase flex items-center gap-2">
+                                            <Info className="w-3 h-3" /> 乙方分析
+                                        </h4>
+                                        <p className="text-sm font-light leading-relaxed">{result.user_b_summary}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {result.details.map((detail, idx) => (
+                                    <div key={idx} className="zen-card p-6 flex items-start gap-4">
+                                        <div className="mt-1">
+                                            <div className="w-2 h-2 rounded-full bg-[#B8860B]" />
+                                        </div>
+                                        <p className="text-sm font-light text-[#1A1A1A]/90 leading-relaxed tracking-wide">
+                                            {detail.replace(/\*\*(.*?)\*\*/g, '$1')}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {error && (
+                        <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-800/70 text-sm tracking-widest text-center">
+                            {error}
+                        </div>
+                    )}
+                </div>
             </div>
         </main>
     );
 }
 
-function BirthFormBrief({ data, setData }: { data: BirthData, setData: (d: BirthData) => void }) {
+function getLunarError(data: BirthData): string | null {
+    if (!data.is_lunar) return null;
+    const lunarMonth = LunarMonth.fromYm(data.birth_year, data.month);
+    if (!lunarMonth) return "农历月份无效，请检查年份与月份";
+    const dayCount = lunarMonth.getDayCount();
+    if (data.day < 1 || data.day > dayCount) return `农历日期无效：该月只有 ${dayCount} 天`;
+    return null;
+}
+
+function BirthFormBrief({
+    data,
+    setData,
+    lunarError,
+}: {
+    data: BirthData;
+    setData: (d: BirthData) => void;
+    lunarError?: string | null;
+}) {
     const update = (key: keyof BirthData, val: any) => setData({ ...data, [key]: val });
 
     return (
@@ -214,11 +277,22 @@ function BirthFormBrief({ data, setData }: { data: BirthData, setData: (d: Birth
                     </select>
                 </div>
             </div>
+            <div className="flex items-center justify-center">
+                <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 flex items-center gap-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={!!data.is_lunar}
+                        onChange={(e) => update('is_lunar', e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
+                    />
+                    农历
+                </label>
+            </div>
             <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40">出生日</label>
                     <select value={data.day} onChange={e => update('day', Number(e.target.value))} className="zen-select py-1.5 text-xs">
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                        {Array.from({ length: data.is_lunar ? 30 : 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                 </div>
                 <div className="space-y-1">
@@ -228,6 +302,11 @@ function BirthFormBrief({ data, setData }: { data: BirthData, setData: (d: Birth
                     </select>
                 </div>
             </div>
+            {data.is_lunar && (
+                <p className={`text-[10px] text-center ${lunarError ? "text-red-800/70" : "text-[#999999]"}`}>
+                    {lunarError || "农历每月可能为 29 或 30 天，若提示无效请调整日期"}
+                </p>
+            )}
             <div className="space-y-1 text-center">
                 <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block mb-2">性别</label>
                 <div className="flex justify-center gap-4">

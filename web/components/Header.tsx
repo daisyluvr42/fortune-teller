@@ -1,15 +1,63 @@
 "use client";
 
-import { useState } from "react";
-import { Hexagon, User, LogOut, ChevronDown, Trash2, Pencil } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Hexagon, User, LogOut, ChevronDown, Trash2, Pencil, Coins } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { useUserProfile } from "@/lib/context";
+import { getTotalCredits, getMembershipStatus, MembershipStatus } from "@/lib/api";
+import { Crown } from "lucide-react";
 
 export default function Header() {
-    const { user, isAuthenticated, signOut, isLoading } = useAuth();
+    const { user, isAuthenticated, signOut, isLoading, session } = useAuth();
     const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const pathname = usePathname();
+    const [totalCredits, setTotalCredits] = useState<number | null>(null);
+    const [creditsLoading, setCreditsLoading] = useState(false);
+    const [membership, setMembership] = useState<MembershipStatus | null>(null);
+
+    const navLinkClass = (path: string) => {
+        const isActive = path === "/" ? pathname === "/" : pathname.startsWith(path);
+        return `text-sm font-light tracking-widest transition-colors ${isActive
+            ? "text-[#1A1A1A] border-b border-[#1A1A1A]/60 pb-0.5"
+            : "text-[#1A1A1A]/60 hover:text-[#1A1A1A]"
+            }`;
+    };
+
+    const fetchCreditsAndMembership = useCallback(async () => {
+        if (!isAuthenticated || !session?.access_token) {
+            setTotalCredits(null);
+            setMembership(null);
+            return;
+        }
+        setCreditsLoading(true);
+        try {
+            const [creditsResult, membershipResult] = await Promise.all([
+                getTotalCredits(session.access_token),
+                getMembershipStatus(session.access_token).catch(() => null),
+            ]);
+            setTotalCredits(creditsResult.total_credits);
+            setMembership(membershipResult);
+        } catch {
+            setTotalCredits(null);
+            setMembership(null);
+        } finally {
+            setCreditsLoading(false);
+        }
+    }, [isAuthenticated, session?.access_token]);
+
+    useEffect(() => {
+        void fetchCreditsAndMembership();
+    }, [fetchCreditsAndMembership]);
+
+    // Refresh when menu opens
+    useEffect(() => {
+        if (showUserMenu) {
+            void fetchCreditsAndMembership();
+        }
+    }, [showUserMenu, fetchCreditsAndMembership]);
 
     const handleSignOut = async () => {
         await signOut();
@@ -57,16 +105,16 @@ export default function Header() {
 
                     {/* 导航链接（移至左侧） */}
                     <nav className="flex items-center gap-4">
-                        <Link href="/" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                        <Link href="/" className={navLinkClass("/")}>
                             排盘
                         </Link>
-                        <Link href="/analysis" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                        <Link href="/analysis" className={navLinkClass("/analysis")}>
                             分析
                         </Link>
-                        <Link href="/compatibility" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                        <Link href="/compatibility" className={navLinkClass("/compatibility")}>
                             合盘
                         </Link>
-                        <Link href="/oracle" className="text-sm font-light tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A] transition-colors">
+                        <Link href="/oracle" className={navLinkClass("/oracle")}>
                             一卦
                         </Link>
                     </nav>
@@ -133,11 +181,63 @@ export default function Header() {
                                         className="fixed inset-0 z-10"
                                         onClick={() => setShowUserMenu(false)}
                                     />
-                                    <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-[#1A1A1A]/10 py-2 z-20">
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#1A1A1A]/10 py-2 z-20">
+                                        {/* 账户信息 */}
                                         <div className="px-4 py-2 border-b border-[#1A1A1A]/5">
                                             <p className="text-xs text-[#1A1A1A]/40">登录账户</p>
                                             <p className="text-sm text-[#1A1A1A] truncate">{user.email}</p>
                                         </div>
+
+                                        {/* VIP 会员状态 */}
+                                        {membership && (
+                                            <div className="px-4 py-3 border-b border-[#1A1A1A]/5">
+                                                {membership.membership_type === "vip" ? (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="flex items-center gap-1.5 text-xs">
+                                                            <Crown className="w-4 h-4 text-[#B8860B]" />
+                                                            <span className="text-[#B8860B] font-semibold">VIP 会员</span>
+                                                        </span>
+                                                        <span className="text-xs text-[#1A1A1A]/50">
+                                                            剩余 {membership.days_remaining ?? 0} 天
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => alert("VIP 会员开通功能即将上线\n$9.99/月 或 ¥68/月")}
+                                                        className="w-full py-1.5 text-xs text-center text-[#B8860B] border border-[#B8860B]/30 rounded-lg hover:bg-[#B8860B]/5 transition-colors flex items-center justify-center gap-1"
+                                                    >
+                                                        <Crown className="w-3.5 h-3.5" /> 开通 VIP 会员
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* 总点数显示 */}
+                                        <div className="px-4 py-3 border-b border-[#1A1A1A]/5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="flex items-center gap-1.5 text-xs text-[#1A1A1A]/60">
+                                                    <Coins className="w-3.5 h-3.5 text-[#B8860B]" /> 总点数
+                                                </span>
+                                                {creditsLoading ? (
+                                                    <span className="text-xs text-[#1A1A1A]/30 animate-pulse">...</span>
+                                                ) : (
+                                                    <span className="text-sm text-[#B8860B] font-semibold">{totalCredits ?? 0}</span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-[#1A1A1A]/30 mt-1">充值/赠送的通用点数</p>
+                                        </div>
+
+                                        {/* 充值按钮 */}
+                                        <div className="px-4 py-2 border-b border-[#1A1A1A]/5">
+                                            <button
+                                                onClick={() => alert("充值功能即将上线")}
+                                                className="w-full py-2 text-xs text-center bg-gradient-to-r from-[#B8860B] to-[#DAA520] text-white rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
+                                            >
+                                                <Coins className="w-3.5 h-3.5" /> 充值点数
+                                            </button>
+                                        </div>
+
+                                        {/* 退出登录 */}
                                         <button
                                             onClick={handleSignOut}
                                             className="w-full px-4 py-2 text-left text-sm text-[#1A1A1A]/70 hover:bg-[#1A1A1A]/5 flex items-center gap-2 transition-colors"

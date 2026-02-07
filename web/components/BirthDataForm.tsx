@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BirthData } from "@/lib/api";
+import { LunarMonth } from "lunar-javascript";
 
 // 中国主要城市及经度
 // 城市分组数据
@@ -42,10 +43,31 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
     const [minute, setMinute] = useState(initialData?.minute ?? 0);
     const [gender, setGender] = useState<"男" | "女">(initialData?.gender ?? "男");
     const [city, setCity] = useState("北京");
+    const [isLunar, setIsLunar] = useState<boolean>(initialData?.is_lunar ?? false);
+    const [timeMode, setTimeMode] = useState<"time" | "shichen">(initialData?.time_mode ?? "time");
+    const [shichen, setShichen] = useState<BirthData["shichen"]>(initialData?.shichen ?? "子时");
 
+    const SHICHEN_OPTIONS: BirthData["shichen"][] = [
+        "子时", "丑时", "寅时", "卯时", "辰时", "巳时",
+        "午时", "未时", "申时", "酉时", "戌时", "亥时"
+    ];
+
+    const lunarDayCount = useMemo(() => {
+        if (!isLunar) return null;
+        const lunarMonth = LunarMonth.fromYm(birthYear, month);
+        return lunarMonth ? lunarMonth.getDayCount() : null;
+    }, [birthYear, isLunar, month]);
+
+    const lunarError = useMemo(() => {
+        if (!isLunar) return null;
+        if (!lunarDayCount) return "农历月份无效，请检查年份与月份";
+        if (day > lunarDayCount) return `农历日期无效：该月只有 ${lunarDayCount} 天`;
+        return null;
+    }, [day, isLunar, lunarDayCount]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (lunarError) return;
         onSubmit({
             birth_year: birthYear,
             month,
@@ -54,6 +76,9 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
             minute,
             gender,
             longitude: CITIES_FLAT[city] || 120.0,
+            is_lunar: isLunar,
+            time_mode: timeMode,
+            shichen: timeMode === "shichen" ? shichen : undefined,
         });
     };
 
@@ -65,7 +90,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                     输入出生信息
                 </h2>
                 <p className="text-sm text-[#666666] mt-2">
-                    请填写公历出生日期与时辰
+                    请填写公历/农历出生日期与时辰
                 </p>
             </div>
 
@@ -75,6 +100,17 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                     <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
                         出生日期
                     </label>
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                        <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={isLunar}
+                                onChange={(e) => setIsLunar(e.target.checked)}
+                                className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
+                            />
+                            农历
+                        </label>
+                    </div>
                     <div className="grid grid-cols-3 gap-3">
                         <select
                             value={birthYear}
@@ -99,11 +135,16 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                             onChange={(e) => setDay(Number(e.target.value))}
                             className="zen-select"
                         >
-                            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                            {Array.from({ length: isLunar ? 30 : 31 }, (_, i) => i + 1).map((d) => (
                                 <option key={d} value={d}>{d}日</option>
                             ))}
                         </select>
                     </div>
+                    {isLunar && (
+                        <p className={`text-[11px] text-center mt-2 ${lunarError ? "text-red-800/70" : "text-[#999999]"}`}>
+                            {lunarError || "农历每月可能为 29 或 30 天，若提示无效请调整日期"}
+                        </p>
+                    )}
                 </div>
 
                 {/* 出生时间 */}
@@ -111,25 +152,55 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                     <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
                         出生时辰
                     </label>
+                    <div className="flex items-center justify-center gap-4 mb-3">
+                        <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={timeMode === "shichen"}
+                                onChange={(e) => setTimeMode(e.target.checked ? "shichen" : "time")}
+                                className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
+                            />
+                            时辰
+                        </label>
+                        <span className="text-xs text-[#999999] tracking-widest">
+                            {timeMode === "shichen" ? "已选择时辰" : "使用具体时间"}
+                        </span>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <select
-                            value={hour}
-                            onChange={(e) => setHour(Number(e.target.value))}
-                            className="zen-select"
-                        >
-                            {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                                <option key={h} value={h}>{h.toString().padStart(2, "0")} 时</option>
-                            ))}
-                        </select>
-                        <select
-                            value={minute}
-                            onChange={(e) => setMinute(Number(e.target.value))}
-                            className="zen-select"
-                        >
-                            {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                                <option key={m} value={m}>{m.toString().padStart(2, "0")} 分</option>
-                            ))}
-                        </select>
+                        {timeMode === "shichen" ? (
+                            <>
+                                <select
+                                    value={shichen}
+                                    onChange={(e) => setShichen(e.target.value as BirthData["shichen"])}
+                                    className="zen-select col-span-2"
+                                >
+                                    {SHICHEN_OPTIONS.map((s) => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            </>
+                        ) : (
+                            <>
+                                <select
+                                    value={hour}
+                                    onChange={(e) => setHour(Number(e.target.value))}
+                                    className="zen-select"
+                                >
+                                    {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                                        <option key={h} value={h}>{h.toString().padStart(2, "0")} 时</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={minute}
+                                    onChange={(e) => setMinute(Number(e.target.value))}
+                                    className="zen-select"
+                                >
+                                    {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                                        <option key={m} value={m}>{m.toString().padStart(2, "0")} 分</option>
+                                    ))}
+                                </select>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -183,7 +254,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                         ))}
                     </select>
                     <p className="text-xs text-[#999999] text-center mt-2">
-                        用于真太阳时校正
+                        请选择离您最近的城市（用于真太阳时校正）
                     </p>
                 </div>
 
@@ -192,7 +263,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
 
                 {/* 提交按钮 */}
                 <div className="text-center">
-                    <button type="submit" disabled={isLoading} className="zen-button">
+                    <button type="submit" disabled={isLoading || !!lunarError} className="zen-button">
                         {isLoading ? (
                             <span className="flex items-center gap-2">
                                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

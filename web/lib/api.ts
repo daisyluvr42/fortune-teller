@@ -1,4 +1,5 @@
 // API Types matching FastAPI backend
+import { Lunar, LunarMonth } from "lunar-javascript";
 
 export interface BirthData {
     birth_year: number;
@@ -8,6 +9,9 @@ export interface BirthData {
     minute: number;
     gender: "男" | "女";
     longitude?: number | null;
+    is_lunar?: boolean;
+    time_mode?: "time" | "shichen";
+    shichen?: "子时" | "丑时" | "寅时" | "卯时" | "辰时" | "巳时" | "午时" | "未时" | "申时" | "酉时" | "戌时" | "亥时";
 }
 
 export interface Pillar {
@@ -108,11 +112,96 @@ export interface AnalysisRequest {
     custom_question?: string;
     birthplace?: string;
     oracle_data?: OracleResponse;
+    profile_id?: string;
+    force_refresh?: boolean;
 }
 
 export interface AnalysisResponse {
     topic: string;
     markdown_content: string;
+    from_cache?: boolean;
+    remaining_credits?: number;
+}
+
+export type CreditType = "oracle" | "compatibility" | "analysis";
+
+export interface CreditStatusResponse {
+    credit_type: CreditType;
+    remaining: number;
+    // Legacy fields
+    daily_limit?: number;
+    daily_used?: number;
+    total_credits?: number;
+    used_credits?: number;
+    extra_credits?: number;
+    // New unified fields
+    cycle_limit?: number;
+    cycle_used?: number;
+    extra_balance?: number;
+    cycle_type?: string;
+}
+
+const SHICHEN_TO_HOUR: Record<NonNullable<BirthData["shichen"]>, number> = {
+    "子时": 23,
+    "丑时": 1,
+    "寅时": 3,
+    "卯时": 5,
+    "辰时": 7,
+    "巳时": 9,
+    "午时": 11,
+    "未时": 13,
+    "申时": 15,
+    "酉时": 17,
+    "戌时": 19,
+    "亥时": 21,
+};
+
+export function normalizeBirthDataForApi(data: BirthData): BirthData {
+    let year = data.birth_year;
+    let month = data.month;
+    let day = data.day;
+    let hour = data.hour;
+    let minute = data.minute ?? 0;
+
+    if (data.time_mode === "shichen" && data.shichen) {
+        const mapped = SHICHEN_TO_HOUR[data.shichen];
+        if (mapped !== undefined) {
+            hour = mapped;
+            minute = 0;
+        }
+    }
+
+    if (data.is_lunar) {
+        const lunarMonth = LunarMonth.fromYm(year, month);
+        if (!lunarMonth) {
+            throw new Error("农历月份无效");
+        }
+        const dayCount = lunarMonth.getDayCount();
+        if (day < 1 || day > dayCount) {
+            throw new Error(`农历日期无效：该月只有 ${dayCount} 天`);
+        }
+
+        const lunar = typeof Lunar.fromYmdHms === "function"
+            ? Lunar.fromYmdHms(year, month, day, hour, minute, 0)
+            : Lunar.fromYmd(year, month, day);
+        const solar = lunar.getSolar();
+        year = solar.getYear();
+        month = solar.getMonth();
+        day = solar.getDay();
+    }
+
+    return {
+        birth_year: year,
+        month,
+        day,
+        hour,
+        minute,
+        gender: data.gender,
+        longitude: data.longitude,
+        is_lunar: false,
+        time_mode: "time",
+        shichen: undefined,
+    };
 }
 
 export interface CompatibilityRequest {
@@ -130,6 +219,112 @@ export interface CompatibilityResponse {
 
 // API Base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+function authHeaders(token?: string) {
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function getCreditStatus(creditType: CreditType, token?: string): Promise<CreditStatusResponse> {
+    const response = await fetch(`${API_BASE}/api/credits/status?credit_type=${creditType}`, {
+        method: "GET",
+        headers: { ...authHeaders(token) },
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "获取次数失败" }));
+        throw new Error(error.detail || "获取次数失败");
+    }
+
+    return response.json();
+}
+
+export async function consumeCredit(creditType: CreditType, token?: string): Promise<CreditStatusResponse> {
+    const response = await fetch(`${API_BASE}/api/credits/consume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify({ credit_type: creditType }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "次数不足" }));
+        throw new Error(error.detail || "次数不足");
+    }
+
+    return response.json();
+}
+
+/**
+ * Get total recharged credits for the authenticated user
+ */
+export async function getTotalCredits(token?: string): Promise<{ total_credits: number }> {
+    const response = await fetch(`${API_BASE}/api/credits/total`, {
+        method: "GET",
+        headers: { ...authHeaders(token) },
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "获取点数失败" }));
+        throw new Error(error.detail || "获取点数失败");
+    }
+
+    return response.json();
+}
+
+// ===== Membership APIs =====
+
+export interface MembershipStatus {
+    membership_type: "free" | "vip";
+    expires_at: string | null;
+    days_remaining: number | null;
+    auto_renew: boolean;
+    quotas: {
+        analysis: number;
+        oracle: number;
+        compatibility: number;
+    };
+}
+
+/**
+ * Get membership status for the authenticated user
+ */
+export async function getMembershipStatus(token?: string): Promise<MembershipStatus> {
+    const response = await fetch(`${API_BASE}/api/membership/status`, {
+        method: "GET",
+        headers: { ...authHeaders(token) },
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "获取会员状态失败" }));
+        throw new Error(error.detail || "获取会员状态失败");
+    }
+
+    return response.json();
+}
+
+/**
+ * Get pricing information
+ */
+export async function getPricing(): Promise<{
+    pricing: {
+        vip_monthly: { USD: number; CNY: number; days: number };
+        credits_pack: { USD: number; CNY: number; credits: number };
+    };
+    quotas: {
+        free: { analysis: number; oracle: number; compatibility: number };
+        vip: { analysis: number; oracle: number; compatibility: number };
+    };
+}> {
+    const response = await fetch(`${API_BASE}/api/pricing`, {
+        method: "GET",
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "获取价格信息失败" }));
+        throw new Error(error.detail || "获取价格信息失败");
+    }
+
+    return response.json();
+}
 
 /**
  * Calculate Bazi chart from birth data
@@ -152,10 +347,10 @@ export async function calculateBazi(data: BirthData): Promise<ChartResponse> {
 /**
  * Perform a Zhouyi Oracle (divination)
  */
-export async function getOracle(request: OracleRequest): Promise<OracleResponse> {
+export async function getOracle(request: OracleRequest, token?: string): Promise<OracleResponse> {
     const response = await fetch(`${API_BASE}/api/oracle`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify(request),
     });
 
@@ -186,12 +381,12 @@ export async function getCycles(data: BirthData): Promise<CycleResponse> {
 }
 
 /**
- * Get AI-powered fortune analysis
+ * Get AI-powered fortune analysis (with caching support)
  */
-export async function getAnalysis(request: AnalysisRequest): Promise<AnalysisResponse> {
+export async function getAnalysis(request: AnalysisRequest, token?: string): Promise<AnalysisResponse> {
     const response = await fetch(`${API_BASE}/api/analysis`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify(request),
     });
 
@@ -206,10 +401,10 @@ export async function getAnalysis(request: AnalysisRequest): Promise<AnalysisRes
 /**
  * Analyze compatibility between two people
  */
-export async function getCompatibility(request: CompatibilityRequest): Promise<CompatibilityResponse> {
+export async function getCompatibility(request: CompatibilityRequest, token?: string): Promise<CompatibilityResponse> {
     const response = await fetch(`${API_BASE}/api/compatibility`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
         body: JSON.stringify(request),
     });
 

@@ -1,76 +1,41 @@
-# 八字算命大师 (Fortune Teller Agent)
+# 命理 (Fortune Teller Agent)
 
-基于 Streamlit 的八字算命应用，使用 LLM 进行命理解读。集成 Python 精确排盘 + AI 智能分析。
+基于 **FastAPI + Next.js** 的八字排盘与卜卦应用，集成 Python 精确排盘与 LLM 智能分析。
 
 ## 技术栈
 
-- **Python 3.9+** + **uv** (包管理)
-- **Streamlit** (Web UI)
+- **Python 3.11+** + **FastAPI** (后端)
+- **Next.js 16 (App Router)** + **React 19** (前端)
+- **Tailwind CSS 4** (样式)
+- **Supabase** (Auth + Postgres，档案管理)
+- **Three.js / react-three-fiber** (3D 铜钱)
 - **lunar_python** (八字计算)
-- **OpenAI SDK** (LLM 调用，兼容 DeepSeek/Gemini 等)
-- **svgwrite** (SVG 图表生成)
-- **Tavily** (可选，Tool Use 搜索)
+- **LLM** (Gemini/DeepSeek/OpenAI 等，见 `llm_client.py`)
 
 ## 项目结构
 
 ```
 .
-├── app.py           # Streamlit 主应用
-├── logic.py         # 八字计算 & LLM 调用 & 格局/调候/周易计算器
-├── bazi_utils.py    # 合盘计算器 & 周易图表 & Prompt 构建器
-├── db_utils.py      # Supabase 数据库工具 & 用户档案管理
-├── pdf_generator.py # PDF 报告生成器 (ReportLab)
-├── china_cities.py  # 350+ 中国城市经度数据
-├── .env             # 环境变量 (API Key, Supabase)
-└── pyproject.toml   # 项目配置
+├── main.py          # FastAPI 入口
+├── logic.py         # 八字计算 & LLM 调用
+├── bazi_utils.py    # 合盘/周易/辅助计算
+├── llm_client.py    # LLM 调用封装
+├── .env             # 后端环境变量
+├── requirements.txt # 后端依赖
+├── web/             # Next.js 前端
+│   ├── app/         # App Router 页面
+│   ├── components/  # 组件
+│   └── lib/         # API/Supabase/Context
+└── VERSION          # 版本号
 ```
 
-## 核心功能
+## 核心功能（概览）
 
-### 输入项
-| 项目 | 说明 |
-|------|------|
-| 性别 | 男/女 下拉框 |
-| 出生日期 | 阳历 (日期选择器) 或 农历 (年/月/日下拉框，支持闰月)，使用单选按钮切换 |
-| 出生时间 | 精确时间 (时:分) 或 时辰 (子时-亥时)，使用单选按钮切换 |
-| 出生地点 | 350+ 中国城市，用于真太阳时计算 |
-| AI 模型 | 可选，默认 Gemini API |
-| 关系类型 | **合盘模式专用**：可选 恋人/事业合伙人/知己好友/尚未确定 |
-
-### 分析按钮 (7个)
-| 按钮 | 功能 |
-|------|------|
-| **整体命格** | 《人生剧本与灵魂底色报告》- 格局定名、人生角色、大运总评 |
-| **事业运势** | 《深度事业发展规划》- 职场竞争力、黄金赛道、创业指数 |
-| **感情运势** | 《专属情感命运报告》- 恋爱DNA、伴侣画像、桃花时间轴 |
-| **喜用忌用** | 《五行能量管理与开运指南》- 能量维他命、能量过敏原、开运方案 |
-| **健康建议** | 《身心能量调理指南》- 五色食疗、运动处方、流年健康备忘 |
-| **开运建议** | 《全场景转运与能量提升方案》- 晶石饰品、工位风水、居家能量 |
-| **大师解惑** | 自定义问题，支持共情式回答 |
-
-### 合盘分析按钮 (4个) ⭐ NEW
-| 按钮 | 功能 |
-|------|------|
-| **💖 缘分契合度** | 性格互补 + 灵魂羁绊，正缘vs孽缘判断 |
-| **💍 婚姻前景** | 未来5年流年走势，结婚概率 + 最佳年份 |
-| **💣 避雷指南** | 矛盾引爆点 + 心理学沟通建议 |
-| **💰 对方旺我吗** | 五行能量互补，财运/事业运影响分析 |
-
-### 核心特性
-- ✅ **Python 精确排盘** - 八字四柱、格局、十神由后端精确计算
-- ✅ **SVG 可视化排盘** - 五行配色、十神标注、藏干显示
-- ✅ **格局自动判断** - 支持特殊格局 (飞天禄马/魁罡/化气格等) + 正格
-- ✅ **调候用神计算** - 冬夏季节自动计算调候需求
-- ✅ **真太阳时计算** - 基于出生地经度自动校正
-- ✅ **流式响应** - Streaming 实时输出
-- ✅ **多 AI 提供商** - Gemini/DeepSeek/OpenAI/Claude/Moonshot/智谱
-- ✅ **会话连续性** - 后续分析包含完整历史问答记录
-- ✅ **localStorage 持久化** - 自动保存/恢复分析记录
-- ✅ **搜索增强** - Tavily Tool Use 搜索行业趋势、流行色等
-- ✅ **双重安全防护** - 服务器端关键词拦截 + LLM 端安全结束符
-- ✅ **API 速率限制** - 默认 API 每会话 20 次限制
-- ✅ **周易起卦** - 金钱课起卦法 + 64卦完整映射 + 卦象 SVG 可视化（金色文字增强可视性）
-- ✅ **命卜合参** - 八字 + 周易结合分析，决断在卦、策略在命（精准限制 800 字以内）
+- 八字排盘与可视化展示
+- AI 命理分析（自定义问题）
+- 双人合盘（关系类型可选）
+- 周易起卦（铜钱法，3D 动画展示）
+- 多档案管理（Supabase + 本地缓存）
 
 ## 运行方式
 
@@ -85,20 +50,21 @@
 
 📦 **GitHub**: https://github.com/daisyluvr42/fortune-teller
 
-## API 配置
+## 环境变量
 
-默认使用环境变量中的 Gemini API。如需自定义：
-1. 展开「AI 模型设置」
-2. 选择提供商并输入 API Key
-
-编辑 `.env` 文件：
+### 后端 `.env`
 ```
-GEMINI_API_KEY=your_gemini_key_here    # 默认 API
-DEEPSEEK_API_KEY=your_key_here         # 可选
-TAVILY_API_KEY=your_key_here           # 可选，用于 Tool Use 搜索功能
+GEMINI_API_KEY=your_gemini_key_here
+DEEPSEEK_API_KEY=your_key_here
+TAVILY_API_KEY=your_key_here
 ```
 
-**安全说明**：默认 API Key 已移至 `.env` 文件，不再硬编码。每会话限制 20 次请求以防滥用。
+### 前端 `web/.env.local`
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
 ## 版本规范
 

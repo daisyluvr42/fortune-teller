@@ -147,8 +147,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                     month: row.birth_month,
                     day: row.birth_day,
                     hour: row.birth_hour ? parseInt(row.birth_hour) : 12,
-                    minute: 0,
+                    minute: row.session_data?.birthData?.minute ?? 0,
                     gender: row.gender === 'female' ? '女' : '男',
+                    is_lunar: row.is_lunar ? true : (row.session_data?.birthData?.is_lunar ?? false),
+                    time_mode: row.session_data?.birthData?.time_mode ?? "time",
+                    shichen: row.session_data?.birthData?.shichen ?? undefined,
                 } as BirthData,
                 chartData: row.session_data?.chartData || null,
                 cycleData: row.session_data?.cycleData || null,
@@ -251,8 +254,17 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                     birth_day: effectiveBirthData.day,
                     birth_hour: effectiveBirthData.hour?.toString(),
                     city: null,
-                    is_lunar: 0,
-                    session_data: { chartData: effectiveChartData, cycleData: effectiveCycleData },
+                    is_lunar: effectiveBirthData.is_lunar ? 1 : 0,
+                    session_data: {
+                        chartData: effectiveChartData,
+                        cycleData: effectiveCycleData,
+                        birthData: {
+                            minute: effectiveBirthData.minute,
+                            time_mode: effectiveBirthData.time_mode ?? "time",
+                            shichen: effectiveBirthData.shichen ?? null,
+                            is_lunar: effectiveBirthData.is_lunar ?? false,
+                        }
+                    },
                 };
 
                 const { data, error } = await supabase
