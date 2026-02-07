@@ -1,6 +1,6 @@
 {
     "Navbar": {
-        "home": "Natal Chart",
+        "home": "Chart Casting",
         "analysis": "Analysis",
         "oracle": "Oracle",
         "history": "History",
@@ -21,8 +21,8 @@
         "topUp": "Top Up Credits",
         "confirmDelete": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
         "renamePrompt": "Enter new profile name:",
-        "logo": "Fate",
-        "brand": "Fate Reading",
+        "logo": "命",
+        "brand": "Destiny",
         "topUpComingSoon": "Top-up feature coming soon",
         "vipComingSoon": "VIP membership coming soon\n$9.99/month or ¥68/month"
     },
