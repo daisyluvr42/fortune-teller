@@ -22,7 +22,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 # Default quota configurations (Free Tier)
 DEFAULT_QUOTAS = {
     "oracle": {"cycle_type": "daily", "cycle_limit": 1},
-    "compatibility": {"cycle_type": "none", "cycle_limit": 3},
+    "compatibility": {"cycle_type": "daily", "cycle_limit": 2},
     "analysis": {"cycle_type": "daily", "cycle_limit": 10},
 }
 

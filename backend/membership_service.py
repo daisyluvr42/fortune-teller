@@ -39,7 +39,7 @@ QUOTA_CONFIG = {
     "free": {
         "analysis": 10,
         "oracle": 1,
-        "compatibility": 3,
+        "compatibility": 2,
     },
     "vip": {
         "analysis": 100,
