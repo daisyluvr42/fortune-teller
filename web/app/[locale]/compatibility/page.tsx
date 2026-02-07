@@ -125,13 +125,13 @@ export default function CompatibilityPage() {
 
                         {/* Person A */}
                         <div className="zen-card p-6 space-y-6">
-                            <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">{t('yourProfile')} (User A)</h3>
+                            <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">{t('yourProfile')}</h3>
                             <BirthFormBrief data={personA} setData={setPersonA} lunarError={lunarErrorA} t={t} />
                         </div>
 
                         {/* Person B */}
                         <div className="zen-card p-6 space-y-6">
-                            <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">{t('partnerProfile')} (User B)</h3>
+                            <h3 className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase text-center">{t('partnerProfile')}</h3>
                             <BirthFormBrief data={personB} setData={setPersonB} lunarError={lunarErrorB} t={t} />
                         </div>
                     </div>
@@ -207,13 +207,13 @@ export default function CompatibilityPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left max-w-2xl mx-auto">
                                     <div className="space-y-4">
                                         <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A]/40 uppercase flex items-center gap-2">
-                                            <Info className="w-3 h-3" /> 甲方分析
+                                            <Info className="w-3 h-3" /> {t('userA')}
                                         </h4>
                                         <p className="text-sm font-light leading-relaxed">{result.user_a_summary}</p>
                                     </div>
                                     <div className="space-y-4">
                                         <h4 className="text-xs font-semibold tracking-widest text-[#1A1A1A]/40 uppercase flex items-center gap-2">
-                                            <Info className="w-3 h-3" /> 乙方分析
+                                            <Info className="w-3 h-3" /> {t('userB')}
                                         </h4>
                                         <p className="text-sm font-light leading-relaxed">{result.user_b_summary}</p>
                                     </div>
