@@ -2,10 +2,12 @@
 
 import { ChartResponse, CycleResponse } from "@/lib/api";
 import { Clock, Zap, TrendingUp, Info } from "lucide-react";
+import { useTranslations } from 'next-intl';
 
 interface BaziChartProps {
     data: ChartResponse;
     cycleData?: CycleResponse | null;
+    isExport?: boolean;
 }
 
 // Five Elements Mapping
@@ -46,27 +48,21 @@ const WUXING_BG_COLORS: Record<string, string> = {
     "水": "bg-[#1E90FF]/80",
 };
 
-export default function BaziChart({ data, cycleData }: BaziChartProps) {
-    // Pillars for iteration: Hour, Day, Month, Year
-    // Note: Traditional charts usually read Right to Left (Year -> Hour), but specific user preference might vary.
-    // Based on the mockups and common modern practice, we often list columns. 
-    // Let's stick to the mockup: Year | Month | Day | Hour (Left to Right) or similar.
-    // Wait, the previous code had Hour, Day, Month, Year in the grid.
-    // Standard professional display is usually Year (Right) -> Hour (Left) OR Year (Left) -> Hour (Right).
-    // Let's use Year -> Month -> Day -> Hour (Left to Right) for readability on digital screens, 
-    // unless the user strictly requested traditional R-to-L. The mockup showed Year (Left).
+export default function BaziChart({ data, cycleData, isExport = false }: BaziChartProps) {
+    const t = useTranslations('BaziChart');
+    const commonT = useTranslations('Common');
 
     const pillars = [
-        { key: 'year', label: '年柱', data: data.year_pillar, nayin: data.nayin?.year },
-        { key: 'month', label: '月柱', data: data.month_pillar, nayin: data.nayin?.month },
-        { key: 'day', label: '日柱', data: data.day_pillar, nayin: data.nayin?.day, isDayMaster: true },
-        { key: 'hour', label: '时柱', data: data.hour_pillar, nayin: data.nayin?.hour },
+        { key: 'year', label: t('yearPillar'), data: data.year_pillar, nayin: data.nayin?.year },
+        { key: 'month', label: t('monthPillar'), data: data.month_pillar, nayin: data.nayin?.month },
+        { key: 'day', label: t('dayPillar'), data: data.day_pillar, nayin: data.nayin?.day, isDayMaster: true },
+        { key: 'hour', label: t('hourPillar'), data: data.hour_pillar, nayin: data.nayin?.hour },
     ];
 
     return (
-        <div className="space-y-8 animate-fade-in font-serif">
+        <div className={`space-y-8 font-serif ${isExport ? '' : 'animate-fade-in'}`}>
             {/* Main Chart Container */}
-            <div className="zen-card overflow-hidden">
+            <div className={`zen-card overflow-hidden ${isExport ? 'border-none shadow-none bg-transparent' : ''}`}>
                 {/* Header Info */}
                 <div className="bg-[#F8F8F0] border-b border-[#1A1A1A]/5 p-4 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-4 text-sm text-[#1A1A1A]/70">
@@ -79,19 +75,19 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                         <div className="flex items-center gap-2">
                             <span className="font-bold text-[#1A1A1A]">{data.pattern_name}</span>
                             <span className="w-px h-3 bg-[#1A1A1A]/20"></span>
-                            <span>{data.day_master}日主 · {data.strength}</span>
+                            <span>{data.day_master}{t('dayMaster')} · {data.strength}</span>
                             <span className="w-px h-3 bg-[#1A1A1A]/20"></span>
-                            <span>喜用: {data.joy_elements}</span>
+                            <span>{t('favorable')}: {data.joy_elements}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* The Bazi Table */}
-                <div className="overflow-x-auto">
+                <div className={`${isExport ? '' : 'overflow-x-auto'}`}>
                     <table className="w-full min-w-[600px] border-collapse bg-white/50">
                         <thead>
                             <tr className="border-b border-[#1A1A1A]/5">
-                                <th className="p-4 w-24 text-xs text-[#1A1A1A]/40 font-normal uppercase tracking-widest text-left">项目</th>
+                                <th className="p-4 w-24 text-xs text-[#1A1A1A]/40 font-normal uppercase tracking-widest text-left">{t('item')}</th>
                                 {pillars.map(p => (
                                     <th key={p.key} className="p-4 text-center">
                                         <span className="inline-block px-3 py-1 rounded-md bg-[#B8860B]/10 text-[#8B4513] text-sm font-medium">
@@ -104,7 +100,7 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                         <tbody className="divide-y divide-[#1A1A1A]/5">
                             {/* Ten Gods (Stem) */}
                             <tr className="bg-[#FAFAF5]">
-                                <td className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium">主星</td>
+                                <td className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium">{t('tenGods')}</td>
                                 {pillars.map(p => (
                                     <td key={p.key} className="p-2 text-center text-xs text-[#1A1A1A]/50">
                                         {p.data.ten_god || "—"}
@@ -114,7 +110,7 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
 
                             {/* Heavenly Stems */}
                             <tr>
-                                <td className="p-3 pl-4 text-sm text-[#1A1A1A]/60 font-medium">天干</td>
+                                <td className="p-3 pl-4 text-sm text-[#1A1A1A]/60 font-medium">{t('heavenlyStems')}</td>
                                 {pillars.map(p => (
                                     <td key={p.key} className="p-3 text-center">
                                         <span className={`text-2xl font-bold ${getCharColorStyle(p.data.gan)} font-song`}>
@@ -126,7 +122,7 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
 
                             {/* Earthly Branches */}
                             <tr>
-                                <td className="p-3 pl-4 text-sm text-[#1A1A1A]/60 font-medium">地支</td>
+                                <td className="p-3 pl-4 text-sm text-[#1A1A1A]/60 font-medium">{t('earthlyBranches')}</td>
                                 {pillars.map(p => (
                                     <td key={p.key} className="p-3 text-center">
                                         <span className={`text-2xl font-bold ${getCharColorStyle(p.data.zhi)} font-song`}>
@@ -138,16 +134,13 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
 
                             {/* Hidden Stems */}
                             <tr className="bg-[#FAFAF5]/50">
-                                <td className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium">藏干</td>
+                                <td className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium">{t('hiddenStems')}</td>
                                 {pillars.map(p => (
                                     <td key={p.key} className="p-3 text-center align-top">
                                         <div className="flex flex-col items-center gap-1">
                                             {p.data.hidden_stems?.map((stem, idx) => (
                                                 <div key={idx} className="flex items-center gap-1 text-xs">
                                                     <span className={`font-medium ${getCharColorStyle(stem)}`}>{stem}</span>
-                                                    {/* We could lookup Ten God for hidden stem here if we had the logic available in frontend, 
-                                                        or relies on backend to provide fuller object. 
-                                                        For now, just showing the stem as per standard API response. */}
                                                 </div>
                                             ))}
                                         </div>
@@ -157,19 +150,13 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
 
                             {/* Na Yin */}
                             <tr>
-                                <td className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium">纳音</td>
+                                <td className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium">{t('nayin')}</td>
                                 {pillars.map(p => (
                                     <td key={p.key} className="p-2 text-center text-xs text-[#1A1A1A]/60">
                                         {p.nayin || "—"}
                                     </td>
                                 ))}
                             </tr>
-
-                            {/* Shen Sha (Simplified for layout, showing if available for that pillar or generally) 
-                                Note: ShenSha in `data.shen_sha` is currently a flat list. 
-                                Ideally, backend should map them to pillars. 
-                                For now, we print the flat list in a footer row or simple container.
-                            */}
                         </tbody>
                     </table>
                 </div>
@@ -180,7 +167,7 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                         <div className="flex flex-col gap-2">
                             {data.kong_wang && (
                                 <div className="flex gap-2">
-                                    <span className="text-[#1A1A1A]/40 w-12 shrink-0">空亡:</span>
+                                    <span className="text-[#1A1A1A]/40 w-12 shrink-0">{t('kongwang')}:</span>
                                     <div className="flex flex-wrap gap-2 text-[#1A1A1A]/70">
                                         {data.kong_wang.map((k, i) => <span key={i}>{k}</span>)}
                                     </div>
@@ -188,7 +175,7 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                             )}
                             {data.shen_sha && (
                                 <div className="flex gap-2">
-                                    <span className="text-[#1A1A1A]/40 w-12 shrink-0">神煞:</span>
+                                    <span className="text-[#1A1A1A]/40 w-12 shrink-0">{t('shensha')}:</span>
                                     <div className="flex flex-wrap gap-2">
                                         {data.shen_sha.map((sha, i) => (
                                             <span key={i} className="px-1.5 py-0.5 rounded bg-[#B8860B]/10 text-[#8B4513]">{sha}</span>
@@ -208,7 +195,7 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                 <div className="zen-card p-6 lg:col-span-1">
                     <div className="flex items-center gap-2 mb-6">
                         <Zap className="w-4 h-4 text-[#B8860B]" />
-                        <span className="text-xs tracking-widest uppercase text-[#1A1A1A]/40">五行能量</span>
+                        <span className="text-xs tracking-widest uppercase text-[#1A1A1A]/40">{t('energy')}</span>
                     </div>
                     <div className="space-y-4">
                         {data.energy_distribution && Object.entries(data.energy_distribution).map(([element, info]) => (
@@ -236,10 +223,10 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-2">
                                 <TrendingUp className="w-4 h-4 text-[#B8860B]" />
-                                <span className="text-xs tracking-widest uppercase text-[#1A1A1A]/40">运势周期</span>
+                                <span className="text-xs tracking-widest uppercase text-[#1A1A1A]/40">{t('cycles')}</span>
                             </div>
                             <span className="text-xs text-[#1A1A1A]/40 bg-[#1A1A1A]/5 px-2 py-1 rounded">
-                                起运: {cycleData.start_info.age}岁
+                                {t('startAge')}: {cycleData.start_info.age}
                             </span>
                         </div>
 
@@ -250,14 +237,13 @@ export default function BaziChart({ data, cycleData }: BaziChartProps) {
                                     <div key={idx} className="flex flex-col items-center space-y-1 p-2 min-w-[3.5rem] rounded-lg border border-[#1A1A1A]/5 bg-[#FAFAF5]">
                                         <span className="text-xs text-[#1A1A1A]/40 font-mono">{dy.start_age}</span>
                                         <span className="font-bold text-[#1A1A1A] text-lg font-song">{dy.gan_zhi}</span>
-                                        {/* Optional: Add color to Da Yun GanZhi too? maybe too busy. Keep clean. */}
                                     </div>
                                 ))}
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <p className="text-[10px] text-[#1A1A1A]/30 uppercase tracking-widest">近期流年</p>
+                            <p className="text-[10px] text-[#1A1A1A]/30 uppercase tracking-widest">{t('recentYears')}</p>
                             <div className="grid grid-cols-5 gap-2">
                                 {cycleData.liu_nian.slice(0, 5).map((ln, idx) => (
                                     <div key={idx} className="text-center p-2 rounded bg-[#FFFFFF] border border-[#1A1A1A]/5">

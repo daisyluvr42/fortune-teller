@@ -2,7 +2,11 @@
 
 import { Circle } from "lucide-react";
 
-export default function LoadingSpinner() {
+interface LoadingSpinnerProps {
+    text?: string;
+}
+
+export default function LoadingSpinner({ text = "Calculating..." }: LoadingSpinnerProps) {
     return (
         <div className="flex flex-col items-center justify-center py-16">
             {/* 极简圆形旋转 */}
@@ -18,7 +22,7 @@ export default function LoadingSpinner() {
 
             {/* 文字 - 渐隐渐现 */}
             <p className="mt-8 text-sm text-[#666666] tracking-widest animate-pulse-subtle">
-                推演中
+                {text}
             </p>
         </div>
     );

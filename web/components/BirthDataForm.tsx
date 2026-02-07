@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BirthData } from "@/lib/api";
 import { LunarMonth } from "lunar-javascript";
+import { useTranslations } from 'next-intl';
 
 // 中国主要城市及经度
 // 城市分组数据
@@ -24,8 +25,71 @@ const CITY_GROUPS = {
     }
 };
 
+// 国际城市分组 - 覆盖全球主要时区
+const INTERNATIONAL_CITY_GROUPS = {
+    "UTC-12 ~ UTC-8 (Americas West)": {
+        "Honolulu (UTC-10)": -157.9,
+        "Los Angeles (UTC-8)": -118.2,
+        "San Francisco (UTC-8)": -122.4,
+        "Vancouver (UTC-8)": -123.1,
+    },
+    "UTC-7 ~ UTC-5 (Americas Central/East)": {
+        "Denver (UTC-7)": -104.9,
+        "Chicago (UTC-6)": -87.6,
+        "New York (UTC-5)": -74.0,
+        "Toronto (UTC-5)": -79.4,
+        "Miami (UTC-5)": -80.2,
+    },
+    "UTC-4 ~ UTC-3 (South America)": {
+        "São Paulo (UTC-3)": -46.6,
+        "Buenos Aires (UTC-3)": -58.4,
+        "Lima (UTC-5)": -77.0,
+    },
+    "UTC-6 (Central America/Mexico)": {
+        "Mexico City (UTC-6)": -99.1,
+        "Guatemala City (UTC-6)": -90.5,
+        "Panama City (UTC-5)": -79.5,
+    },
+    "UTC+0 ~ UTC+1 (Europe West)": {
+        "London (UTC+0)": -0.1,
+        "Paris (UTC+1)": 2.3,
+        "Berlin (UTC+1)": 13.4,
+        "Amsterdam (UTC+1)": 4.9,
+        "Madrid (UTC+1)": -3.7,
+    },
+    "UTC+2 ~ UTC+3 (Europe East/Middle East)": {
+        "Cairo (UTC+2)": 31.2,
+        "Istanbul (UTC+3)": 29.0,
+        "Moscow (UTC+3)": 37.6,
+        "Dubai (UTC+4)": 55.3,
+    },
+    "UTC+5 ~ UTC+6 (South Asia)": {
+        "Mumbai (UTC+5:30)": 72.9,
+        "New Delhi (UTC+5:30)": 77.2,
+        "Dhaka (UTC+6)": 90.4,
+        "Kolkata (UTC+5:30)": 88.4,
+    },
+    "UTC+7 ~ UTC+8 (Southeast Asia)": {
+        "Bangkok (UTC+7)": 100.5,
+        "Singapore (UTC+8)": 103.8,
+        "Kuala Lumpur (UTC+8)": 101.7,
+        "Jakarta (UTC+7)": 106.8,
+        "Hong Kong (UTC+8)": 114.2,
+    },
+    "UTC+9 ~ UTC+12 (East Asia/Pacific)": {
+        "Tokyo (UTC+9)": 139.7,
+        "Seoul (UTC+9)": 127.0,
+        "Sydney (UTC+10)": 151.2,
+        "Melbourne (UTC+10)": 144.9,
+        "Auckland (UTC+12)": 174.8,
+    },
+};
+
 // 扁平化映射用于查询
-const CITIES_FLAT = Object.values(CITY_GROUPS).reduce((acc, group) => ({ ...acc, ...group }), {} as Record<string, number>);
+const CITIES_FLAT = {
+    ...Object.values(CITY_GROUPS).reduce((acc, group) => ({ ...acc, ...group }), {} as Record<string, number>),
+    ...Object.values(INTERNATIONAL_CITY_GROUPS).reduce((acc, group) => ({ ...acc, ...group }), {} as Record<string, number>),
+};
 
 interface BirthDataFormProps {
     onSubmit: (data: BirthData) => void;
@@ -34,6 +98,8 @@ interface BirthDataFormProps {
 }
 
 export default function BirthDataForm({ onSubmit, isLoading, initialData }: BirthDataFormProps) {
+    const t = useTranslations('BirthDataForm');
+    const commonT = useTranslations('Common');
     const currentYear = new Date().getFullYear();
 
     const [birthYear, setBirthYear] = useState(initialData?.birth_year ?? 1990);
@@ -43,6 +109,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
     const [minute, setMinute] = useState(initialData?.minute ?? 0);
     const [gender, setGender] = useState<"男" | "女">(initialData?.gender ?? "男");
     const [city, setCity] = useState("北京");
+    const [isInternational, setIsInternational] = useState(false);
     const [isLunar, setIsLunar] = useState<boolean>(initialData?.is_lunar ?? false);
     const [timeMode, setTimeMode] = useState<"time" | "shichen">(initialData?.time_mode ?? "time");
     const [shichen, setShichen] = useState<BirthData["shichen"]>(initialData?.shichen ?? "子时");
@@ -60,10 +127,10 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
 
     const lunarError = useMemo(() => {
         if (!isLunar) return null;
-        if (!lunarDayCount) return "农历月份无效，请检查年份与月份";
-        if (day > lunarDayCount) return `农历日期无效：该月只有 ${lunarDayCount} 天`;
+        if (!lunarDayCount) return t('lunarErrorInvalid');
+        if (day > lunarDayCount) return t('lunarErrorDays', { count: lunarDayCount });
         return null;
-    }, [day, isLunar, lunarDayCount]);
+    }, [day, isLunar, lunarDayCount, t]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -87,10 +154,10 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
             {/* 标题 */}
             <div className="text-center mb-8">
                 <h2 className="text-lg font-medium text-[#1A1A1A] tracking-wide">
-                    输入出生信息
+                    {t('title')}
                 </h2>
                 <p className="text-sm text-[#666666] mt-2">
-                    请填写公历/农历出生日期与时辰
+                    {t('subtitle')}
                 </p>
             </div>
 
@@ -98,7 +165,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                 {/* 出生日期 */}
                 <div>
                     <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        出生日期
+                        {t('dateLabel')}
                     </label>
                     <div className="flex items-center justify-center gap-2 mb-3">
                         <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
@@ -108,7 +175,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                                 onChange={(e) => setIsLunar(e.target.checked)}
                                 className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
                             />
-                            农历
+                            {t('lunarLabel')}
                         </label>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
@@ -127,7 +194,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                             className="zen-select"
                         >
                             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                                <option key={m} value={m}>{m}月</option>
+                                <option key={m} value={m}>{m}{commonT('month')}</option>
                             ))}
                         </select>
                         <select
@@ -136,13 +203,13 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                             className="zen-select"
                         >
                             {Array.from({ length: isLunar ? 30 : 31 }, (_, i) => i + 1).map((d) => (
-                                <option key={d} value={d}>{d}日</option>
+                                <option key={d} value={d}>{d}{commonT('day')}</option>
                             ))}
                         </select>
                     </div>
                     {isLunar && (
                         <p className={`text-[11px] text-center mt-2 ${lunarError ? "text-red-800/70" : "text-[#999999]"}`}>
-                            {lunarError || "农历每月可能为 29 或 30 天，若提示无效请调整日期"}
+                            {lunarError || t('lunarHint')}
                         </p>
                     )}
                 </div>
@@ -150,7 +217,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                 {/* 出生时间 */}
                 <div>
                     <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        出生时辰
+                        {t('timeLabel')}
                     </label>
                     <div className="flex items-center justify-center gap-4 mb-3">
                         <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
@@ -160,10 +227,10 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                                 onChange={(e) => setTimeMode(e.target.checked ? "shichen" : "time")}
                                 className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
                             />
-                            时辰
+                            {t('shichenLabel')}
                         </label>
                         <span className="text-xs text-[#999999] tracking-widest">
-                            {timeMode === "shichen" ? "已选择时辰" : "使用具体时间"}
+                            {timeMode === "shichen" ? t('shichenSelected') : t('timeSelected')}
                         </span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -187,7 +254,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                                     className="zen-select"
                                 >
                                     {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                                        <option key={h} value={h}>{h.toString().padStart(2, "0")} 时</option>
+                                        <option key={h} value={h}>{h.toString().padStart(2, "0")} {commonT('hour')}</option>
                                     ))}
                                 </select>
                                 <select
@@ -196,7 +263,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                                     className="zen-select"
                                 >
                                     {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
-                                        <option key={m} value={m}>{m.toString().padStart(2, "0")} 分</option>
+                                        <option key={m} value={m}>{m.toString().padStart(2, "0")} {commonT('minute')}</option>
                                     ))}
                                 </select>
                             </>
@@ -207,7 +274,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                 {/* 性别 */}
                 <div>
                     <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        性别
+                        {t('genderLabel')}
                     </label>
                     <div className="flex justify-center gap-6">
                         {(["男", "女"] as const).map((g) => (
@@ -229,7 +296,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                                     onChange={() => setGender(g)}
                                     className="sr-only"
                                 />
-                                <span className="text-sm tracking-wide">{g}</span>
+                                <span className="text-sm tracking-wide">{g === '男' ? commonT('male') : commonT('female')}</span>
                             </label>
                         ))}
                     </div>
@@ -238,23 +305,52 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                 {/* 出生城市 */}
                 <div>
                     <label className="block text-xs text-[#666666] tracking-widest uppercase mb-3 text-center">
-                        出生城市
+                        {t('cityLabel')}
                     </label>
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                        <label className="text-xs text-[#666666] tracking-widest flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={isInternational}
+                                onChange={(e) => {
+                                    setIsInternational(e.target.checked);
+                                    // Reset city when switching modes
+                                    if (e.target.checked) {
+                                        setCity("New York (UTC-5)");
+                                    } else {
+                                        setCity("北京");
+                                    }
+                                }}
+                                className="w-4 h-4 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
+                            />
+                            {t('internationalLabel')}
+                        </label>
+                    </div>
                     <select
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
                         className="zen-select"
                     >
-                        {Object.entries(CITY_GROUPS).map(([groupName, cities]) => (
-                            <optgroup key={groupName} label={groupName}>
-                                {Object.keys(cities).map((c) => (
-                                    <option key={c} value={c}>{c}</option>
-                                ))}
-                            </optgroup>
-                        ))}
+                        {isInternational ? (
+                            Object.entries(INTERNATIONAL_CITY_GROUPS).map(([groupName, cities]) => (
+                                <optgroup key={groupName} label={groupName}>
+                                    {Object.keys(cities).map((c) => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </optgroup>
+                            ))
+                        ) : (
+                            Object.entries(CITY_GROUPS).map(([groupName, cities]) => (
+                                <optgroup key={groupName} label={groupName}>
+                                    {Object.keys(cities).map((c) => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </optgroup>
+                            ))
+                        )}
                     </select>
                     <p className="text-xs text-[#999999] text-center mt-2">
-                        请选择离您最近的城市（用于真太阳时校正）
+                        {isInternational ? t('cityHintInternational') : t('cityHint')}
                     </p>
                 </div>
 
@@ -267,10 +363,10 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                         {isLoading ? (
                             <span className="flex items-center gap-2">
                                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                推演中
+                                {t('calculating')}
                             </span>
                         ) : (
-                            "开始排盘"
+                            t('startButton')
                         )}
                     </button>
                 </div>

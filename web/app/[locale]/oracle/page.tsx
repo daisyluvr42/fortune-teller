@@ -3,13 +3,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import dynamic from 'next/dynamic';
 
 const CoinTossScene = dynamic(() => import('@/components/CoinTossScene'), {
     ssr: false,
-    loading: () => <div className="w-full h-full flex items-center justify-center text-[#B8860B]/50 animate-pulse">加载3D罗盘中...</div>
+    loading: () => <div className="w-full h-full flex items-center justify-center text-[#B8860B]/50 animate-pulse">Loading 3D Scene...</div>
 });
 import { getOracle, getAnalysis, OracleResponse, normalizeBirthDataForApi, getCreditStatus, consumeCredit } from '@/lib/api';
 import { useUserProfile } from '@/lib/context';
@@ -21,6 +22,8 @@ import { Sparkles, History, HelpCircle, AlertTriangle } from 'lucide-react';
 
 export default function OraclePage() {
     const router = useRouter();
+    const locale = useLocale() as 'en' | 'zh';
+    const t = useTranslations('Oracle');
     const { birthData, hasProfile } = useUserProfile();
     const { user, isAuthenticated, session } = useAuth();
 
@@ -126,7 +129,8 @@ export default function OraclePage() {
             user_data: normalizeBirthDataForApi(userData),
             question_type: "大师解惑",
             custom_question: question,
-            oracle_data: data
+            oracle_data: data,
+            language: locale,
         });
 
         setAnalysis(analysisRes.markdown_content);
@@ -199,15 +203,15 @@ export default function OraclePage() {
 
     const handleCast = async () => {
         if (!isAuthenticated || !user) {
-            setError("请先注册/登录后再进行每日一卦");
+            setError(t('loginRequired'));
             return;
         }
         if (!session?.access_token) {
-            setError("登录状态异常，请刷新后重试");
+            setError(t('loginError'));
             return;
         }
         if (!question.trim()) {
-            setError("请先输入你心中的困惑...");
+            setError(t('enterQuestion'));
             return;
         }
 
@@ -221,7 +225,7 @@ export default function OraclePage() {
 
             const credit = await consumeCredit("oracle", session.access_token);
             if (!credit) {
-                setError("今日问卜次数已用完");
+                setError(t('quotaUsed'));
                 setLoading(false);
                 return;
             }
@@ -273,10 +277,10 @@ export default function OraclePage() {
                     {/* Section: Input */}
                     <section className="text-center space-y-6 animate-fade-in">
                         <h2 className="text-3xl font-light tracking-[0.3em] text-[#1A1A1A]">
-                            每日一卦
+                            {t('title')}
                         </h2>
                         <p className="text-[#1A1A1A]/60 font-light tracking-widest text-sm">
-                            心诚则灵，问事、问道、问吉凶
+                            {t('subtitle')}
                         </p>
 
                         {/* 无档案提示 */}
@@ -284,7 +288,7 @@ export default function OraclePage() {
                             <div className="flex items-center justify-center gap-2 py-2 px-4 bg-[#B8860B]/5 border border-[#B8860B]/20 rounded-lg max-w-md mx-auto">
                                 <AlertTriangle className="w-4 h-4 text-[#B8860B]" />
                                 <span className="text-xs text-[#B8860B]/80 tracking-wide">
-                                    建议先<button onClick={() => router.push('/')} className="underline">完成排盘</button>，解卦将更加精准
+                                    {t('noProfileHint')} <button onClick={() => router.push('/')} className="underline">{t('completeChart')}</button>
                                 </span>
                             </div>
                         )}
@@ -294,7 +298,7 @@ export default function OraclePage() {
                                 type="text"
                                 value={question}
                                 onChange={(e) => setQuestion(e.target.value)}
-                                placeholder="输入你此刻的困惑..."
+                                placeholder={t('questionPlaceholder')}
                                 className="zen-input w-full pr-12 text-center"
                                 disabled={loading || stage === 'casting' || !isAuthenticated}
                             />
@@ -310,19 +314,19 @@ export default function OraclePage() {
                         {!isAuthenticated && (
                             <div className="mt-4 flex flex-col items-center gap-3">
                                 <p className="text-xs text-[#1A1A1A]/50 tracking-widest">
-                                    每日一卦仅对注册用户开放
+                                    {t('registeredOnly')}
                                 </p>
                                 <button
                                     onClick={() => router.push('/login')}
                                     className="zen-button text-xs tracking-widest"
                                 >
-                                    立即注册 / 登录
+                                    {t('registerLogin')}
                                 </button>
                             </div>
                         )}
                         {isAuthenticated && creditInfo && (
                             <p className="mt-4 text-xs text-[#1A1A1A]/50 tracking-widest">
-                                今日赠送额度：<span className="text-[#B8860B] font-medium">{(creditInfo.cycle_limit ?? 1) - (creditInfo.cycle_used ?? 0)}/{creditInfo.cycle_limit ?? 1}</span>
+                                {t('giftQuota')}: <span className="text-[#B8860B] font-medium">{(creditInfo.cycle_limit ?? 1) - (creditInfo.cycle_used ?? 0)}/{creditInfo.cycle_limit ?? 1}</span>
                             </p>
                         )}
                         {/* Buttons removed as requested. Recharging is triggered by insufficient credits error. */}
@@ -466,7 +470,7 @@ export default function OraclePage() {
                                 </div>
                             ) : (
                                 <div className="flex justify-center p-12">
-                                    <LoadingSpinner />
+                                    <LoadingSpinner text={t('casting')} />
                                 </div>
                             )}
 

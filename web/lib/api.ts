@@ -12,6 +12,7 @@ export interface BirthData {
     is_lunar?: boolean;
     time_mode?: "time" | "shichen";
     shichen?: "子时" | "丑时" | "寅时" | "卯时" | "辰时" | "巳时" | "午时" | "未时" | "申时" | "酉时" | "戌时" | "亥时";
+    language?: "zh" | "en";
 }
 
 export interface Pillar {
@@ -61,6 +62,7 @@ export interface ChartResponse {
 export interface OracleRequest {
     question: string;
     user_data?: BirthData;
+    language?: "zh" | "en";
 }
 
 export interface OracleResponse {
@@ -114,6 +116,7 @@ export interface AnalysisRequest {
     oracle_data?: OracleResponse;
     profile_id?: string;
     force_refresh?: boolean;
+    language?: string;
 }
 
 export interface AnalysisResponse {
@@ -208,6 +211,7 @@ export interface CompatibilityRequest {
     user_a_data: BirthData;
     user_b_data: BirthData;
     relation_type: string;
+    language?: "zh" | "en";
 }
 
 export interface CompatibilityResponse {
@@ -220,7 +224,7 @@ export interface CompatibilityResponse {
 // API Base URL
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-function authHeaders(token?: string) {
+function authHeaders(token?: string): Record<string, string> {
     return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

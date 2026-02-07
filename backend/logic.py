@@ -2694,6 +2694,7 @@ def get_fortune_analysis(
     api_key: str = None,
     base_url: str = None,
     model: str = None,
+    language: str = "zh",
     is_first_response: bool = True,
     conversation_history: list = None
 ):
@@ -2707,6 +2708,7 @@ def get_fortune_analysis(
         api_key: API key for the LLM provider.
         base_url: Base URL for the LLM API.
         model: Model name to use.
+        language: Language for the response ("zh" or "en").
         is_first_response: Whether this is the first analysis in the session.
         conversation_history: List of (topic, response_summary) tuples from previous analyses.
     
@@ -2779,6 +2781,18 @@ def get_fortune_analysis(
         this_year=this_yr, 
         next_year=next_yr
     )
+
+    # Language Instruction
+    if language == "en":
+        system_prompt += """
+        
+        # LANGUAGE INSTRUCTION: ENGLISH OUTPUT REQUIRED
+        1. **Translate EVERYTHING**: You must output the ENTIRE response in strict, natural English.
+        2. **Headers**: Translate all section headers into English (e.g., change '【1. 🌿 你的"出厂设置"】' to '【1. 🌿 Your Factory Settings】').
+        3. **Terminology**: Use standard English chart terminology where possible (e.g., 'Day Master' for 日主, 'Seven Killings' for 七杀). You may keep Pinyin in parentheses for clarity if needed, like "Hit by the Year Breaker (Sui Po)".
+        4. **Tone**: Maintain the mystical yet professional tone, but adapted for an English-speaking audience.
+        5. **No Chinese**: Do not output any Chinese characters unless specifically asked to explain a character.
+        """
     
     # Build user message based on topic
     if topic == "大师解惑" and custom_question:

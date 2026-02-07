@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { getAnalysis, normalizeBirthDataForApi, getCreditStatus } from '@/lib/api';
@@ -10,17 +11,20 @@ import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
 import { BookOpen, Target, Heart, Coins, Activity, Crown, ArrowLeft, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
 
-const ANALYSIS_TOPICS = [
-    { id: '整体命格', label: '整体命格', icon: Crown, desc: '全面剖析人生基调与格局' },
-    { id: '事业运势', label: '事业职场', icon: Target, desc: '职业方向、晋升空间与格调' },
-    { id: '财运分析', label: '财富运势', icon: Coins, desc: '正财偏财、守财能力与时机' },
-    { id: '感情运势', label: '婚恋感情', icon: Heart, desc: '情感特质、缘分深浅与相处' },
-    { id: '健康建议', label: '健康建议', icon: Activity, desc: '五行平衡、脏腑健康与保养' },
-    { id: '开运建议', label: '开运建议', icon: Sparkles, desc: '穿搭、家居与能量场布局' },
+const ANALYSIS_TOPICS_IDS = [
+    { id: '整体命格', key: 'main', icon: Crown },
+    { id: '事业运势', key: 'career', icon: Target },
+    { id: '财运分析', key: 'wealth', icon: Coins },
+    { id: '感情运势', key: 'love', icon: Heart },
+    { id: '健康建议', key: 'health', icon: Activity },
+    { id: '开运建议', key: 'advice', icon: Sparkles },
 ];
 
 export default function AnalysisPage() {
     const router = useRouter();
+    const t = useTranslations('Analysis');
+    const commonT = useTranslations('Common');
+    const locale = useLocale() as 'en' | 'zh';
     const { birthData, hasProfile, activeProfileId } = useUserProfile();
     const { isAuthenticated, isLoading: authLoading, session } = useAuth();
 
@@ -35,6 +39,13 @@ export default function AnalysisPage() {
         used: credits.analysis.cycle_used ?? 0,
         total: credits.analysis.cycle_limit ?? 10
     } : null;
+
+    // Dynamic topic labels based on locale
+    const ANALYSIS_TOPICS = ANALYSIS_TOPICS_IDS.map(item => ({
+        ...item,
+        label: t(`topics.${item.key}`),
+        desc: t(`topics.${item.key}Desc`)
+    }));
 
     const handleAnalysis = async (forceRefresh: boolean = false) => {
         if (!birthData) return;
@@ -53,6 +64,7 @@ export default function AnalysisPage() {
                 birthplace: "未指定",
                 profile_id: activeProfileId || undefined,
                 force_refresh: forceRefresh,
+                language: locale,
             }, token);
 
             setAnalysis(res.markdown_content);
@@ -90,7 +102,7 @@ export default function AnalysisPage() {
                 });
             }
         } catch (err: any) {
-            setError(err.message || "分析失败，请稍后重试");
+            setError(t('analysisError'));
         } finally {
             setLoading(false);
         }
@@ -107,16 +119,16 @@ export default function AnalysisPage() {
                     <div className="max-w-md mx-auto">
                         <div className="zen-card p-12 text-center space-y-6">
                             <AlertCircle className="w-12 h-12 text-[#B8860B]/40 mx-auto" />
-                            <h2 className="text-xl font-light tracking-[0.2em]">请先登录</h2>
+                            <h2 className="text-xl font-light tracking-[0.2em]">{t('loginRequired')}</h2>
                             <p className="text-sm text-[#1A1A1A]/50 leading-relaxed">
-                                命理分析将调用 AI 能力，仅对注册用户开放。
+                                {t('loginDesc')}
                             </p>
                             <button
                                 onClick={() => router.push('/login')}
                                 className="zen-button"
                             >
                                 <ArrowLeft className="w-4 h-4" />
-                                前往登录
+                                {t('goToLogin')}
                             </button>
                         </div>
                     </div>
@@ -134,16 +146,16 @@ export default function AnalysisPage() {
                     <div className="max-w-md mx-auto">
                         <div className="zen-card p-12 text-center space-y-6">
                             <AlertCircle className="w-12 h-12 text-[#B8860B]/40 mx-auto" />
-                            <h2 className="text-xl font-light tracking-[0.2em]">尚未建立档案</h2>
+                            <h2 className="text-xl font-light tracking-[0.2em]">{t('noProfileTitle')}</h2>
                             <p className="text-sm text-[#1A1A1A]/50 leading-relaxed">
-                                请先前往首页完成排盘，<br />系统将自动记录您的命盘数据
+                                {t('noProfileDesc')}
                             </p>
                             <button
                                 onClick={() => router.push('/')}
                                 className="zen-button"
                             >
                                 <ArrowLeft className="w-4 h-4" />
-                                前往排盘
+                                {t('goToChart')}
                             </button>
                         </div>
                     </div>
@@ -161,24 +173,24 @@ export default function AnalysisPage() {
                     <div className="lg:col-span-5 space-y-8 animate-fade-in">
                         <div className="space-y-4">
                             <h2 className="text-3xl font-light tracking-[0.3em] text-[#1A1A1A]">
-                                深度析命
+                                {t('title')}
                             </h2>
                             <p className="text-[#1A1A1A]/60 font-light tracking-widest text-sm leading-relaxed">
-                                融合古籍智慧与 AI 洞察，为你拨开命运的迷雾
+                                {t('subtitle')}
                             </p>
                         </div>
 
                         {/* 档案信息 */}
                         <div className="zen-card p-4">
-                            <p className="text-[10px] text-[#1A1A1A]/40 tracking-widest uppercase mb-2">当前档案</p>
+                            <p className="text-[10px] text-[#1A1A1A]/40 tracking-widest uppercase mb-2">{t('currentProfile')}</p>
                             <p className="text-sm font-medium">
-                                {birthData?.birth_year}年{birthData?.month}月{birthData?.day}日 {birthData?.hour}时 · {birthData?.gender}
+                                {birthData?.birth_year}/{birthData?.month}/{birthData?.day} {birthData?.hour}:00 · {birthData?.gender === '男' ? (locale === 'en' ? 'Male' : '男') : (locale === 'en' ? 'Female' : '女')}
                             </p>
                         </div>
 
                         <div className="space-y-4">
                             <label className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase">
-                                选择分析维度
+                                {t('chooseTopic')}
                             </label>
                             <div className="grid grid-cols-1 gap-3">
                                 {ANALYSIS_TOPICS.map((item) => (
@@ -211,12 +223,12 @@ export default function AnalysisPage() {
                             disabled={loading}
                             className="zen-button w-full"
                         >
-                            {loading ? "正在分析..." : "开始深度分析"}
+                            {loading ? t('analyzing') : t('startAnalysis')}
                         </button>
 
                         {giftQuota !== null && (
                             <p className="text-center text-xs text-[#1A1A1A]/40 tracking-widest mt-2">
-                                今日赠送额度：<span className="text-[#B8860B] font-medium">{giftQuota.total - giftQuota.used}/{giftQuota.total}</span>
+                                {t('giftQuota')}: <span className="text-[#B8860B] font-medium">{giftQuota.total - giftQuota.used}/{giftQuota.total}</span>
                             </p>
                         )}
                     </div>
@@ -225,9 +237,9 @@ export default function AnalysisPage() {
                     <div className="lg:col-span-7 space-y-8 h-full">
                         {loading ? (
                             <div className="h-full flex flex-col items-center justify-center min-h-[400px] border border-[#1A1A1A]/5 rounded-3xl bg-[#F8F8F0]/50 animate-pulse">
-                                <LoadingSpinner />
+                                <LoadingSpinner text={t('calculating')} />
                                 <p className="mt-6 text-[#1A1A1A]/40 text-sm tracking-[0.5em] italic">
-                                    AI 正在翻阅命书...
+                                    {t('aiLoading')}
                                 </p>
                             </div>
                         ) : analysis ? (
@@ -237,17 +249,17 @@ export default function AnalysisPage() {
                                         <BookOpen className="w-5 h-5 text-[#B8860B]" />
                                         <span className="text-lg font-light tracking-[0.4em]">{topic}</span>
                                         {fromCache && (
-                                            <span className="text-xs text-[#B8860B]/60 tracking-widest">缓存</span>
+                                            <span className="text-xs text-[#B8860B]/60 tracking-widest">{t('cache')}</span>
                                         )}
                                     </div>
                                     <button
                                         onClick={() => handleAnalysis(true)}
                                         disabled={loading}
                                         className="flex items-center gap-2 text-xs text-[#1A1A1A]/50 hover:text-[#1A1A1A] transition-colors tracking-widest"
-                                        title="重新分析（消耗1次）"
+                                        title={t('reanalyzeTitle')}
                                     >
                                         <RefreshCw className="w-4 h-4" />
-                                        重新分析
+                                        {t('reanalyze')}
                                     </button>
                                 </div>
 
@@ -261,14 +273,14 @@ export default function AnalysisPage() {
 
                                 <div className="pt-8 text-center">
                                     <p className="text-[10px] text-[#1A1A1A]/20 tracking-[0.2em] italic">
-                                        提示：命理仅供参考，愿你能把握当下，顺势而为。
+                                        {t('hint')}
                                     </p>
                                 </div>
                             </div>
                         ) : (
                             <div className="h-full border border-dashed border-[#1A1A1A]/10 rounded-3xl flex flex-col items-center justify-center min-h-[400px] text-[#1A1A1A]/20">
                                 <p className="tracking-widest font-light">
-                                    选择维度后点击开始分析
+                                    {t('selectTopicHint')}
                                 </p>
                             </div>
                         )}

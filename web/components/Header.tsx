@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Hexagon, User, LogOut, ChevronDown, Trash2, Pencil, Coins } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { Link, usePathname } from "@/i18n/routing";
 import { useAuth } from "@/lib/AuthContext";
 import { useUserProfile } from "@/lib/context";
 import { getTotalCredits, getMembershipStatus, MembershipStatus } from "@/lib/api";
 import { Crown } from "lucide-react";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useTranslations } from 'next-intl';
 
 export default function Header() {
+    const t = useTranslations('Navbar');
     const { user, isAuthenticated, signOut, isLoading, session } = useAuth();
     const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
     const [showUserMenu, setShowUserMenu] = useState(false);
@@ -67,8 +69,8 @@ export default function Header() {
     const handleDeleteProfile = async () => {
         if (!activeProfileId) return;
         const current = profiles.find((p) => p.id === activeProfileId);
-        const name = current?.profileName || "当前档案";
-        if (!confirm(`确定删除「${name}」吗？此操作不可恢复。`)) return;
+        const name = current?.profileName || t('settings');
+        if (!confirm(t('confirmDelete', { name }))) return;
         await deleteProfile(activeProfileId);
     };
 
@@ -76,7 +78,7 @@ export default function Header() {
         if (!activeProfileId) return;
         const current = profiles.find((p) => p.id === activeProfileId);
         const name = current?.profileName || "";
-        const next = prompt("请输入新的档案名称：", name);
+        const next = prompt(t('renamePrompt'), name);
         if (next === null) return;
         await renameProfile(activeProfileId, next);
     };
@@ -93,12 +95,12 @@ export default function Header() {
                                 strokeWidth={1}
                             />
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-xs font-medium text-[#1A1A1A]">命</span>
+                                <span className="text-xs font-medium text-[#1A1A1A]">{t('logo')}</span>
                             </div>
                         </div>
                         <div>
                             <h1 className="text-lg font-medium tracking-wide text-[#1A1A1A]">
-                                命理
+                                {t('brand')}
                             </h1>
                         </div>
                     </Link>
@@ -106,22 +108,24 @@ export default function Header() {
                     {/* 导航链接（移至左侧） */}
                     <nav className="flex items-center gap-4">
                         <Link href="/" className={navLinkClass("/")}>
-                            排盘
+                            {t('home')}
                         </Link>
                         <Link href="/analysis" className={navLinkClass("/analysis")}>
-                            分析
+                            {t('analysis')}
                         </Link>
                         <Link href="/compatibility" className={navLinkClass("/compatibility")}>
-                            合盘
+                            {t('compatibility')}
                         </Link>
                         <Link href="/oracle" className={navLinkClass("/oracle")}>
-                            一卦
+                            {t('oracle')}
                         </Link>
                     </nav>
                 </div>
 
-                {/* 右侧：档案选择 + 用户区域 */}
+                {/* 右侧：档案选择 + 用户区域 + 语言切换 */}
                 <div className="flex items-center gap-3">
+                    <LanguageSwitcher />
+
                     {isAuthenticated && user && (
                         <div className="flex items-center gap-2">
                             <select
@@ -131,7 +135,7 @@ export default function Header() {
                                 disabled={isLoadingProfiles || profiles.length === 0}
                             >
                                 {profiles.length === 0 && (
-                                    <option value="">暂无档案</option>
+                                    <option value="">{t('noProfile')}</option>
                                 )}
                                 {profiles.map((p) => (
                                     <option key={p.id} value={p.id}>
@@ -142,7 +146,7 @@ export default function Header() {
                             <button
                                 onClick={handleRenameProfile}
                                 className="p-2 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors"
-                                title="重命名当前档案"
+                                title={t('renameProfile')}
                                 disabled={!activeProfileId || profiles.length === 0}
                             >
                                 <Pencil className="w-4 h-4 text-[#1A1A1A]/60" />
@@ -150,7 +154,7 @@ export default function Header() {
                             <button
                                 onClick={handleDeleteProfile}
                                 className="p-2 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors"
-                                title="删除当前档案"
+                                title={t('deleteProfile')}
                                 disabled={!activeProfileId || profiles.length === 0}
                             >
                                 <Trash2 className="w-4 h-4 text-[#1A1A1A]/60" />
@@ -184,7 +188,7 @@ export default function Header() {
                                     <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#1A1A1A]/10 py-2 z-20">
                                         {/* 账户信息 */}
                                         <div className="px-4 py-2 border-b border-[#1A1A1A]/5">
-                                            <p className="text-xs text-[#1A1A1A]/40">登录账户</p>
+                                            <p className="text-xs text-[#1A1A1A]/40">{t('loggedInAs')}</p>
                                             <p className="text-sm text-[#1A1A1A] truncate">{user.email}</p>
                                         </div>
 
@@ -195,18 +199,18 @@ export default function Header() {
                                                     <div className="flex items-center justify-between">
                                                         <span className="flex items-center gap-1.5 text-xs">
                                                             <Crown className="w-4 h-4 text-[#B8860B]" />
-                                                            <span className="text-[#B8860B] font-semibold">VIP 会员</span>
+                                                            <span className="text-[#B8860B] font-semibold">{t('vipMember')}</span>
                                                         </span>
                                                         <span className="text-xs text-[#1A1A1A]/50">
-                                                            剩余 {membership.days_remaining ?? 0} 天
+                                                            {t('daysRemaining', { days: membership.days_remaining ?? 0 })}
                                                         </span>
                                                     </div>
                                                 ) : (
                                                     <button
-                                                        onClick={() => alert("VIP 会员开通功能即将上线\n$9.99/月 或 ¥68/月")}
+                                                        onClick={() => alert(t('vipComingSoon'))}
                                                         className="w-full py-1.5 text-xs text-center text-[#B8860B] border border-[#B8860B]/30 rounded-lg hover:bg-[#B8860B]/5 transition-colors flex items-center justify-center gap-1"
                                                     >
-                                                        <Crown className="w-3.5 h-3.5" /> 开通 VIP 会员
+                                                        <Crown className="w-3.5 h-3.5" /> {t('upgradeVip')}
                                                     </button>
                                                 )}
                                             </div>
@@ -216,7 +220,7 @@ export default function Header() {
                                         <div className="px-4 py-3 border-b border-[#1A1A1A]/5">
                                             <div className="flex items-center justify-between">
                                                 <span className="flex items-center gap-1.5 text-xs text-[#1A1A1A]/60">
-                                                    <Coins className="w-3.5 h-3.5 text-[#B8860B]" /> 总点数
+                                                    <Coins className="w-3.5 h-3.5 text-[#B8860B]" /> {t('totalCredits')}
                                                 </span>
                                                 {creditsLoading ? (
                                                     <span className="text-xs text-[#1A1A1A]/30 animate-pulse">...</span>
@@ -224,16 +228,16 @@ export default function Header() {
                                                     <span className="text-sm text-[#B8860B] font-semibold">{totalCredits ?? 0}</span>
                                                 )}
                                             </div>
-                                            <p className="text-[10px] text-[#1A1A1A]/30 mt-1">充值/赠送的通用点数</p>
+                                            <p className="text-[10px] text-[#1A1A1A]/30 mt-1">{t('creditsHint')}</p>
                                         </div>
 
                                         {/* 充值按钮 */}
                                         <div className="px-4 py-2 border-b border-[#1A1A1A]/5">
                                             <button
-                                                onClick={() => alert("充值功能即将上线")}
+                                                onClick={() => alert(t('topUpComingSoon'))}
                                                 className="w-full py-2 text-xs text-center bg-gradient-to-r from-[#B8860B] to-[#DAA520] text-white rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
                                             >
-                                                <Coins className="w-3.5 h-3.5" /> 充值点数
+                                                <Coins className="w-3.5 h-3.5" /> {t('topUp')}
                                             </button>
                                         </div>
 
@@ -243,7 +247,7 @@ export default function Header() {
                                             className="w-full px-4 py-2 text-left text-sm text-[#1A1A1A]/70 hover:bg-[#1A1A1A]/5 flex items-center gap-2 transition-colors"
                                         >
                                             <LogOut className="w-4 h-4" />
-                                            退出登录
+                                            {t('logout')}
                                         </button>
                                     </div>
                                 </>
@@ -255,7 +259,7 @@ export default function Header() {
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#B8860B] to-[#DAA520] text-white text-xs hover:opacity-90 transition-opacity"
                         >
                             <User className="w-3.5 h-3.5" />
-                            登录
+                            {t('login')}
                         </Link>
                     )}
                 </div>

@@ -73,6 +73,7 @@ class BirthData(BaseModel):
     is_lunar: bool = Field(False, description="Use lunar calendar for date input")
     time_mode: str = Field("time", pattern="^(time|shichen)$", description="Time input mode: time or shichen")
     shichen: Optional[str] = Field(None, description="Shichen label when time_mode=shichen")
+    language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
 
 
 class Pillar(BaseModel):
@@ -129,6 +130,7 @@ class OracleRequest(BaseModel):
     """Request for /api/oracle endpoint."""
     question: str
     user_data: Optional[BirthData] = None
+    language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
 
 
 class OracleResponse(BaseModel):
@@ -174,6 +176,7 @@ class AnalysisRequest(BaseModel):
     oracle_data: Optional[OracleResponse] = None  # To support Oracle + Bazi combined analysis
     profile_id: Optional[str] = Field(None, description="Profile UUID for caching")
     force_refresh: bool = Field(False, description="Force regenerate even if cached")
+    language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
 
 
 class AnalysisResponse(BaseModel):
@@ -189,6 +192,7 @@ class CompatibilityRequest(BaseModel):
     user_a_data: BirthData
     user_b_data: BirthData
     relation_type: str = Field("恋人/伴侣", description="Relationship type")
+    language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
 
 
 class CompatibilityResponse(BaseModel):
@@ -485,6 +489,12 @@ async def get_bazi_chart(data: BirthData):
     try:
         from logic import calculate_bazi
         from bazi_utils import BaziEnergyCalculator
+        from translations import (
+            translate_pattern, translate_strength, translate_element,
+            translate_nayin, translate_shensha
+        )
+        
+        lang = data.language
         year, month, day, hour, minute, longitude = normalize_birth_data(data)
 
         bazi_str, time_info, pattern_info = calculate_bazi(
@@ -510,9 +520,48 @@ async def get_bazi_chart(data: BirthData):
         energy_calc = BaziEnergyCalculator()
         energy_data = energy_calc.calculate_energy(pillars_list)
         
+        # Translate energy data keys if English
+        if lang == "en" and energy_data:
+            translated_energy = {}
+            for key, value in energy_data.items():
+                translated_key = translate_element(key, lang)
+                translated_energy[translated_key] = value
+            energy_data = translated_energy
+        
         # Build extended data
         twelve_stages_data = auxiliary.get("twelve_stages")
         nayin_data = auxiliary.get("nayin")
+        
+        # Translate nayin if English
+        if lang == "en" and nayin_data:
+            nayin_data = {
+                "year": translate_nayin(nayin_data.get("year", ""), lang),
+                "month": translate_nayin(nayin_data.get("month", ""), lang),
+                "day": translate_nayin(nayin_data.get("day", ""), lang),
+                "hour": translate_nayin(nayin_data.get("hour", ""), lang),
+            }
+        
+        # Translate shen_sha if English
+        shen_sha_list = auxiliary.get("shen_sha", [])
+        if lang == "en" and shen_sha_list:
+            shen_sha_list = [translate_shensha(s, lang) for s in shen_sha_list]
+        
+        # Translate pattern name
+        pattern_name = translate_pattern(pattern_info.get("pattern", "普通格局"), lang)
+        
+        # Translate strength
+        strength = translate_strength(pattern_info.get("strength", {}).get("result", "未知"), lang)
+        
+        # Translate joy elements
+        joy_elements_raw = pattern_info.get("strength", {}).get("joy_elements", "未知")
+        if lang == "en" and joy_elements_raw != "未知":
+            # joy_elements might be like "水木" - translate each character
+            joy_translated = []
+            for char in joy_elements_raw:
+                joy_translated.append(translate_element(char, lang))
+            joy_elements = ", ".join(joy_translated) if joy_translated else joy_elements_raw
+        else:
+            joy_elements = joy_elements_raw
         
         return ChartResponse(
             year_pillar=extract_pillar_data(
@@ -535,17 +584,17 @@ async def get_bazi_chart(data: BirthData):
                 day_master, 
                 hidden.get("时支藏干", [])
             ),
-            pattern_name=pattern_info.get("pattern", "普通格局"),
+            pattern_name=pattern_name,
             pattern_type=pattern_info.get("pattern_type", "正格"),
             day_master=day_master,
-            strength=pattern_info.get("strength", {}).get("result", "未知"),
-            joy_elements=pattern_info.get("strength", {}).get("joy_elements", "未知"),
+            strength=strength,
+            joy_elements=joy_elements,
             energy_distribution=energy_data,
             time_correction=time_info,
             twelve_stages=TwelveStages(**twelve_stages_data) if twelve_stages_data else None,
             kong_wang=auxiliary.get("kong_wang"),
             nayin=NayinInfo(**nayin_data) if nayin_data else None,
-            shen_sha=auxiliary.get("shen_sha")
+            shen_sha=shen_sha_list
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Bazi calculation error: {str(e)}")
@@ -717,6 +766,7 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
             api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai",
             model="gemini-2.0-flash",
+            language=request.language,
             is_first_response=True,
             conversation_history=None
         ):
@@ -811,11 +861,17 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
         calculator = BaziCompatibilityCalculator()
         result = calculator.analyze_compatibility(person_a, person_b)
         
+        # Localize labels based on language
+        if request.language == "en":
+            joy_label = "Favorable"
+        else:
+            joy_label = "喜"
+        
         return CompatibilityResponse(
             base_score=result["base_score"],
             details=result["details"],
-            user_a_summary=f"{person_a['pattern_name']}, {person_a['strength']} (喜:{person_a['joy_elements']})",
-            user_b_summary=f"{person_b['pattern_name']}, {person_b['strength']} (喜:{person_b['joy_elements']})"
+            user_a_summary=f"{person_a['pattern_name']}, {person_a['strength']} ({joy_label}:{person_a['joy_elements']})",
+            user_b_summary=f"{person_b['pattern_name']}, {person_b['strength']} ({joy_label}:{person_b['joy_elements']})"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Compatibility analysis error: {str(e)}")
