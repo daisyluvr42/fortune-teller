@@ -40,7 +40,13 @@
         "compatibility": "Compatibility",
         "dailyOracle": "Daily Oracle",
         "recalculate": "Recalculate",
-        "newProfile": "New Profile"
+        "newProfile": "New Profile",
+        "saveProfileLabel": "Save Profile (Auto-load next time)",
+        "profileRestored": "✓ Profile Restored",
+        "calculating": "Calculating Chart...",
+        "calculationFailed": "Calculation Failed",
+        "reenter": "Re-enter",
+        "defaultError": "Request failed, please try again later"
     },
     "Hero": {
         "title": "Unlock Your Density with AI Bazi",

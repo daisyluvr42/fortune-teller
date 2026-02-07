@@ -40,7 +40,13 @@
         "compatibility": "双人合盘",
         "dailyOracle": "每日一卦",
         "recalculate": "重新排盘",
-        "newProfile": "新建档案"
+        "newProfile": "新建档案",
+        "saveProfileLabel": "保存档案（下次自动加载）",
+        "profileRestored": "✓ 已恢复您的档案",
+        "calculating": "正在演化命盘...",
+        "calculationFailed": "排盘失败",
+        "reenter": "重新输入",
+        "defaultError": "请求失败，请稍后重试"
     },
     "Hero": {
         "title": "AI 八字 · 洞悉天机",

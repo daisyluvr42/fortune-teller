@@ -92,7 +92,7 @@ export default function Home() {
         setShowNameModal(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "请求失败，请稍后重试");
+      setError(err instanceof Error ? err.message : t('defaultError'));
     } finally {
       setIsLoading(false);
     }
@@ -178,7 +178,7 @@ export default function Home() {
                 />
                 <span className="text-sm text-[#1A1A1A]/50 group-hover:text-[#1A1A1A]/70 transition-colors flex items-center gap-2">
                   <Save className="w-3.5 h-3.5" />
-                  保存档案（下次自动加载）
+                  {t('saveProfileLabel')}
                 </span>
               </label>
 
@@ -186,7 +186,7 @@ export default function Home() {
               {isSaved && savedBirthData && (
                 <div className="text-center py-4 border-t border-[#1A1A1A]/5">
                   <p className="text-xs text-[#B8860B]/60 tracking-widest">
-                    ✓ 已恢复您的档案
+                    {t('profileRestored')}
                   </p>
                 </div>
               )}
@@ -197,7 +197,7 @@ export default function Home() {
             <div className="flex flex-col items-center justify-center py-20">
               <LoadingSpinner />
               <p className="mt-4 text-xs text-[#1A1A1A]/40 tracking-[0.4em] italic animate-pulse">
-                正在演化命盘...
+                {t('calculating')}
               </p>
             </div>
           )}
@@ -206,11 +206,11 @@ export default function Home() {
             <div className="zen-card animate-fade-in max-w-xl mx-auto">
               <div className="flex flex-col items-center text-center py-8">
                 <AlertCircle className="w-8 h-8 text-[#1A1A1A] mb-4" strokeWidth={1} />
-                <p className="text-[#1A1A1A] font-medium mb-2">排盘失败</p>
+                <p className="text-[#1A1A1A] font-medium mb-2">{t('calculationFailed')}</p>
                 <p className="text-sm text-[#666666] mb-6">{error}</p>
                 <button onClick={handleReset} className="zen-button-ghost">
                   <RotateCcw className="w-4 h-4" strokeWidth={1.5} />
-                  重新输入
+                  {t('reenter')}
                 </button>
               </div>
             </div>
