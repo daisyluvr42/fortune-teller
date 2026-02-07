@@ -230,5 +230,31 @@
     "LoadingSpinner": {
         "calculating": "推演中",
         "aiReading": "AI 正在翻阅命书..."
+    },
+    "Login": {
+        "welcomeBack": "欢迎回来",
+        "createAccount": "创建账户",
+        "loginDesc": "登录后可保存多个八字档案",
+        "registerDesc": "注册账户开始您的命理之旅",
+        "email": "邮箱",
+        "password": "密码",
+        "confirmPassword": "确认密码",
+        "submitLogin": "登录",
+        "submitRegister": "注册",
+        "noAccount": "没有账户？立即注册",
+        "hasAccount": "已有账户？立即登录",
+        "skipLogin": "先不登录，体验一下 →",
+        "fillAll": "请填写邮箱和密码",
+        "passwordMismatch": "两次密码输入不一致",
+        "passwordLength": "密码至少需要6位",
+        "emailError": "邮箱或密码错误",
+        "emailNotConfirmed": "请先验证您的邮箱（检查收件箱或垃圾邮件）",
+        "emailRegistered": "该邮箱已注册",
+        "registerSuccess": "注册成功！请查收验证邮件（别忘了检查垃圾邮件文件夹 📬）"
+    },
+    "Footer": {
+        "about": "关于我们",
+        "contact": "联系方式",
+        "rights": "版权所有"
     }
 }

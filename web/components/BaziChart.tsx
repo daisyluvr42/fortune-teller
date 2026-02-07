@@ -52,6 +52,15 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
     const t = useTranslations('BaziChart');
     const commonT = useTranslations('Common');
 
+    // Chinese to English element name mapping
+    const ELEMENT_NAMES: Record<string, string> = {
+        "木": t('wood'),
+        "火": t('fire'),
+        "土": t('earth'),
+        "金": t('metal'),
+        "水": t('water'),
+    };
+
     const pillars = [
         { key: 'year', label: t('yearPillar'), data: data.year_pillar, nayin: data.nayin?.year },
         { key: 'month', label: t('monthPillar'), data: data.month_pillar, nayin: data.nayin?.month },
@@ -200,8 +209,8 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                     <div className="space-y-4">
                         {data.energy_distribution && Object.entries(data.energy_distribution).map(([element, info]) => (
                             <div key={element} className="flex items-center gap-3">
-                                <span className={`text-sm font-bold w-6 text-center ${WUXING_TEXT_COLORS[element]}`}>
-                                    {element}
+                                <span className={`text-sm font-bold w-8 text-center ${WUXING_TEXT_COLORS[element]}`}>
+                                    {ELEMENT_NAMES[element] || element}
                                 </span>
                                 <div className="flex-1 h-2 bg-[#1A1A1A]/5 rounded-full overflow-hidden">
                                     <div

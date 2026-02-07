@@ -230,5 +230,31 @@
     "LoadingSpinner": {
         "calculating": "Calculating...",
         "aiReading": "AI is reading your destiny..."
+    },
+    "Login": {
+        "welcomeBack": "Welcome Back",
+        "createAccount": "Create Account",
+        "loginDesc": "Log in to save multiple Bazi profiles",
+        "registerDesc": "Register to start your destiny journey",
+        "email": "Email",
+        "password": "Password",
+        "confirmPassword": "Confirm Password",
+        "submitLogin": "Login",
+        "submitRegister": "Register",
+        "noAccount": "No account? Register now",
+        "hasAccount": "Have an account? Login now",
+        "skipLogin": "Skip login, try check it out ->",
+        "fillAll": "Please fill in email and password",
+        "passwordMismatch": "Passwords do not match",
+        "passwordLength": "Password must be at least 6 characters",
+        "emailError": "Invalid email or password",
+        "emailNotConfirmed": "Please verify your email (check inbox/spam)",
+        "emailRegistered": "Email already registered",
+        "registerSuccess": "Registration successful! Check your email for verification link 📬"
+    },
+    "Footer": {
+        "about": "About",
+        "contact": "Contact",
+        "rights": "All Rights Reserved"
     }
 }

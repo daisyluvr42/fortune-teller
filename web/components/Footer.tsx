@@ -4,12 +4,7 @@ import { useTranslations } from 'next-intl';
 
 export default function Footer() {
   const version = getAppVersion();
-  const t = useTranslations('Footer'); // Assume 'Footer' key exists or will be added
-
-  // Minimal fallback for missing keys
-  const aboutText = "About" // t('about'); 
-  const contactText = "Contact" // t('contact');
-  const rightsText = "All Rights Reserved" // t('rights');
+  const t = useTranslations('Footer');
 
   return (
     <footer className="w-full border-t border-[#1A1A1A]/10 py-8">
@@ -18,12 +13,11 @@ export default function Footer() {
           <span className="text-[#1A1A1A]">Monad-lab Works LLC</span>
           <span>Delaware, USA</span>
           <Link className="underline underline-offset-4" href="/about">
-            {/* Use Translations later, keeping simple for now to fix errors */}
-            About
+            {t('about')}
           </Link>
           <span>Founder: Xiangyu</span>
           <span>
-            Contact:
+            {t('contact')}:
             <a className="ml-1 underline underline-offset-4" href="mailto:founder@monad-lab.com">
               founder@monad-lab.com
             </a>
@@ -31,7 +25,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="mt-6 text-center text-[10px] text-[#1A1A1A]/30 tracking-[0.3em]">
-        © 2026 Monad-lab Works LLC. {rightsText}. · VERSION {version}
+        © 2026 Monad-lab Works LLC. {t('rights')}. · VERSION {version}
       </div>
     </footer>
   );
