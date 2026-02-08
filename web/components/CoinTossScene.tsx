@@ -75,6 +75,10 @@ function Coins({ modelUrl, coins, seed }: CoinTossSceneProps) {
   const positionedCoins = useSizedPositions(coins);
   const startAtRef = useRef(0);
   const lastSeedRef = useRef<number | null>(null);
+  const models = useMemo(
+    () => positionedCoins.map(() => gltf.scene.clone(true)),
+    [gltf.scene, positionedCoins.length]
+  );
 
   useMemo(() => {
     gltf.scene.traverse((obj: any) => {
@@ -95,7 +99,7 @@ function Coins({ modelUrl, coins, seed }: CoinTossSceneProps) {
   return (
     <group scale={1.2}>
       {positionedCoins.map((coin, idx) => (
-        <CoinInstance key={idx} base={coin} model={gltf.scene.clone(true)} startAtRef={startAtRef} />
+        <CoinInstance key={idx} base={coin} model={models[idx]} startAtRef={startAtRef} />
       ))}
     </group>
   );
@@ -104,8 +108,8 @@ function Coins({ modelUrl, coins, seed }: CoinTossSceneProps) {
 export default function CoinTossScene({ modelUrl, coins, seed }: CoinTossSceneProps) {
   return (
     <Canvas
-      gl={{ antialias: true, alpha: true }}
-      dpr={[1, 1.5]}
+      gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
+      dpr={[1, 1]}
       camera={{ position: [0, 0, 6], fov: 40 }}
       style={{ width: "100%", height: "100%", pointerEvents: "none" }}
       onCreated={({ gl }) => {
