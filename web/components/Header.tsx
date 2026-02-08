@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Hexagon, User, LogOut, ChevronDown, Trash2, Pencil, Coins } from "lucide-react";
+import { User, LogOut, ChevronDown, Trash2, Pencil, Coins, Download } from "lucide-react";
 import { Link, usePathname } from "@/i18n/routing";
 import { useAuth } from "@/lib/AuthContext";
 import { useUserProfile } from "@/lib/context";
@@ -9,12 +9,14 @@ import { getTotalCredits, getMembershipStatus, MembershipStatus } from "@/lib/ap
 import { Crown } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useTranslations } from 'next-intl';
+import ExportManager from "@/components/export/ExportManager";
 
 export default function Header() {
     const t = useTranslations('Navbar');
     const { user, isAuthenticated, signOut, isLoading, session } = useAuth();
     const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showExport, setShowExport] = useState(false);
     const pathname = usePathname();
     const [totalCredits, setTotalCredits] = useState<number | null>(null);
     const [creditsLoading, setCreditsLoading] = useState(false);
@@ -89,15 +91,11 @@ export default function Header() {
                 <div className="flex items-center gap-6">
                     {/* Logo - 抽象线条风格 */}
                     <Link href="/" className="flex items-center gap-3">
-                        <div className="relative">
-                            <Hexagon
-                                className="w-8 h-8 text-[#1A1A1A]"
-                                strokeWidth={1}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-xs font-medium text-[#1A1A1A]">{t('logo')}</span>
-                            </div>
-                        </div>
+                        <img
+                            src="/brand/logo.svg"
+                            alt="Destiny logo"
+                            className="w-8 h-8"
+                        />
                         <div>
                             <h1 className="text-lg font-medium tracking-wide text-[#1A1A1A]">
                                 {t('brand')}
@@ -131,7 +129,7 @@ export default function Header() {
                             <select
                                 value={activeProfileId || ""}
                                 onChange={(e) => loadProfile(e.target.value)}
-                                className="text-xs px-3 py-1.5 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors min-w-[140px]"
+                                className="text-xs px-3 py-1.5 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors min-w-[110px]"
                                 disabled={isLoadingProfiles || profiles.length === 0}
                             >
                                 {profiles.length === 0 && (
@@ -158,6 +156,14 @@ export default function Header() {
                                 disabled={!activeProfileId || profiles.length === 0}
                             >
                                 <Trash2 className="w-4 h-4 text-[#1A1A1A]/60" />
+                            </button>
+                            <button
+                                onClick={() => setShowExport(true)}
+                                className="p-2 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors"
+                                title={t('export')}
+                                disabled={!activeProfileId || profiles.length === 0}
+                            >
+                                <Download className="w-4 h-4 text-[#1A1A1A]/60" />
                             </button>
                         </div>
                     )}
@@ -264,6 +270,12 @@ export default function Header() {
                     )}
                 </div>
             </div>
+            {showExport && (
+                <ExportManager
+                    isOpen={showExport}
+                    onClose={() => setShowExport(false)}
+                />
+            )}
         </header>
     );
 }

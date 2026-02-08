@@ -4,6 +4,8 @@ FastAPI Backend for Fortune Teller (Bazi Analysis)
 Provides RESTful API endpoints for mobile app integration.
 """
 import os
+import json
+import hashlib
 from pathlib import Path
 from datetime import datetime, date
 import uuid
@@ -153,6 +155,7 @@ class OracleRequest(BaseModel):
     question: str
     user_data: Optional[BirthData] = None
     language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
+    profile_id: Optional[str] = Field(None, description="Profile UUID for record saving")
 
 
 class OracleResponse(BaseModel):
@@ -215,6 +218,8 @@ class CompatibilityRequest(BaseModel):
     user_b_data: BirthData
     relation_type: str = Field("恋人/伴侣", description="Relationship type")
     language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
+    profile_id: Optional[str] = Field(None, description="Profile UUID for caching")
+    force_refresh: bool = Field(False, description="Force regenerate even if cached")
 
 
 class CompatibilityResponse(BaseModel):
@@ -369,6 +374,53 @@ def _ensure_profile_belongs_to_user(profile_id: str, user_id: str) -> dict:
     if not resp.data:
         raise HTTPException(status_code=404, detail="Profile not found")
     return resp.data[0]
+
+
+def _normalize_birth_data_for_cache(data: BirthData) -> dict:
+    return {
+        "birth_year": data.birth_year,
+        "month": data.month,
+        "day": data.day,
+        "hour": data.hour,
+        "minute": data.minute,
+        "gender": data.gender,
+        "longitude": data.longitude,
+        "is_lunar": bool(getattr(data, "is_lunar", False)),
+        "time_mode": getattr(data, "time_mode", "time"),
+        "shichen": getattr(data, "shichen", None),
+        "language": getattr(data, "language", None),
+    }
+
+
+def _hash_payload(payload: dict) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _oracle_cache_signature(oracle: Optional[OracleResponse]) -> Optional[dict]:
+    if not oracle:
+        return None
+    return {
+        "original_hex": oracle.original_hex,
+        "original_short": oracle.original_short,
+        "original_meaning": oracle.original_meaning,
+        "original_binary": oracle.original_binary,
+        "future_hex": oracle.future_hex,
+        "future_short": oracle.future_short,
+        "changing_lines": oracle.changing_lines,
+        "details": oracle.details,
+    }
+
+
+def _update_profile_session_data(profile_id: str, user_id: str, update_fn) -> dict:
+    supabase = get_supabase_admin()
+    resp = supabase.table("bazi_profiles").select("session_data,user_id").eq("id", profile_id).eq("user_id", user_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    session_data = resp.data[0].get("session_data") or {}
+    next_data = update_fn(session_data) or session_data
+    supabase.table("bazi_profiles").update({"session_data": next_data}).eq("id", profile_id).eq("user_id", user_id).execute()
+    return next_data
 
 
 def _sanitize_llm_output(text: str) -> str:
@@ -732,6 +784,8 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
     """
     _ensure_safe_text(request.question, "question", max_len=800)
     user_id = get_user_id_from_auth(authorization)
+    if request.profile_id and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required for profile record")
     consume_oracle_credit(user_id)
     try:
         from logic import ZhouyiCalculator
@@ -740,7 +794,7 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
         calc = ZhouyiCalculator()
         result = calc.cast_hexagram()
         
-        return OracleResponse(
+        response = OracleResponse(
             original_hex=result["original_hex"],
             original_short=result["original_short"],
             original_meaning=result["original_meaning"],
@@ -753,6 +807,38 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
             lines=result.get("lines"),
             svg=draw_hexagram_svg(result["original_binary"])
         )
+        if request.profile_id and user_id:
+            record = {
+                "created_at": datetime.utcnow().isoformat(),
+                "question": request.question,
+                "language": request.language,
+                "result": {
+                    "original_hex": response.original_hex,
+                    "original_short": response.original_short,
+                    "original_meaning": response.original_meaning,
+                    "original_binary": response.original_binary,
+                    "future_hex": response.future_hex,
+                    "future_short": response.future_short,
+                    "changing_lines": response.changing_lines,
+                    "details": response.details,
+                },
+                "user_data": request.user_data.model_dump() if request.user_data else None,
+            }
+
+            def _update(session_data: dict) -> dict:
+                records = session_data.get("oracle_records") or []
+                if not isinstance(records, list):
+                    records = []
+                records.append(record)
+                session_data["oracle_records"] = records
+                return session_data
+
+            try:
+                _update_profile_session_data(request.profile_id, user_id, _update)
+            except Exception as e:
+                print(f"Oracle record write error: {e}")
+
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Oracle error: {str(e)}")
 
@@ -822,6 +908,16 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
     cached_result = None
     remaining_credits = None
     
+    analysis_key_payload = {
+        "question_type": question_type,
+        "custom_question": custom_question_clean,
+        "language": request.language,
+        "birthplace": birthplace,
+        "user_data": _normalize_birth_data_for_cache(request.user_data),
+        "oracle": _oracle_cache_signature(request.oracle_data),
+    }
+    analysis_key = f"{question_type}|{_hash_payload(analysis_key_payload)}"
+
     # Check cache if profile_id is provided and not force_refresh
     if request.profile_id and not request.force_refresh:
         if not user_id:
@@ -830,11 +926,12 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
             profile_record = _ensure_profile_belongs_to_user(request.profile_id, user_id)
             session_data = profile_record.get("session_data") or {}
             analyses = session_data.get("analyses") or {}
-            cached_result = analyses.get(question_type)
+            cached_result = analyses.get(analysis_key) or analyses.get(question_type)
             if cached_result:
+                cached_text = cached_result.get("content") if isinstance(cached_result, dict) else cached_result
                 return AnalysisResponse(
                     topic=question_type,
-                    markdown_content=cached_result,
+                    markdown_content=cached_text,
                     from_cache=True,
                     remaining_credits=None  # Don't expose credits on cache hit
                 )
@@ -934,16 +1031,28 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
             try:
                 if not user_id:
                     raise HTTPException(status_code=401, detail="Authentication required for profile cache")
-                if not supabase:
-                    supabase = get_supabase_admin()
-                # Fetch current session_data
-                profile_resp = supabase.table("bazi_profiles").select("session_data,user_id").eq("id", request.profile_id).eq("user_id", user_id).execute()
-                if profile_resp.data and len(profile_resp.data) > 0:
-                    session_data = profile_resp.data[0].get("session_data") or {}
+                record = {
+                    "key": analysis_key,
+                    "topic": question_type,
+                    "content": full_response,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "custom_question": custom_question_clean,
+                }
+
+                def _update(session_data: dict) -> dict:
                     analyses = session_data.get("analyses") or {}
-                    analyses[question_type] = full_response
+                    analyses[analysis_key] = record
                     session_data["analyses"] = analyses
-                    supabase.table("bazi_profiles").update({"session_data": session_data}).eq("id", request.profile_id).eq("user_id", user_id).execute()
+                    records = session_data.get("analysis_records") or []
+                    if isinstance(records, list):
+                        records = [r for r in records if r.get("key") != analysis_key]
+                        records.append(record)
+                    else:
+                        records = [record]
+                    session_data["analysis_records"] = records
+                    return session_data
+
+                _update_profile_session_data(request.profile_id, user_id, _update)
             except Exception as e:
                 print(f"Cache write error: {e}")  # Log but don't fail
         
@@ -968,6 +1077,36 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
     user_id = None
     if authorization:
         user_id = get_user_id_from_auth(authorization)
+    if request.profile_id and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required for profile cache")
+
+    cache_key = _hash_payload({
+        "relation_type": request.relation_type,
+        "language": request.language,
+        "user_a": _normalize_birth_data_for_cache(request.user_a_data),
+        "user_b": _normalize_birth_data_for_cache(request.user_b_data),
+    })
+
+    if request.profile_id and not request.force_refresh and user_id:
+        try:
+            profile_record = _ensure_profile_belongs_to_user(request.profile_id, user_id)
+            session_data = profile_record.get("session_data") or {}
+            cache = session_data.get("compatibility_cache") or {}
+            cached = cache.get(cache_key)
+            if cached:
+                return CompatibilityResponse(
+                    base_score=cached.get("base_score", 0),
+                    details=cached.get("details", []),
+                    user_a_summary=cached.get("user_a_summary", ""),
+                    user_b_summary=cached.get("user_b_summary", ""),
+                    analysis_markdown=cached.get("analysis_markdown"),
+                    analysis_from_llm=bool(cached.get("analysis_from_llm")),
+                    analysis_error=cached.get("analysis_error"),
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"Compatibility cache check error: {e}")
     try:
         from logic import calculate_bazi
         from bazi_utils import BaziCompatibilityCalculator
@@ -1076,11 +1215,42 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
                     print(f"[compatibility] LLM error: {e}")
                     analysis_error = llm_unavailable_msg
         
+        user_a_summary = f"{person_a['pattern_name']}, {person_a['strength']} ({joy_label}:{person_a['joy_elements']})"
+        user_b_summary = f"{person_b['pattern_name']}, {person_b['strength']} ({joy_label}:{person_b['joy_elements']})"
+
+        if request.profile_id and user_id:
+            record = {
+                "key": cache_key,
+                "created_at": datetime.utcnow().isoformat(),
+                "relation_type": request.relation_type,
+                "language": request.language,
+                "user_a_data": request.user_a_data.model_dump(),
+                "user_b_data": request.user_b_data.model_dump(),
+                "base_score": result["base_score"],
+                "details": result["details"],
+                "user_a_summary": user_a_summary,
+                "user_b_summary": user_b_summary,
+                "analysis_markdown": analysis_markdown,
+                "analysis_from_llm": analysis_from_llm,
+                "analysis_error": analysis_error,
+            }
+
+            def _update(session_data: dict) -> dict:
+                cache = session_data.get("compatibility_cache") or {}
+                cache[cache_key] = record
+                session_data["compatibility_cache"] = cache
+                return session_data
+
+            try:
+                _update_profile_session_data(request.profile_id, user_id, _update)
+            except Exception as e:
+                print(f"Compatibility cache write error: {e}")
+
         return CompatibilityResponse(
             base_score=result["base_score"],
             details=result["details"],
-            user_a_summary=f"{person_a['pattern_name']}, {person_a['strength']} ({joy_label}:{person_a['joy_elements']})",
-            user_b_summary=f"{person_b['pattern_name']}, {person_b['strength']} ({joy_label}:{person_b['joy_elements']})",
+            user_a_summary=user_a_summary,
+            user_b_summary=user_b_summary,
             analysis_markdown=analysis_markdown,
             analysis_from_llm=analysis_from_llm,
             analysis_error=analysis_error,

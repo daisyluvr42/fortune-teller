@@ -76,6 +76,7 @@ export default function CompatibilityPage() {
                 user_b_data: normalizeBirthDataForApi(personB),
                 relation_type: relationType,
                 language: locale,
+                profile_id: isAuthenticated && activeProfileId && activeProfileId !== "local" ? activeProfileId : undefined,
             }, session?.access_token);
 
             setResult(res);

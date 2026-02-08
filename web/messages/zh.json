@@ -12,6 +12,7 @@
         "noProfile": "暂无档案",
         "renameProfile": "重命名当前档案",
         "deleteProfile": "删除当前档案",
+        "export": "导出",
         "loggedInAs": "登录账户",
         "vipMember": "VIP 会员",
         "daysRemaining": "剩余 {days} 天",
@@ -69,6 +70,10 @@
         "exportingImage": "正在生成图片...",
         "exportingPDF": "正在生成 PDF...",
         "exportFailed": "导出失败，请重试",
+        "exportUnavailable": "当前没有可导出的内容，请先完成排盘/分析",
+        "exportAllRecords": "导出全部记录（{count}页）",
+        "exportOracleRecords": "导出卜卦记录（{count}页）",
+        "retry": "重试",
         "baziChart": "八字排盘",
         "analysisReport": "分析报告"
     },
@@ -106,6 +111,7 @@
         "analyzing": "分析中...",
         "calculating": "推演中",
         "reanalyze": "重新分析",
+        "exportReport": "导出报告",
         "cache": "缓存",
         "giftQuota": "今日赠送额度",
         "hint": "提示：命理仅供参考，愿你能把握当下，顺势而为。",
@@ -173,7 +179,13 @@
         "registeredOnly": "每日一卦仅对注册用户开放",
         "registerLogin": "立即注册 / 登录",
         "casting": "推演中",
-        "giftQuota": "今日赠送额度"
+        "giftQuota": "今日赠送额度",
+        "exportOracleRecords": "导出我的卜卦记录",
+        "exportOracleTitle": "选择要导出的卜卦记录",
+        "exportOracleHint": "默认已勾选最近一次记录",
+        "exportOracleEmpty": "暂无卜卦记录",
+        "exportOracleConfirm": "开始导出",
+        "exportOracleCancel": "取消"
     },
     "Compatibility": {
         "title": "双人合盘",

@@ -12,6 +12,7 @@
         "noProfile": "No Profiles",
         "renameProfile": "Rename Profile",
         "deleteProfile": "Delete Profile",
+        "export": "Export",
         "loggedInAs": "Logged in as",
         "vipMember": "VIP Member",
         "daysRemaining": "{days} days left",
@@ -69,6 +70,10 @@
         "exportingImage": "Generating Image...",
         "exportingPDF": "Generating PDF...",
         "exportFailed": "Export failed.",
+        "exportUnavailable": "No exportable content. Please complete chart or analysis first.",
+        "exportAllRecords": "Export All Records ({count} pages)",
+        "exportOracleRecords": "Export Oracle Records ({count} pages)",
+        "retry": "Retry",
         "baziChart": "Bazi Chart",
         "analysisReport": "Analysis Report"
     },
@@ -106,6 +111,7 @@
         "analyzing": "Analyzing...",
         "calculating": "Calculating...",
         "reanalyze": "Re-analyze",
+        "exportReport": "Export Report",
         "cache": "Cached",
         "giftQuota": "Daily Gift Quota",
         "hint": "Hint: Destiny is a reference, master your own fate.",
@@ -173,7 +179,13 @@
         "registeredOnly": "Daily Oracle is available to registered users only",
         "registerLogin": "Register / Login",
         "casting": "Divining...",
-        "giftQuota": "Daily Gift Quota"
+        "giftQuota": "Daily Gift Quota",
+        "exportOracleRecords": "Export my oracle records",
+        "exportOracleTitle": "Select oracle records to export",
+        "exportOracleHint": "Latest record is selected by default",
+        "exportOracleEmpty": "No oracle records yet",
+        "exportOracleConfirm": "Start export",
+        "exportOracleCancel": "Cancel"
     },
     "Compatibility": {
         "title": "Compatibility",

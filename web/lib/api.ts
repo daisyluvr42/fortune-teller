@@ -63,6 +63,7 @@ export interface OracleRequest {
     question: string;
     user_data?: BirthData;
     language?: "zh" | "en";
+    profile_id?: string;
 }
 
 export interface OracleResponse {
@@ -212,6 +213,8 @@ export interface CompatibilityRequest {
     user_b_data: BirthData;
     relation_type: string;
     language?: "zh" | "en";
+    profile_id?: string;
+    force_refresh?: boolean;
 }
 
 export interface CompatibilityResponse {

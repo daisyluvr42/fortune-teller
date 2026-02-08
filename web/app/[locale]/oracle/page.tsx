@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -13,18 +13,19 @@ const CoinTossScene = dynamic(() => import('@/components/CoinTossScene'), {
     loading: () => <div className="w-full h-full flex items-center justify-center text-[#B8860B]/50 animate-pulse">Loading 3D Scene...</div>
 });
 import { getOracle, getAnalysis, OracleResponse, normalizeBirthDataForApi, getCreditStatus, consumeCredit } from '@/lib/api';
-import { useUserProfile } from '@/lib/context';
+import { useUserProfile, OracleRecord } from '@/lib/context';
 import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
 import { useShakeTrigger } from '@/lib/useShakeTrigger';
 import ReactMarkdown from 'react-markdown';
-import { Sparkles, History, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Sparkles, History, HelpCircle, AlertTriangle, X } from 'lucide-react';
+import ExportManager from '@/components/export/ExportManager';
 
 export default function OraclePage() {
     const router = useRouter();
     const locale = useLocale() as 'en' | 'zh';
     const t = useTranslations('Oracle');
-    const { birthData, hasProfile } = useUserProfile();
+    const { birthData, hasProfile, activeProfileId, currentProfile } = useUserProfile();
     const { user, isAuthenticated, session } = useAuth();
 
     const [question, setQuestion] = useState('');
@@ -43,6 +44,10 @@ export default function OraclePage() {
     const [shakeEnabled, setShakeEnabled] = useState(false);
     const [shakeNotice, setShakeNotice] = useState<string | null>(null);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [showOracleExportPicker, setShowOracleExportPicker] = useState(false);
+    const [showOracleExport, setShowOracleExport] = useState(false);
+    const [selectedOracleIndices, setSelectedOracleIndices] = useState<number[]>([]);
+    const [oracleExportRecords, setOracleExportRecords] = useState<OracleRecord[] | null>(null);
     const isAnimatingRef = useRef(false);
     const hasFinalizedRef = useRef(false);
     const { credits, updateCredit } = useUserStatus();
@@ -52,6 +57,42 @@ export default function OraclePage() {
         cycle_limit: credits.oracle.cycle_limit,
         cycle_used: credits.oracle.cycle_used
     } : null;
+
+    const oracleRecords = currentProfile?.oracleRecords || [];
+    const sortedOracleRecords = useMemo(() => {
+        return [...oracleRecords].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    }, [oracleRecords]);
+
+    const formatRecordDate = (value?: string) => {
+        if (!value) return '';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return value;
+        return parsed.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const toggleOracleSelection = (index: number) => {
+        setSelectedOracleIndices((prev) => {
+            if (prev.includes(index)) {
+                return prev.filter((i) => i !== index);
+            }
+            return [...prev, index];
+        });
+    };
+
+    useEffect(() => {
+        if (!showOracleExportPicker) return;
+        if (sortedOracleRecords.length > 0) {
+            setSelectedOracleIndices([0]);
+        } else {
+            setSelectedOracleIndices([]);
+        }
+    }, [showOracleExportPicker, sortedOracleRecords.length]);
 
     // State for 3D coin positions and final faces
     const [coinState, setCoinState] = useState<{
@@ -235,7 +276,9 @@ export default function OraclePage() {
             // 1. 先获取起卦结果，因为动画需要知道硬币的正反面
             const data = await getOracle({
                 question,
-                user_data: birthData ? normalizeBirthDataForApi(birthData) : undefined
+                user_data: birthData ? normalizeBirthDataForApi(birthData) : undefined,
+                language: locale,
+                profile_id: activeProfileId && activeProfileId !== "local" ? activeProfileId : undefined,
             }, session.access_token);
             setOracleData(data);
 
@@ -270,7 +313,8 @@ export default function OraclePage() {
 
 
     return (
-        <main className="min-h-screen bg-[#F8F8F0]">
+        <>
+            <main className="min-h-screen bg-[#F8F8F0]">
             <Header />
             <div className="page-shell">
                 <div className="w-full space-y-12">
@@ -328,6 +372,15 @@ export default function OraclePage() {
                             <p className="mt-4 text-xs text-[#1A1A1A]/50 tracking-widest">
                                 {t('giftQuota')}: <span className="text-[#B8860B] font-medium">{(creditInfo.cycle_limit ?? 1) - (creditInfo.cycle_used ?? 0)}/{creditInfo.cycle_limit ?? 1}</span>
                             </p>
+                        )}
+                        {isAuthenticated && (
+                            <button
+                                onClick={() => setShowOracleExportPicker(true)}
+                                disabled={sortedOracleRecords.length === 0}
+                                className="mt-3 px-4 py-2 text-xs tracking-widest rounded-full border border-[#1A1A1A]/15 text-[#1A1A1A]/70 hover:text-[#1A1A1A] hover:border-[#B8860B]/40 hover:bg-[#B8860B]/5 transition-colors disabled:opacity-40"
+                            >
+                                {t('exportOracleRecords')}
+                            </button>
                         )}
                         {/* Buttons removed as requested. Recharging is triggered by insufficient credits error. */}
                     </section>
@@ -494,6 +547,74 @@ export default function OraclePage() {
 
                 </div>
             </div>
-        </main>
+            </main>
+        {showOracleExportPicker && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+                <div className="bg-white rounded-2xl shadow-2xl w-[90%] max-w-md overflow-hidden flex flex-col max-h-[85vh]">
+                    <div className="p-4 border-b border-[#1A1A1A]/10 flex items-center justify-between bg-[#FAFAF5]">
+                        <h3 className="font-song font-bold text-lg text-[#1A1A1A]">{t('exportOracleTitle')}</h3>
+                        <button onClick={() => setShowOracleExportPicker(false)} className="p-2 hover:bg-[#1A1A1A]/5 rounded-full transition-colors">
+                            <X className="w-5 h-5 text-[#1A1A1A]/40" />
+                        </button>
+                    </div>
+                    <div className="p-5 space-y-4 overflow-y-auto">
+                        <p className="text-xs text-[#1A1A1A]/50 tracking-widest">{t('exportOracleHint')}</p>
+                        {sortedOracleRecords.length === 0 ? (
+                            <div className="p-4 rounded-xl bg-[#F8F8F0] border border-[#B8860B]/15 text-xs text-[#1A1A1A]/60 tracking-widest">
+                                {t('exportOracleEmpty')}
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {sortedOracleRecords.map((record, index) => (
+                                    <label key={`${record.createdAt || 'record'}-${index}`} className="flex items-start gap-3 p-3 rounded-xl border border-[#1A1A1A]/10 hover:border-[#B8860B]/30 hover:bg-[#B8860B]/5 transition-colors cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="mt-1 accent-[#B8860B]"
+                                            checked={selectedOracleIndices.includes(index)}
+                                            onChange={() => toggleOracleSelection(index)}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm text-[#1A1A1A] truncate">{record.question || "—"}</p>
+                                            <p className="text-[10px] text-[#1A1A1A]/40 tracking-widest mt-1">{formatRecordDate(record.createdAt)}</p>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-4 border-t border-[#1A1A1A]/10 flex items-center justify-end gap-3 bg-white">
+                        <button
+                            onClick={() => setShowOracleExportPicker(false)}
+                            className="px-4 py-2 text-xs tracking-widest text-[#1A1A1A]/60 hover:text-[#1A1A1A]"
+                        >
+                            {t('exportOracleCancel')}
+                        </button>
+                        <button
+                            onClick={() => {
+                                const selected = selectedOracleIndices
+                                    .map((index) => sortedOracleRecords[index])
+                                    .filter(Boolean);
+                                setOracleExportRecords(selected.length > 0 ? selected : null);
+                                setShowOracleExportPicker(false);
+                                setShowOracleExport(true);
+                            }}
+                            disabled={selectedOracleIndices.length === 0}
+                            className="zen-button text-xs tracking-widest disabled:opacity-40"
+                        >
+                            {t('exportOracleConfirm')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+            {showOracleExport && (
+                <ExportManager
+                    isOpen={showOracleExport}
+                    onClose={() => setShowOracleExport(false)}
+                    exportMode="oracle"
+                    oracleRecordsOverride={oracleExportRecords || undefined}
+                />
+            )}
+        </>
     );
 }

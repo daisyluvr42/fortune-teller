@@ -14,12 +14,58 @@ const PROFILES_KEY = 'fortune_teller_profiles';
 const ACTIVE_PROFILE_KEY = 'fortune_teller_active_profile';
 
 // 单个档案数据
+export interface AnalysisRecord {
+    key: string;
+    topic: string;
+    content: string;
+    createdAt?: string;
+    customQuestion?: string | null;
+}
+
+export interface CompatibilityRecord {
+    key: string;
+    createdAt?: string;
+    relationType: string;
+    language?: "zh" | "en";
+    userAData: BirthData;
+    userBData: BirthData;
+    baseScore: number;
+    details: string[];
+    userASummary: string;
+    userBSummary: string;
+    analysisMarkdown?: string | null;
+    analysisFromLlm?: boolean;
+    analysisError?: string | null;
+}
+
+export interface OracleRecord {
+    createdAt?: string;
+    question: string;
+    language?: "zh" | "en";
+    result: {
+        original_hex: string;
+        original_short: string;
+        original_meaning: string;
+        original_binary: string;
+        future_hex?: string | null;
+        future_short?: string | null;
+        changing_lines: number[];
+        details: string[];
+    };
+    userData?: BirthData | null;
+}
+
 export interface UserProfile {
     id?: string;  // Supabase UUID
     profileName: string;
     birthData: BirthData | null;
     chartData: ChartResponse | null;
     cycleData: CycleResponse | null;
+    analyses?: Record<string, AnalysisRecord | string>;
+    analysisRecords?: AnalysisRecord[];
+    compatibilityCache?: Record<string, CompatibilityRecord>;
+    compatibilityRecords?: CompatibilityRecord[];
+    oracleRecords?: OracleRecord[];
     createdAt?: string;
     updatedAt?: string;
 }
@@ -139,25 +185,78 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
             if (error) throw error;
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const loadedProfiles: UserProfile[] = (data || []).map((row: any) => ({
-                id: row.id,
-                profileName: row.profile_name,
-                birthData: {
-                    birth_year: row.birth_year,
-                    month: row.birth_month,
-                    day: row.birth_day,
-                    hour: row.birth_hour ? parseInt(row.birth_hour) : 12,
-                    minute: row.session_data?.birthData?.minute ?? 0,
-                    gender: row.gender === 'female' ? '女' : '男',
-                    is_lunar: row.is_lunar ? true : (row.session_data?.birthData?.is_lunar ?? false),
-                    time_mode: row.session_data?.birthData?.time_mode ?? "time",
-                    shichen: row.session_data?.birthData?.shichen ?? undefined,
-                } as BirthData,
-                chartData: row.session_data?.chartData || null,
-                cycleData: row.session_data?.cycleData || null,
-                createdAt: row.created_at,
-                updatedAt: row.updated_at,
-            }));
+            const loadedProfiles: UserProfile[] = (data || []).map((row: any) => {
+                const sessionData = row.session_data || {};
+                const rawAnalyses = sessionData.analyses || {};
+                const rawAnalysisRecords = Array.isArray(sessionData.analysis_records) ? sessionData.analysis_records : [];
+                const analysisRecords: AnalysisRecord[] = rawAnalysisRecords.length > 0
+                    ? rawAnalysisRecords.map((record: any) => ({
+                        key: record.key || record.topic || "analysis",
+                        topic: record.topic || record.key || "分析",
+                        content: record.content || "",
+                        createdAt: record.created_at,
+                        customQuestion: record.custom_question ?? null,
+                    }))
+                    : Object.entries(rawAnalyses).map(([key, value]: [string, any]) => ({
+                        key,
+                        topic: typeof value === "object" && value?.topic ? value.topic : key,
+                        content: typeof value === "object" && value?.content ? value.content : String(value || ""),
+                        createdAt: typeof value === "object" ? value?.created_at : undefined,
+                        customQuestion: typeof value === "object" ? value?.custom_question ?? null : null,
+                    }));
+
+                const rawCompatibilityCache = sessionData.compatibility_cache || {};
+                const compatibilityRecords: CompatibilityRecord[] = Object.values(rawCompatibilityCache).map((record: any) => ({
+                    key: record.key || "",
+                    createdAt: record.created_at,
+                    relationType: record.relation_type,
+                    language: record.language,
+                    userAData: record.user_a_data,
+                    userBData: record.user_b_data,
+                    baseScore: record.base_score ?? 0,
+                    details: record.details || [],
+                    userASummary: record.user_a_summary || "",
+                    userBSummary: record.user_b_summary || "",
+                    analysisMarkdown: record.analysis_markdown ?? null,
+                    analysisFromLlm: record.analysis_from_llm ?? false,
+                    analysisError: record.analysis_error ?? null,
+                }));
+
+                const oracleRecords: OracleRecord[] = Array.isArray(sessionData.oracle_records)
+                    ? sessionData.oracle_records.map((record: any) => ({
+                        createdAt: record.created_at,
+                        question: record.question || "",
+                        language: record.language,
+                        result: record.result,
+                        userData: record.user_data || null,
+                    }))
+                    : [];
+
+                return {
+                    id: row.id,
+                    profileName: row.profile_name,
+                    birthData: {
+                        birth_year: row.birth_year,
+                        month: row.birth_month,
+                        day: row.birth_day,
+                        hour: row.birth_hour ? parseInt(row.birth_hour) : 12,
+                        minute: sessionData?.birthData?.minute ?? 0,
+                        gender: row.gender === 'female' ? '女' : '男',
+                        is_lunar: row.is_lunar ? true : (sessionData?.birthData?.is_lunar ?? false),
+                        time_mode: sessionData?.birthData?.time_mode ?? "time",
+                        shichen: sessionData?.birthData?.shichen ?? undefined,
+                    } as BirthData,
+                    chartData: sessionData?.chartData || null,
+                    cycleData: sessionData?.cycleData || null,
+                    analyses: rawAnalyses,
+                    analysisRecords,
+                    compatibilityCache: rawCompatibilityCache,
+                    compatibilityRecords,
+                    oracleRecords,
+                    createdAt: row.created_at,
+                    updatedAt: row.updated_at,
+                };
+            });
 
             if (loadedProfiles.length > 0) {
                 setProfiles(loadedProfiles);
@@ -200,10 +299,15 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 // 作为本地档案添加
                 setProfiles([{
                     id: 'local',
-                    profileName: '本地档案',
+                    profileName: profile.profileName || '本地档案',
                     birthData: profile.birthData,
                     chartData: profile.chartData,
                     cycleData: profile.cycleData,
+                    analyses: profile.analyses || {},
+                    analysisRecords: profile.analysisRecords || [],
+                    compatibilityCache: profile.compatibilityCache || {},
+                    compatibilityRecords: profile.compatibilityRecords || [],
+                    oracleRecords: profile.oracleRecords || [],
                 }]);
                 setActiveProfileId('local');
                 writeStoredActiveProfileId(null, 'local');
@@ -238,6 +342,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         const effectiveChartData = overrides?.chartData ?? chartData;
         const effectiveCycleData = overrides?.cycleData ?? cycleData;
         if (!effectiveBirthData) return false;
+        const existingAnalyses = currentProfile?.analyses || {};
+        const existingAnalysisRecords = currentProfile?.analysisRecords || [];
+        const existingCompatibilityCache = currentProfile?.compatibilityCache || {};
+        const existingCompatibilityRecords = currentProfile?.compatibilityRecords || [];
+        const existingOracleRecords = currentProfile?.oracleRecords || [];
 
         // 已登录 -> 保存到 Supabase
         if (isAuthenticated && user) {
@@ -258,6 +367,10 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                     session_data: {
                         chartData: effectiveChartData,
                         cycleData: effectiveCycleData,
+                        analyses: existingAnalyses,
+                        analysis_records: existingAnalysisRecords,
+                        compatibility_cache: existingCompatibilityCache,
+                        oracle_records: existingOracleRecords,
                         birthData: {
                             minute: effectiveBirthData.minute,
                             time_mode: effectiveBirthData.time_mode ?? "time",
@@ -288,7 +401,17 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
         // 未登录 -> 保存到 localStorage
         try {
-            const profile = { birthData: effectiveBirthData, chartData: effectiveChartData, cycleData: effectiveCycleData, isSaved: true };
+            const profile = {
+                birthData: effectiveBirthData,
+                chartData: effectiveChartData,
+                cycleData: effectiveCycleData,
+                analyses: existingAnalyses,
+                analysisRecords: existingAnalysisRecords,
+                compatibilityCache: existingCompatibilityCache,
+                compatibilityRecords: existingCompatibilityRecords,
+                oracleRecords: existingOracleRecords,
+                isSaved: true
+            };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
             setIsSaved(true);
             return true;
@@ -315,6 +438,11 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                         chartData,
                         cycleData,
                         isSaved,
+                        analyses: active.analyses || {},
+                        analysisRecords: active.analysisRecords || [],
+                        compatibilityCache: active.compatibilityCache || {},
+                        compatibilityRecords: active.compatibilityRecords || [],
+                        oracleRecords: active.oracleRecords || [],
                         profileName: nextName,
                     };
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));

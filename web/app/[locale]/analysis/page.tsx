@@ -9,7 +9,8 @@ import { getAnalysis, normalizeBirthDataForApi, getCreditStatus } from '@/lib/ap
 import { useUserProfile } from '@/lib/context';
 import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
-import { BookOpen, Target, Heart, Coins, Activity, Crown, ArrowLeft, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { BookOpen, Target, Heart, Coins, Activity, Crown, ArrowLeft, AlertCircle, RefreshCw, Sparkles, Download } from 'lucide-react';
+import ExportManager from '@/components/export/ExportManager';
 
 const ANALYSIS_TOPICS_IDS = [
     { id: '整体命格', key: 'main', icon: Crown },
@@ -35,6 +36,7 @@ export default function AnalysisPage() {
     const [error, setError] = useState<string | null>(null);
     const [fromCache, setFromCache] = useState(false);
     const [customQuestion, setCustomQuestion] = useState('');
+    const [showExport, setShowExport] = useState(false);
     const { credits, updateCredit } = useUserStatus();
     // Use credit info from context
     const giftQuota = credits.analysis ? {
@@ -280,15 +282,25 @@ export default function AnalysisPage() {
                                             <span className="text-xs text-[#B8860B]/60 tracking-widest">{t('cache')}</span>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => handleAnalysis(true)}
-                                        disabled={loading}
-                                        className="flex items-center gap-2 text-xs text-[#1A1A1A]/50 hover:text-[#1A1A1A] transition-colors tracking-widest"
-                                        title={t('reanalyzeTitle')}
-                                    >
-                                        <RefreshCw className="w-4 h-4" />
-                                        {t('reanalyze')}
-                                    </button>
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={() => setShowExport(true)}
+                                            disabled={loading || !analysis}
+                                            className="flex items-center gap-2 text-xs text-[#1A1A1A]/50 hover:text-[#1A1A1A] transition-colors tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            {t('exportReport')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleAnalysis(true)}
+                                            disabled={loading}
+                                            className="flex items-center gap-2 text-xs text-[#1A1A1A]/50 hover:text-[#1A1A1A] transition-colors tracking-widest"
+                                            title={t('reanalyzeTitle')}
+                                        >
+                                            <RefreshCw className="w-4 h-4" />
+                                            {t('reanalyze')}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="zen-divider" />
@@ -321,6 +333,14 @@ export default function AnalysisPage() {
                     </div>
                 </div>
             </div>
+            {showExport && (
+                <ExportManager
+                    isOpen={showExport}
+                    onClose={() => setShowExport(false)}
+                    currentTopic={topic}
+                    currentContent={analysis}
+                />
+            )}
         </main>
     );
 }
