@@ -6,6 +6,8 @@ Provides RESTful API endpoints for mobile app integration.
 import os
 from pathlib import Path
 from datetime import datetime, date
+import uuid
+import re
 from typing import Optional, List, Any
 
 from fastapi import FastAPI, HTTPException, Header
@@ -28,12 +30,17 @@ from logic import (
 )
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt
 from credit_service import get_credit_manager, QuotaStatus
+from llm_client import get_llm_client
 
 # Load .env from project root (parent of backend/)
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+PAYMENT_WEBHOOK_SECRET = os.getenv("PAYMENT_WEBHOOK_SECRET")
+# Anonymous users are not allowed to access LLM analysis.
+ALLOW_ANON_ANALYSIS = False
+RAW_CORS_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "")
 
 def _log_supabase_env_status() -> None:
     def _status(key: str) -> str:
@@ -216,6 +223,9 @@ class CompatibilityResponse(BaseModel):
     details: List[str]
     user_a_summary: str
     user_b_summary: str
+    analysis_markdown: Optional[str] = None
+    analysis_from_llm: bool = False
+    analysis_error: Optional[str] = None
 
 
 class CreditConsumeRequest(BaseModel):
@@ -248,10 +258,19 @@ app = FastAPI(
 )
 
 # Configure CORS for mobile/web access
+if RAW_CORS_ORIGINS.strip():
+    CORS_ORIGINS = [origin.strip() for origin in RAW_CORS_ORIGINS.split(",") if origin.strip()]
+else:
+    CORS_ORIGINS = ["*"]
+ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS")
+if ALLOW_CREDENTIALS is not None:
+    ALLOW_CREDENTIALS = ALLOW_CREDENTIALS.lower() == "true"
+else:
+    ALLOW_CREDENTIALS = "*" not in CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to specific domains
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,  # In production, restrict to specific domains
+    allow_credentials=ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -303,7 +322,86 @@ def normalize_birth_data(data: BirthData):
             hour = SHICHEN_TO_HOUR[data.shichen]
             minute = 0
 
+    if data.is_lunar:
+        try:
+            from lunar_python import Lunar
+            if hasattr(Lunar, "fromYmdHms"):
+                lunar = Lunar.fromYmdHms(year, month, day, hour, minute, 0)
+            else:
+                lunar = Lunar.fromYmd(year, month, day)
+            solar = lunar.getSolar()
+            year = solar.getYear()
+            month = solar.getMonth()
+            day = solar.getDay()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid lunar date: {str(e)}")
+
     return year, month, day, hour, minute, data.longitude
+
+
+def _ensure_safe_text(value: Optional[str], field_name: str, max_len: int = 500) -> Optional[str]:
+    if value is None:
+        return None
+    text = value.strip()
+    if len(text) > max_len:
+        text = text[:max_len]
+    if text and not is_safe_input(text):
+        raise HTTPException(status_code=400, detail=f"Invalid input detected in {field_name}")
+    return text
+
+
+def _ensure_safe_text_list(values: Optional[List[str]], field_name: str, max_len: int = 300, max_items: int = 6) -> List[str]:
+    if not values:
+        return []
+    safe_items: List[str] = []
+    for item in values[:max_items]:
+        safe_items.append(_ensure_safe_text(item, field_name, max_len=max_len) or "")
+    return safe_items
+
+
+def _ensure_profile_belongs_to_user(profile_id: str, user_id: str) -> dict:
+    try:
+        uuid.UUID(profile_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid profile_id")
+    supabase = get_supabase_admin()
+    resp = supabase.table("bazi_profiles").select("session_data,user_id").eq("id", profile_id).eq("user_id", user_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return resp.data[0]
+
+
+def _sanitize_llm_output(text: str) -> str:
+    if not text:
+        return text
+    # Remove code fences
+    text = re.sub(r"```[\s\S]*?```", "", text)
+    # Remove markdown inline symbols
+    for token in ("**", "__", "`"):
+        text = text.replace(token, "")
+    # Remove brackets used as section markers
+    text = text.replace("【", "").replace("】", "")
+    # Remove common emoji ranges
+    text = re.sub(r"[\U0001F300-\U0001FAFF]", "", text)
+
+    lines = []
+    prev_blank = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        line = re.sub(r"^#{1,6}\s*", "", line)
+        line = re.sub(r"^>\s*", "", line)
+        line = re.sub(r"^[-*+•]\s+", "", line)
+        line = re.sub(r"^\d+[\.\)\、]\s*", "", line)
+        if line in ("---", "***", "___"):
+            continue
+        if not line:
+            if lines and not prev_blank:
+                lines.append("")
+                prev_blank = True
+            continue
+        lines.append(line)
+        prev_blank = False
+    return "\n".join(lines).strip()
 
 
 def consume_oracle_credit(user_id: str) -> CreditStatusResponse:
@@ -382,6 +480,13 @@ def get_credit_status(user_id: str, credit_type: str) -> CreditStatusResponse:
         resp.total_credits = status.cycle_limit
         resp.used_credits = status.cycle_used
     return resp
+
+
+def _ensure_credit_available(user_id: str, credit_type: str) -> CreditStatusResponse:
+    status = get_credit_status(user_id, credit_type)
+    if status.remaining <= 0:
+        raise HTTPException(status_code=403, detail=f"{credit_type} 额度不足，请充值或开通 VIP 获取更多权益")
+    return status
 
 
 # --- API Endpoints ---
@@ -473,12 +578,17 @@ async def complete_payment(
     payment_id: str,
     payment_provider: str,  # 'stripe', 'alipay', 'wechat'
     provider_payment_id: str,  # Payment ID from the provider
+    x_webhook_secret: Optional[str] = Header(None),
 ):
     """
     Payment completion webhook (for internal use / testing).
     
     In production, this will be called by Stripe/Alipay/WeChat webhooks.
     """
+    if not PAYMENT_WEBHOOK_SECRET:
+        raise HTTPException(status_code=500, detail="Payment webhook secret not configured")
+    if not x_webhook_secret or x_webhook_secret != PAYMENT_WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized payment callback")
     from membership_service import get_membership_service
     service = get_membership_service()
     return service.complete_payment(payment_id, payment_provider, provider_payment_id)
@@ -620,6 +730,7 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
     """
     Perform a Zhouyi Oracle (divination).
     """
+    _ensure_safe_text(request.question, "question", max_len=800)
     user_id = get_user_id_from_auth(authorization)
     consume_oracle_credit(user_id)
     try:
@@ -684,17 +795,28 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
     from bazi_utils import build_oracle_prompt
     
     # Safety check
-    text_to_check = (request.custom_question or "") + request.question_type
+    question_type = _ensure_safe_text(request.question_type, "question_type", max_len=80) or request.question_type
+    custom_question_clean = _ensure_safe_text(request.custom_question, "custom_question", max_len=1200)
+    birthplace = _ensure_safe_text(request.birthplace or "未指定", "birthplace", max_len=80) or "未指定"
+    oracle_details = _ensure_safe_text_list(
+        request.oracle_data.details if request.oracle_data else None,
+        "oracle_data.details",
+        max_len=300,
+        max_items=6,
+    )
+    text_to_check = (custom_question_clean or "") + question_type + birthplace
     if not is_safe_input(text_to_check):
         raise HTTPException(status_code=400, detail="Invalid input detected")
     
     # Get user_id if authenticated
     user_id = None
-    try:
-        if authorization:
-            user_id = get_user_id_from_auth(authorization)
-    except HTTPException:
-        pass  # Allow unauthenticated access, but no caching/credits
+    if authorization:
+        user_id = get_user_id_from_auth(authorization)
+    elif not ALLOW_ANON_ANALYSIS:
+        raise HTTPException(status_code=401, detail="Authentication required for analysis")
+
+    if request.profile_id and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required for profile cache")
     
     supabase = None
     cached_result = None
@@ -702,28 +824,29 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
     
     # Check cache if profile_id is provided and not force_refresh
     if request.profile_id and not request.force_refresh:
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Authentication required for profile cache")
         try:
-            supabase = get_supabase_admin()
-            profile_resp = supabase.table("bazi_profiles").select("session_data").eq("id", request.profile_id).execute()
-            if profile_resp.data and len(profile_resp.data) > 0:
-                session_data = profile_resp.data[0].get("session_data") or {}
-                analyses = session_data.get("analyses") or {}
-                cached_result = analyses.get(request.question_type)
-                if cached_result:
-                    return AnalysisResponse(
-                        topic=request.question_type,
-                        markdown_content=cached_result,
-                        from_cache=True,
-                        remaining_credits=None  # Don't expose credits on cache hit
-                    )
+            profile_record = _ensure_profile_belongs_to_user(request.profile_id, user_id)
+            session_data = profile_record.get("session_data") or {}
+            analyses = session_data.get("analyses") or {}
+            cached_result = analyses.get(question_type)
+            if cached_result:
+                return AnalysisResponse(
+                    topic=question_type,
+                    markdown_content=cached_result,
+                    from_cache=True,
+                    remaining_credits=None  # Don't expose credits on cache hit
+                )
+        except HTTPException:
+            raise
         except Exception as e:
             print(f"Cache check error: {e}")  # Log but don't fail
     
-    # Consume credit if user is authenticated
+    # Check credit availability for authenticated users (do not deduct yet)
     if user_id:
         try:
-            credit_status = consume_analysis_credit(user_id)
-            remaining_credits = credit_status.remaining
+            _ensure_credit_available(user_id, "analysis")
         except HTTPException as e:
             if e.status_code == 403:
                 raise HTTPException(status_code=403, detail="深度分析次数已用完，请明日再试或充值")
@@ -748,21 +871,26 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
         user_context = build_user_context(
             bazi_text=bazi_str,
             gender=request.user_data.gender,
-            birthplace=request.birthplace or "未指定",
+            birthplace=birthplace,
             current_time=current_time_str,
             birth_datetime=birth_dt_str,
-            pattern_info=pattern_info
+            pattern_info=pattern_info,
+            birth_year=year
         )
         
+        # Calculate Age for Thousand Faces Strategy
+        current_year = datetime.now().year
+        age = current_year - year
+        
         # Special handling for Oracle + Bazi combined analysis
-        custom_question = request.custom_question
-        if request.question_type == "大师解惑" and request.oracle_data:
+        custom_question = custom_question_clean
+        if question_type == "大师解惑" and request.oracle_data:
             # Reconstruct Oracle data for build_oracle_prompt
             hex_data = {
                 "original_hex": request.oracle_data.original_hex,
                 "future_hex": request.oracle_data.future_hex,
                 "changing_lines": request.oracle_data.changing_lines,
-                "details": request.oracle_data.details
+                "details": oracle_details
             }
             bazi_data = {
                 "day_pillar": (pattern_info["day_pillar"][0], pattern_info["day_pillar"][1]),
@@ -770,12 +898,12 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
                 "strength": pattern_info.get("strength", {}).get("result", "未知"),
                 "joy_elements": pattern_info.get("strength", {}).get("joy_elements", "未知")
             }
-            custom_question = build_oracle_prompt(request.custom_question or "请解一卦", hex_data, bazi_data)
+            custom_question = build_oracle_prompt(custom_question or "请解一卦", hex_data, bazi_data, language=request.language)
 
         # Collect streamed response
         full_response = ""
         for chunk in get_fortune_analysis(
-            topic=request.question_type,
+            topic=question_type,
             user_context=user_context,
             custom_question=custom_question,
             api_key=api_key,
@@ -783,28 +911,44 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
             model="gemini-2.0-flash",
             language=request.language,
             is_first_response=True,
-            conversation_history=None
+            conversation_history=None,
+            age=age
         ):
             full_response += chunk
+        full_response = _sanitize_llm_output(full_response)
         
+        # Consume credit only after successful LLM output
+        if user_id:
+            if not full_response.strip():
+                raise HTTPException(status_code=500, detail="Analysis error: empty response")
+            try:
+                credit_status = consume_analysis_credit(user_id)
+                remaining_credits = credit_status.remaining
+            except HTTPException as e:
+                if e.status_code == 403:
+                    raise HTTPException(status_code=403, detail="深度分析次数已用完，请明日再试或充值")
+                raise
+
         # Save to cache if profile_id is provided
         if request.profile_id and full_response:
             try:
+                if not user_id:
+                    raise HTTPException(status_code=401, detail="Authentication required for profile cache")
                 if not supabase:
                     supabase = get_supabase_admin()
                 # Fetch current session_data
-                profile_resp = supabase.table("bazi_profiles").select("session_data").eq("id", request.profile_id).execute()
+                profile_resp = supabase.table("bazi_profiles").select("session_data,user_id").eq("id", request.profile_id).eq("user_id", user_id).execute()
                 if profile_resp.data and len(profile_resp.data) > 0:
                     session_data = profile_resp.data[0].get("session_data") or {}
                     analyses = session_data.get("analyses") or {}
-                    analyses[request.question_type] = full_response
+                    analyses[question_type] = full_response
                     session_data["analyses"] = analyses
-                    supabase.table("bazi_profiles").update({"session_data": session_data}).eq("id", request.profile_id).execute()
+                    supabase.table("bazi_profiles").update({"session_data": session_data}).eq("id", request.profile_id).eq("user_id", user_id).execute()
             except Exception as e:
                 print(f"Cache write error: {e}")  # Log but don't fail
         
         return AnalysisResponse(
-            topic=request.question_type,
+            topic=question_type,
             markdown_content=full_response,
             from_cache=False,
             remaining_credits=remaining_credits
@@ -820,8 +964,10 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
     """
     Analyze compatibility between two people based on their Bazi.
     """
-    user_id = get_user_id_from_auth(authorization)
-    consume_compatibility_credit(user_id)
+    _ensure_safe_text(request.relation_type, "relation_type", max_len=50)
+    user_id = None
+    if authorization:
+        user_id = get_user_id_from_auth(authorization)
     try:
         from logic import calculate_bazi
         from bazi_utils import BaziCompatibilityCalculator
@@ -879,14 +1025,65 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
         # Localize labels based on language
         if request.language == "en":
             joy_label = "Favorable"
+            llm_unavailable_msg = "AI interpretation is temporarily unavailable. Please try again later."
+            quota_unavailable_msg = "Compatibility quota used up. Please recharge or upgrade to VIP."
         else:
             joy_label = "喜"
+            llm_unavailable_msg = "AI 解读暂时不可用，请稍后再试。"
+            quota_unavailable_msg = "合盘次数已用完，请充值或开通 VIP"
+
+        analysis_markdown = None
+        analysis_error = None
+        analysis_from_llm = False
+
+        if user_id:
+            try:
+                _ensure_credit_available(user_id, "compatibility")
+            except HTTPException as e:
+                if e.status_code == 403:
+                    analysis_error = quota_unavailable_msg
+                else:
+                    analysis_error = llm_unavailable_msg
+
+        if user_id and not analysis_error:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                analysis_error = llm_unavailable_msg
+            else:
+                try:
+                    prompt = build_couple_prompt(
+                        person_a=person_a,
+                        person_b=person_b,
+                        comp_data=result,
+                        relation_type=request.relation_type,
+                        language=request.language,
+                    )
+                    client = get_llm_client(api_key, "https://generativelanguage.googleapis.com/v1beta/openai")
+                    response = client.chat.completions.create(
+                        model="gemini-2.0-flash",
+                        messages=[
+                            {"role": "system", "content": "你是一位资深命理顾问，请严格遵循用户指令。"},
+                            {"role": "user", "content": prompt},
+                        ],
+                        temperature=get_optimal_temperature("gemini-2.0-flash"),
+                    )
+                    analysis_markdown = response.choices[0].message.content or ""
+                    analysis_markdown = _sanitize_llm_output(analysis_markdown)
+                    analysis_from_llm = bool(analysis_markdown)
+                    if analysis_from_llm:
+                        consume_compatibility_credit(user_id)
+                except Exception as e:
+                    print(f"[compatibility] LLM error: {e}")
+                    analysis_error = llm_unavailable_msg
         
         return CompatibilityResponse(
             base_score=result["base_score"],
             details=result["details"],
             user_a_summary=f"{person_a['pattern_name']}, {person_a['strength']} ({joy_label}:{person_a['joy_elements']})",
-            user_b_summary=f"{person_b['pattern_name']}, {person_b['strength']} ({joy_label}:{person_b['joy_elements']})"
+            user_b_summary=f"{person_b['pattern_name']}, {person_b['strength']} ({joy_label}:{person_b['joy_elements']})",
+            analysis_markdown=analysis_markdown,
+            analysis_from_llm=analysis_from_llm,
+            analysis_error=analysis_error,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Compatibility analysis error: {str(e)}")
