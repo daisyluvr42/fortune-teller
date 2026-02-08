@@ -50,7 +50,7 @@ function CoinInstance({
   const groupRef = useRef<Group>(null);
 
   useFrame(({ clock }) => {
-    const now = performance.now() / 1000;
+    const now = clock.getElapsedTime();
     const tRaw = (now - startAtRef.current - base.delay) / base.duration;
     const t = Math.max(0, Math.min(1, tRaw));
     const ease = easeOutCubic(t);
@@ -71,6 +71,7 @@ function CoinInstance({
 
 function Coins({ modelUrl, coins, seed }: CoinTossSceneProps) {
   const gltf = useLoader(GLTFLoader, modelUrl);
+  const { clock } = useThree();
   const positionedCoins = useSizedPositions(coins);
   const startAtRef = useRef(0);
   const lastSeedRef = useRef<number | null>(null);
@@ -86,10 +87,10 @@ function Coins({ modelUrl, coins, seed }: CoinTossSceneProps) {
 
   useEffect(() => {
     if (lastSeedRef.current !== seed) {
-      startAtRef.current = performance.now() / 1000;
+      startAtRef.current = clock.getElapsedTime();
       lastSeedRef.current = seed;
     }
-  }, [seed]);
+  }, [seed, clock]);
 
   return (
     <group scale={1.2}>
@@ -104,8 +105,12 @@ export default function CoinTossScene({ modelUrl, coins, seed }: CoinTossScenePr
   return (
     <Canvas
       gl={{ antialias: true, alpha: true }}
+      dpr={[1, 1.5]}
       camera={{ position: [0, 0, 6], fov: 40 }}
       style={{ width: "100%", height: "100%", pointerEvents: "none" }}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0);
+      }}
     >
       <ambientLight intensity={0.9} />
       <directionalLight position={[3, 4, 5]} intensity={1.2} />

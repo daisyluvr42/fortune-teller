@@ -17,9 +17,12 @@ import { useUserProfile, OracleRecord } from '@/lib/context';
 import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
 import { useShakeTrigger } from '@/lib/useShakeTrigger';
+import { withAssetBase } from '@/lib/assets';
 import ReactMarkdown from 'react-markdown';
 import { Sparkles, History, HelpCircle, AlertTriangle, X } from 'lucide-react';
 import ExportManager from '@/components/export/ExportManager';
+
+const COIN_MODEL_URL = withAssetBase('/models/coin_optimized.glb');
 
 export default function OraclePage() {
     const router = useRouter();
@@ -395,7 +398,7 @@ export default function OraclePage() {
                             {coinState && (
                                 <div className="relative w-full h-full max-w-lg z-0 pointer-events-none">
                                     <CoinTossScene
-                                        modelUrl="/models/coin_optimized.glb"
+                                        modelUrl={COIN_MODEL_URL}
                                         seed={coinState.seed}
                                         coins={coinState.positions.map((pos, i) => ({
                                             top: pos.top,
