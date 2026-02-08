@@ -129,20 +129,20 @@ export default function CompatibilityPage() {
                     </div>
 
                     {/* Relation Type Selector */}
-                    <div className="flex justify-center gap-4">
+                    <div className="flex flex-wrap justify-center gap-3">
                         {RELATION_TYPES.map((type) => (
                             <button
                                 key={type.id}
                                 onClick={() => setRelationType(type.id)}
                                 className={`
-                flex items-center gap-2 px-6 py-3 rounded-full border transition-all duration-300
+                flex items-center gap-2 px-5 py-2.5 rounded-full border transition-all duration-300
                 ${relationType === type.id
                                         ? 'bg-[#1A1A1A] border-[#1A1A1A] text-white'
                                         : 'bg-white border-[#1A1A1A]/10 text-[#1A1A1A]/60 hover:border-[#1A1A1A]/30'}
               `}
                             >
                                 <type.icon className="w-4 h-4" />
-                                <span className="text-sm tracking-widest">{type.label}</span>
+                                <span className="text-sm tracking-widest whitespace-nowrap">{type.label}</span>
                             </button>
                         ))}
                     </div>
@@ -151,7 +151,7 @@ export default function CompatibilityPage() {
                         <button
                             onClick={handleCompatibility}
                             disabled={loading || hasLunarError}
-                            className="zen-button px-12"
+                            className="zen-button px-8 sm:px-12 max-w-full"
                         >
                             {loading ? t('analyzing') : t('analyze')}
                         </button>

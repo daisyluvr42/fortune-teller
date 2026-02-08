@@ -8,12 +8,11 @@ import { useUserProfile } from "@/lib/context";
 import { getTotalCredits, getMembershipStatus, MembershipStatus } from "@/lib/api";
 import { Crown } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import ExportManager from "@/components/export/ExportManager";
 
 export default function Header() {
     const t = useTranslations('Navbar');
-    const locale = useLocale();
     const { user, isAuthenticated, signOut, isLoading, session } = useAuth();
     const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
     const [showUserMenu, setShowUserMenu] = useState(false);
@@ -31,12 +30,6 @@ export default function Header() {
             }`;
     };
 
-    const renderNavLabel = (key: 'home' | 'analysis' | 'compatibility' | 'oracle', shortEn: string) => (
-        <>
-            <span className="sm:hidden">{locale === 'en' ? shortEn : t(key)}</span>
-            <span className="hidden sm:inline">{t(key)}</span>
-        </>
-    );
 
     const fetchCreditsAndMembership = useCallback(async () => {
         if (!isAuthenticated || !session?.access_token) {
@@ -263,16 +256,16 @@ export default function Header() {
                 {/* 导航链接（移至左侧） */}
                 <nav className="order-3 w-full flex items-center gap-3 overflow-x-auto whitespace-nowrap pt-1 md:order-2 md:w-auto md:flex-1 md:overflow-visible md:pt-0">
                     <Link href="/" className={navLinkClass("/")}>
-                        {renderNavLabel('home', 'Chart')}
+                        {t('home')}
                     </Link>
                     <Link href="/analysis" className={navLinkClass("/analysis")}>
-                        {renderNavLabel('analysis', 'Analysis')}
+                        {t('analysis')}
                     </Link>
                     <Link href="/compatibility" className={navLinkClass("/compatibility")}>
-                        {renderNavLabel('compatibility', 'Relation')}
+                        {t('compatibility')}
                     </Link>
                     <Link href="/oracle" className={navLinkClass("/oracle")}>
-                        {renderNavLabel('oracle', 'Oracle')}
+                        {t('oracle')}
                     </Link>
                 </nav>
             </div>
