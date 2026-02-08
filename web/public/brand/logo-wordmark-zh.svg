@@ -1,0 +1,7 @@
+<svg width="180" height="64" viewBox="0 0 180 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(0 0)">
+    <path d="M32 6 L54 18 L54 46 L32 58 L10 46 L10 18 Z" stroke="#1A1A1A" stroke-width="1.8" stroke-linejoin="round"/>
+    <text x="32" y="34" text-anchor="middle" dominant-baseline="middle" fill="#1A1A1A" font-family="Noto Serif SC, Songti SC, SimSun, serif" font-size="22" font-weight="600">命</text>
+  </g>
+  <text x="76" y="40" fill="#1A1A1A" font-family="Noto Serif SC, Songti SC, SimSun, serif" font-size="24" font-weight="500" letter-spacing="2">命理</text>
+</svg>
