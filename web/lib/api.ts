@@ -219,6 +219,9 @@ export interface CompatibilityResponse {
     details: string[];
     user_a_summary: string;
     user_b_summary: string;
+    analysis_markdown?: string | null;
+    analysis_from_llm?: boolean;
+    analysis_error?: string | null;
 }
 
 // API Base URL

@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { useLocale, useTranslations } from 'next-intl';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { getCompatibility, BirthData, CompatibilityResponse, normalizeBirthDataForApi, getCreditStatus, consumeCredit } from '@/lib/api';
+import { getCompatibility, BirthData, CompatibilityResponse, normalizeBirthDataForApi, getCreditStatus } from '@/lib/api';
 import { Users, Heart, Briefcase, UserPlus, Info } from 'lucide-react';
 import { useUserProfile } from '@/lib/context';
 import { LunarMonth } from 'lunar-javascript';
@@ -65,35 +66,25 @@ export default function CompatibilityPage() {
     }, [activeProfileId, profiles, savedBirthData]);
 
     const handleCompatibility = async () => {
-        if (!authLoading && !isAuthenticated) {
-            setError("请先登录后使用合盘功能");
-            return;
-        }
-        if (!session?.access_token) {
-            setError("登录状态异常，请刷新后重试");
-            return;
-        }
         try {
             setLoading(true);
             setError(null);
             setResult(null);
-
-            const credit = await consumeCredit("compatibility", session?.access_token);
-            if (!credit) {
-                setError("合盘次数已用完，请充值或开通 VIP");
-                setLoading(false);
-                return;
-            }
-            updateCredit("compatibility", credit);
 
             const res = await getCompatibility({
                 user_a_data: normalizeBirthDataForApi(personA),
                 user_b_data: normalizeBirthDataForApi(personB),
                 relation_type: relationType,
                 language: locale,
-            }, session.access_token);
+            }, session?.access_token);
 
             setResult(res);
+
+            if (isAuthenticated && session?.access_token) {
+                getCreditStatus("compatibility", session.access_token).then(status => {
+                    updateCredit("compatibility", status);
+                });
+            }
         } catch (err: any) {
             setError(err.message || "合盘分析失败");
         } finally {
@@ -165,12 +156,6 @@ export default function CompatibilityPage() {
                         </button>
                     </div>
 
-                    {!authLoading && !isAuthenticated && (
-                        <div className="text-center text-xs text-[#1A1A1A]/50 tracking-widest">
-                            {t('loginRequired')}
-                        </div>
-                    )}
-
                     {/* Buttons removed as requested. Recharging is triggered by insufficient credits error. */}
                     {isAuthenticated && creditInfo && (
                         <div className="text-center text-xs text-[#1A1A1A]/50 tracking-widest">
@@ -232,6 +217,43 @@ export default function CompatibilityPage() {
                                     </div>
                                 ))}
                             </div>
+
+                            {result.analysis_markdown && (
+                                <div className="zen-card p-8 md:p-12 space-y-8">
+                                    <div className="flex items-center justify-center gap-4 mb-4">
+                                        <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#1A1A1A]/10 to-transparent"></div>
+                                        <span className="text-sm tracking-[0.3em] font-light text-[#1A1A1A]/40">{t('analysisTitle')}</span>
+                                        <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#1A1A1A]/10 to-transparent"></div>
+                                    </div>
+                                    <div className="prose prose-stone max-w-none prose-p:font-light prose-p:tracking-wide prose-p:leading-relaxed prose-headings:font-normal prose-headings:tracking-widest">
+                                        <ReactMarkdown
+                                            components={{
+                                                h1: ({ node, ...props }) => <h3 className="text-xl font-medium mt-6 mb-4 text-[#B8860B]" {...props} />,
+                                                h2: ({ node, ...props }) => <h4 className="text-lg font-medium mt-5 mb-3 text-[#1A1A1A]" {...props} />,
+                                                h3: ({ node, ...props }) => <h5 className="text-base font-medium mt-4 mb-2 text-[#1A1A1A]" {...props} />,
+                                                strong: ({ node, ...props }) => <span className="font-medium text-[#B8860B]" {...props} />,
+                                                p: ({ node, ...props }) => <p className="mb-4 text-[#1A1A1A]/80 leading-loose" {...props} />,
+                                                ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
+                                                li: ({ node, ...props }) => <li className="text-[#1A1A1A]/80" {...props} />,
+                                            }}
+                                        >
+                                            {result.analysis_markdown}
+                                        </ReactMarkdown>
+                                    </div>
+                                </div>
+                            )}
+
+                            {result.analysis_error && (
+                                <div className="text-center text-xs text-[#1A1A1A]/50 tracking-widest">
+                                    {result.analysis_error}
+                                </div>
+                            )}
+
+                            {!result.analysis_markdown && !isAuthenticated && (
+                                <div className="text-center text-xs text-[#1A1A1A]/50 tracking-widest">
+                                    {t('loginRequired')}
+                                </div>
+                            )}
                         </div>
                     ) : null}
 
@@ -340,54 +362,65 @@ function BirthFormBrief({
         update('longitude', lng);
     };
 
+    const locale = useLocale();
+    const showLunar = !(locale === 'en' && isInternational);
+
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            {/* Row 1: Year, Month, Day */}
+            <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40">{t('birthYear')}</label>
-                    <select value={data.birth_year} onChange={e => update('birth_year', Number(e.target.value))} className="zen-select py-1.5 text-xs">
+                    <select value={data.birth_year} onChange={e => update('birth_year', Number(e.target.value))} className="zen-select py-1.5 text-xs text-center">
                         {Array.from({ length: 80 }, (_, i) => 2024 - i).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
                 <div className="space-y-1">
                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40">{t('birthMonth')}</label>
-                    <select value={data.month} onChange={e => update('month', Number(e.target.value))} className="zen-select py-1.5 text-xs">
+                    <select value={data.month} onChange={e => update('month', Number(e.target.value))} className="zen-select py-1.5 text-xs text-center">
                         {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                 </div>
-            </div>
-            <div className="flex items-center justify-center">
-                <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 flex items-center gap-2 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={!!data.is_lunar}
-                        onChange={(e) => update('is_lunar', e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
-                    />
-                    {t('lunar')}
-                </label>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40">{t('birthDay')}</label>
-                    <select value={data.day} onChange={e => update('day', Number(e.target.value))} className="zen-select py-1.5 text-xs">
+                    <select value={data.day} onChange={e => update('day', Number(e.target.value))} className="zen-select py-1.5 text-xs text-center">
                         {Array.from({ length: data.is_lunar ? 30 : 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                 </div>
+            </div>
+
+            {/* Lunar Checkbox - Only show if not (English + International) */}
+            {showLunar && (
+                <div className="flex items-center justify-center">
+                    <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={!!data.is_lunar}
+                            onChange={(e) => update('is_lunar', e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-[#1A1A1A]/20 text-[#B8860B] focus:ring-[#B8860B]/20"
+                        />
+                        {t('lunar')}
+                    </label>
+                </div>
+            )}
+
+            {/* Row 2: Hour, Minute */}
+            <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40">{t('birthHour')}</label>
-                    <select value={data.hour} onChange={e => update('hour', Number(e.target.value))} className="zen-select py-1.5 text-xs">
+                    <select value={data.hour} onChange={e => update('hour', Number(e.target.value))} className="zen-select py-1.5 text-xs text-center">
                         {Array.from({ length: 24 }, (_, i) => i).map(h => <option key={h} value={h}>{h.toString().padStart(2, '0')}</option>)}
                     </select>
                 </div>
                 <div className="space-y-1">
                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40">{t('birthMinute')}</label>
-                    <select value={data.minute ?? 0} onChange={e => update('minute', Number(e.target.value))} className="zen-select py-1.5 text-xs">
+                    <select value={data.minute ?? 0} onChange={e => update('minute', Number(e.target.value))} className="zen-select py-1.5 text-xs text-center">
                         {Array.from({ length: 12 }, (_, i) => i * 5).map(m => <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>)}
                     </select>
                 </div>
             </div>
-            {data.is_lunar && (
+
+            {data.is_lunar && showLunar && (
                 <p className={`text-[10px] text-center ${lunarError ? "text-red-800/70" : "text-[#999999]"}`}>
                     {lunarError || t('lunarHint')}
                 </p>

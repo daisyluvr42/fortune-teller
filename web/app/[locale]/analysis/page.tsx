@@ -18,6 +18,7 @@ const ANALYSIS_TOPICS_IDS = [
     { id: '感情运势', key: 'love', icon: Heart },
     { id: '健康建议', key: 'health', icon: Activity },
     { id: '开运建议', key: 'advice', icon: Sparkles },
+    { id: '大师解惑', key: 'ask', icon: BookOpen },
 ];
 
 export default function AnalysisPage() {
@@ -33,6 +34,7 @@ export default function AnalysisPage() {
     const [topic, setTopic] = useState('整体命格');
     const [error, setError] = useState<string | null>(null);
     const [fromCache, setFromCache] = useState(false);
+    const [customQuestion, setCustomQuestion] = useState('');
     const { credits, updateCredit } = useUserStatus();
     // Use credit info from context
     const giftQuota = credits.analysis ? {
@@ -57,10 +59,16 @@ export default function AnalysisPage() {
             setFromCache(false);
 
             const token = session?.access_token;
+            if (topic === "大师解惑" && !customQuestion.trim()) {
+                setError(t('askRequired'));
+                setLoading(false);
+                return;
+            }
 
             const res = await getAnalysis({
                 user_data: normalizeBirthDataForApi(birthData),
                 question_type: topic,
+                custom_question: topic === "大师解惑" ? customQuestion.trim() : undefined,
                 birthplace: "未指定",
                 profile_id: activeProfileId || undefined,
                 force_refresh: forceRefresh,
@@ -196,7 +204,10 @@ export default function AnalysisPage() {
                                 {ANALYSIS_TOPICS.map((item) => (
                                     <button
                                         key={item.id}
-                                        onClick={() => setTopic(item.id)}
+                                        onClick={() => {
+                                            setTopic(item.id);
+                                            setError(null);
+                                        }}
                                         className={`
                                         flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 text-left
                                         ${topic === item.id
@@ -217,6 +228,23 @@ export default function AnalysisPage() {
                                 ))}
                             </div>
                         </div>
+
+                        {topic === "大师解惑" && (
+                            <div className="zen-card p-4 space-y-3">
+                                <label className="text-xs tracking-[0.2em] font-medium text-[#1A1A1A]/40 uppercase">
+                                    {t('askLabel')}
+                                </label>
+                                <textarea
+                                    value={customQuestion}
+                                    onChange={(e) => setCustomQuestion(e.target.value)}
+                                    placeholder={t('askPlaceholder')}
+                                    className="zen-input w-full text-center min-h-[120px] resize-none"
+                                />
+                                <p className="text-[10px] text-[#1A1A1A]/40 tracking-widest">
+                                    {t('askHint')}
+                                </p>
+                            </div>
+                        )}
 
                         <button
                             onClick={() => handleAnalysis(false)}

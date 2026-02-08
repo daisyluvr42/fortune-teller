@@ -116,6 +116,10 @@
         "noProfileDesc": "请先前往首页完成排盘，系统将自动记录您的命盘数据",
         "goToChart": "前往排盘",
         "analysisError": "分析失败，请稍后重试",
+        "askLabel": "你的问题",
+        "askPlaceholder": "例如：我该如何改善事业发展？",
+        "askHint": "请尽量描述背景与困惑点，便于给出更精准的建议。",
+        "askRequired": "请输入你的问题再开始分析",
         "topics": {
             "main": "整体命格",
             "mainDesc": "命局总览与核心特质",
@@ -133,8 +137,10 @@
             "healthDesc": "体质强弱与保养建议",
             "fortune": "流年运势",
             "fortuneDesc": "当年运程与注意事项",
-            "advice": "大师解惑",
-            "adviceDesc": "针对性建议与开运法"
+            "advice": "开运建议",
+            "adviceDesc": "开运方向与可执行建议",
+            "ask": "大师解惑",
+            "askDesc": "开放式提问，获得针对性解答"
         },
         "aiLoading": "AI 正在翻阅命书...",
         "selectTopicHint": "选择维度后点击开始分析",
@@ -179,6 +185,7 @@
         "result": "合盘结果",
         "score": "分",
         "overview": "契合总评",
+        "analysisTitle": "大师解读",
         "userA": "甲方分析",
         "userB": "乙方分析",
         "destinyNote": "两人缘分天定，相处需修。",
@@ -197,7 +204,7 @@
         "romantic": "恋人伴侣",
         "business": "事业合伙",
         "friendship": "知己好友",
-        "loginRequired": "请先登录后使用合盘功能",
+        "loginRequired": "登录后可获得大师解读（未登录仅显示合盘结果）",
         "quotaUsed": "合盘次数已用完，请充值或开通 VIP",
         "giftQuota": "赠送额度"
     },

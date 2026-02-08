@@ -116,6 +116,10 @@
         "noProfileDesc": "Please complete chart calculation on the home page first. Your chart data will be saved automatically.",
         "goToChart": "Go to Chart",
         "analysisError": "Analysis failed, please try again later",
+        "askLabel": "Your Question",
+        "askPlaceholder": "e.g., How can I improve my career direction?",
+        "askHint": "Add context for a more precise answer.",
+        "askRequired": "Please enter your question before starting.",
         "topics": {
             "main": "Overall Destiny",
             "mainDesc": "Overview of your life structure",
@@ -133,8 +137,10 @@
             "healthDesc": "Physical constitution and potential issues",
             "fortune": "Annual Fortune",
             "fortuneDesc": "Luck for the current year",
-            "advice": "Master's Advice",
-            "adviceDesc": "Actionable guidance"
+            "advice": "Luck Boosting",
+            "adviceDesc": "Practical steps to improve fortune",
+            "ask": "Ask the Master",
+            "askDesc": "Open questions with tailored answers"
         },
         "aiLoading": "AI is consulting the Book of Destiny...",
         "selectTopicHint": "Select a topic then click Start Analysis",
@@ -179,6 +185,7 @@
         "result": "Result",
         "score": "Score",
         "overview": "Overall Compatibility",
+        "analysisTitle": "Master Interpretation",
         "userA": "User A Analysis",
         "userB": "User B Analysis",
         "destinyNote": "Destiny is predetermined, but harmony is cultivated.",
@@ -197,7 +204,7 @@
         "romantic": "Romantic",
         "business": "Business",
         "friendship": "Friendship",
-        "loginRequired": "Please login to use compatibility feature",
+        "loginRequired": "Log in to unlock the AI interpretation (anonymous users get calculation only)",
         "quotaUsed": "Compatibility quota used up, please recharge or get VIP",
         "giftQuota": "Gift Quota"
     },
