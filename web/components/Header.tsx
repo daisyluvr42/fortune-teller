@@ -8,11 +8,12 @@ import { useUserProfile } from "@/lib/context";
 import { getTotalCredits, getMembershipStatus, MembershipStatus } from "@/lib/api";
 import { Crown } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import ExportManager from "@/components/export/ExportManager";
 
 export default function Header() {
     const t = useTranslations('Navbar');
+    const locale = useLocale();
     const { user, isAuthenticated, signOut, isLoading, session } = useAuth();
     const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
     const [showUserMenu, setShowUserMenu] = useState(false);
@@ -24,11 +25,18 @@ export default function Header() {
 
     const navLinkClass = (path: string) => {
         const isActive = path === "/" ? pathname === "/" : pathname.startsWith(path);
-        return `text-sm font-light tracking-widest transition-colors ${isActive
+        return `text-[11px] sm:text-sm font-light tracking-[0.14em] sm:tracking-widest whitespace-nowrap transition-colors ${isActive
             ? "text-[#1A1A1A] border-b border-[#1A1A1A]/60 pb-0.5"
             : "text-[#1A1A1A]/60 hover:text-[#1A1A1A]"
             }`;
     };
+
+    const renderNavLabel = (key: 'home' | 'analysis' | 'compatibility' | 'oracle', shortEn: string) => (
+        <>
+            <span className="sm:hidden">{locale === 'en' ? shortEn : t(key)}</span>
+            <span className="hidden sm:inline">{t(key)}</span>
+        </>
+    );
 
     const fetchCreditsAndMembership = useCallback(async () => {
         if (!isAuthenticated || !session?.access_token) {
@@ -86,50 +94,32 @@ export default function Header() {
     };
 
     return (
-        <header className="w-full py-6 px-6">
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-6">
-                <div className="flex items-center gap-6">
-                    {/* Logo - 抽象线条风格 */}
-                    <Link href="/" className="flex items-center gap-3">
-                        <img
-                            src="/brand/logo.svg"
-                            alt="Destiny logo"
-                            className="w-8 h-8"
-                        />
-                        <div>
-                            <h1 className="text-lg font-medium tracking-wide text-[#1A1A1A]">
-                                {t('brand')}
-                            </h1>
-                        </div>
-                    </Link>
-
-                    {/* 导航链接（移至左侧） */}
-                    <nav className="flex items-center gap-4">
-                        <Link href="/" className={navLinkClass("/")}>
-                            {t('home')}
-                        </Link>
-                        <Link href="/analysis" className={navLinkClass("/analysis")}>
-                            {t('analysis')}
-                        </Link>
-                        <Link href="/compatibility" className={navLinkClass("/compatibility")}>
-                            {t('compatibility')}
-                        </Link>
-                        <Link href="/oracle" className={navLinkClass("/oracle")}>
-                            {t('oracle')}
-                        </Link>
-                    </nav>
-                </div>
+        <header className="w-full py-5 px-4 sm:py-6 sm:px-6">
+            <div className="max-w-3xl mx-auto flex flex-wrap items-center gap-3 md:flex-nowrap md:gap-6">
+                {/* Logo - 抽象线条风格 */}
+                <Link href="/" className="order-1 flex items-center gap-3 shrink-0">
+                    <img
+                        src="/brand/logo.svg"
+                        alt="Destiny logo"
+                        className="w-8 h-8"
+                    />
+                    <div>
+                        <h1 className="text-base sm:text-lg font-medium tracking-wide text-[#1A1A1A]">
+                            {t('brand')}
+                        </h1>
+                    </div>
+                </Link>
 
                 {/* 右侧：档案选择 + 用户区域 + 语言切换 */}
-                <div className="flex items-center gap-3">
+                <div className="order-2 ml-auto flex flex-wrap items-center gap-3 md:order-3 md:ml-0 md:justify-end">
                     <LanguageSwitcher />
 
                     {isAuthenticated && user && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <select
                                 value={activeProfileId || ""}
                                 onChange={(e) => loadProfile(e.target.value)}
-                                className="text-xs px-3 py-1.5 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors min-w-[110px]"
+                                className="text-xs px-3 py-1.5 rounded-full bg-[#1A1A1A]/5 hover:bg-[#1A1A1A]/10 transition-colors min-w-[86px] sm:min-w-[110px]"
                                 disabled={isLoadingProfiles || profiles.length === 0}
                             >
                                 {profiles.length === 0 && (
@@ -269,6 +259,22 @@ export default function Header() {
                         </Link>
                     )}
                 </div>
+
+                {/* 导航链接（移至左侧） */}
+                <nav className="order-3 w-full flex items-center gap-3 overflow-x-auto whitespace-nowrap pt-1 md:order-2 md:w-auto md:flex-1 md:overflow-visible md:pt-0">
+                    <Link href="/" className={navLinkClass("/")}>
+                        {renderNavLabel('home', 'Chart')}
+                    </Link>
+                    <Link href="/analysis" className={navLinkClass("/analysis")}>
+                        {renderNavLabel('analysis', 'Analysis')}
+                    </Link>
+                    <Link href="/compatibility" className={navLinkClass("/compatibility")}>
+                        {renderNavLabel('compatibility', 'Relation')}
+                    </Link>
+                    <Link href="/oracle" className={navLinkClass("/oracle")}>
+                        {renderNavLabel('oracle', 'Oracle')}
+                    </Link>
+                </nav>
             </div>
             {showExport && (
                 <ExportManager

@@ -114,7 +114,7 @@ body {
 
 @layer utilities {
   .page-shell {
-    @apply w-full max-w-3xl mx-auto px-6 pt-24 pb-12;
+    @apply w-full max-w-3xl mx-auto px-4 sm:px-6 pt-24 pb-12;
   }
 }
 
