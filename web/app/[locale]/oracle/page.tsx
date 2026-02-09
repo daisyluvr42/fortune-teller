@@ -175,7 +175,7 @@ export default function OraclePage() {
             custom_question: question,
             oracle_data: data,
             language: locale,
-        });
+        }, session?.access_token);
 
         setAnalysis(analysisRes.markdown_content);
     }, [birthData, question]);
