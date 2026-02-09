@@ -1,0 +1,594 @@
+{
+  "2026": {
+    "gan_zhi": "丙午",
+    "primary_element": "火",
+    "strength": "极旺",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为火，处于9运离卦（火）背景，形成“火运同气共振”，机会与压力并存。整体节奏极快，适合关键决策与集中突破。"
+  },
+  "2027": {
+    "gan_zhi": "丁未",
+    "primary_element": "火土",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为火土，处于9运离卦（火）背景，形成“火运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2028": {
+    "gan_zhi": "戊申",
+    "primary_element": "土金",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为土金，处于9运离卦（火）背景，形成“火运遇金，火炼真金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2029": {
+    "gan_zhi": "己酉",
+    "primary_element": "土金",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为土金，处于9运离卦（火）背景，形成“火运遇金，火炼真金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2030": {
+    "gan_zhi": "庚戌",
+    "primary_element": "金土",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为金土，处于9运离卦（火）背景，形成“火运遇金，火炼真金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2031": {
+    "gan_zhi": "辛亥",
+    "primary_element": "金水",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为金水，处于9运离卦（火）背景，形成“火运遇金，火炼真金”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2032": {
+    "gan_zhi": "壬子",
+    "primary_element": "水",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为水，处于9运离卦（火）背景，形成“水克火，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2033": {
+    "gan_zhi": "癸丑",
+    "primary_element": "水土",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 9,
+    "description": "流年五行为水土，处于9运离卦（火）背景，形成“火运生土”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2034": {
+    "gan_zhi": "甲寅",
+    "primary_element": "木",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为木，处于9运离卦（火）背景，形成“木生火，年生运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2035": {
+    "gan_zhi": "乙卯",
+    "primary_element": "木",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为木，处于9运离卦（火）背景，形成“木生火，年生运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2036": {
+    "gan_zhi": "丙辰",
+    "primary_element": "火土",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为火土，处于9运离卦（火）背景，形成“火运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2037": {
+    "gan_zhi": "丁巳",
+    "primary_element": "火",
+    "strength": "极旺",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为火，处于9运离卦（火）背景，形成“火运同气共振”，机会与压力并存。整体节奏极快，适合关键决策与集中突破。"
+  },
+  "2038": {
+    "gan_zhi": "戊午",
+    "primary_element": "土火",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 9,
+    "description": "流年五行为土火，处于9运离卦（火）背景，形成“火运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2039": {
+    "gan_zhi": "己未",
+    "primary_element": "土",
+    "strength": "平",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为土，处于9运离卦（火）背景，形成“火运生土”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2040": {
+    "gan_zhi": "庚申",
+    "primary_element": "金",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为金，处于9运离卦（火）背景，形成“火运遇金，火炼真金”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2041": {
+    "gan_zhi": "辛酉",
+    "primary_element": "金",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为金，处于9运离卦（火）背景，形成“火运遇金，火炼真金”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2042": {
+    "gan_zhi": "壬戌",
+    "primary_element": "水土",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 9,
+    "description": "流年五行为水土，处于9运离卦（火）背景，形成“火运生土”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2043": {
+    "gan_zhi": "癸亥",
+    "primary_element": "水",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 9,
+    "description": "流年五行为水，处于9运离卦（火）背景，形成“水克火，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2044": {
+    "gan_zhi": "甲子",
+    "primary_element": "木水",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为木水，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2045": {
+    "gan_zhi": "乙丑",
+    "primary_element": "木土",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为木土，处于1运坎卦（水）背景，形成“水运生木”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2046": {
+    "gan_zhi": "丙寅",
+    "primary_element": "火木",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为火木，处于1运坎卦（水）背景，形成“水运遇火，水火相激”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2047": {
+    "gan_zhi": "丁卯",
+    "primary_element": "火木",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为火木，处于1运坎卦（水）背景，形成“水运遇火，水火相激”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2048": {
+    "gan_zhi": "戊辰",
+    "primary_element": "土",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 1,
+    "description": "流年五行为土，处于1运坎卦（水）背景，形成“土克水，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2049": {
+    "gan_zhi": "己巳",
+    "primary_element": "土火",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为土火，处于1运坎卦（水）背景，形成“水运遇火，水火相激”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2050": {
+    "gan_zhi": "庚午",
+    "primary_element": "金火",
+    "strength": "弱",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为金火，处于1运坎卦（水）背景，形成“水运遇火，水火相激”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2051": {
+    "gan_zhi": "辛未",
+    "primary_element": "金土",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为金土，处于1运坎卦（水）背景，形成“土克水，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2052": {
+    "gan_zhi": "壬申",
+    "primary_element": "水金",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为水金，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2053": {
+    "gan_zhi": "癸酉",
+    "primary_element": "水金",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为水金，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2054": {
+    "gan_zhi": "甲戌",
+    "primary_element": "木土",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为木土，处于1运坎卦（水）背景，形成“水运生木”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2055": {
+    "gan_zhi": "乙亥",
+    "primary_element": "木水",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为木水，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2056": {
+    "gan_zhi": "丙子",
+    "primary_element": "火水",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为火水，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2057": {
+    "gan_zhi": "丁丑",
+    "primary_element": "火土",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为火土，处于1运坎卦（水）背景，形成“水运遇火，水火相激”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2058": {
+    "gan_zhi": "戊寅",
+    "primary_element": "土木",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为土木，处于1运坎卦（水）背景，形成“水运生木”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2059": {
+    "gan_zhi": "己卯",
+    "primary_element": "土木",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为土木，处于1运坎卦（水）背景，形成“水运生木”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2060": {
+    "gan_zhi": "庚辰",
+    "primary_element": "金土",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 1,
+    "description": "流年五行为金土，处于1运坎卦（水）背景，形成“土克水，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2061": {
+    "gan_zhi": "辛巳",
+    "primary_element": "金火",
+    "strength": "弱",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为金火，处于1运坎卦（水）背景，形成“水运遇火，水火相激”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2062": {
+    "gan_zhi": "壬午",
+    "primary_element": "水火",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为水火，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2063": {
+    "gan_zhi": "癸未",
+    "primary_element": "水土",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 1,
+    "description": "流年五行为水土，处于1运坎卦（水）背景，形成“水运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2064": {
+    "gan_zhi": "甲申",
+    "primary_element": "木金",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为木金，处于2运坤卦（土）背景，形成“土运生金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2065": {
+    "gan_zhi": "乙酉",
+    "primary_element": "木金",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为木金，处于2运坤卦（土）背景，形成“土运生金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2066": {
+    "gan_zhi": "丙戌",
+    "primary_element": "火土",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 2,
+    "description": "流年五行为火土，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2067": {
+    "gan_zhi": "丁亥",
+    "primary_element": "火水",
+    "strength": "弱",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为火水，处于2运坤卦（土）背景，形成“土运遇水，土制水”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2068": {
+    "gan_zhi": "戊子",
+    "primary_element": "土水",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为土水，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2069": {
+    "gan_zhi": "己丑",
+    "primary_element": "土",
+    "strength": "极旺",
+    "tenacity": 0.95,
+    "period": 2,
+    "description": "流年五行为土，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。整体节奏极快，适合关键决策与集中突破。"
+  },
+  "2070": {
+    "gan_zhi": "庚寅",
+    "primary_element": "金木",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为金木，处于2运坤卦（土）背景，形成“土运生金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2071": {
+    "gan_zhi": "辛卯",
+    "primary_element": "金木",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为金木，处于2运坤卦（土）背景，形成“土运生金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2072": {
+    "gan_zhi": "壬辰",
+    "primary_element": "水土",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为水土，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2073": {
+    "gan_zhi": "癸巳",
+    "primary_element": "水火",
+    "strength": "弱",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为水火，处于2运坤卦（土）背景，形成“土运遇水，土制水”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2074": {
+    "gan_zhi": "甲午",
+    "primary_element": "木火",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 2,
+    "description": "流年五行为木火，处于2运坤卦（土）背景，形成“木克土，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2075": {
+    "gan_zhi": "乙未",
+    "primary_element": "木土",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为木土，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2076": {
+    "gan_zhi": "丙申",
+    "primary_element": "火金",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为火金，处于2运坤卦（土）背景，形成“土运生金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2077": {
+    "gan_zhi": "丁酉",
+    "primary_element": "火金",
+    "strength": "平",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为火金，处于2运坤卦（土）背景，形成“土运生金”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2078": {
+    "gan_zhi": "戊戌",
+    "primary_element": "土",
+    "strength": "极旺",
+    "tenacity": 0.95,
+    "period": 2,
+    "description": "流年五行为土，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。整体节奏极快，适合关键决策与集中突破。"
+  },
+  "2079": {
+    "gan_zhi": "己亥",
+    "primary_element": "土水",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 2,
+    "description": "流年五行为土水，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2080": {
+    "gan_zhi": "庚子",
+    "primary_element": "金水",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 2,
+    "description": "流年五行为金水，处于2运坤卦（土）背景，形成“土运遇水，土制水”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2081": {
+    "gan_zhi": "辛丑",
+    "primary_element": "金土",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 2,
+    "description": "流年五行为金土，处于2运坤卦（土）背景，形成“土运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2082": {
+    "gan_zhi": "壬寅",
+    "primary_element": "水木",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 2,
+    "description": "流年五行为水木，处于2运坤卦（土）背景，形成“土运遇水，土制水”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2083": {
+    "gan_zhi": "癸卯",
+    "primary_element": "水木",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 2,
+    "description": "流年五行为水木，处于2运坤卦（土）背景，形成“土运遇水，土制水”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2084": {
+    "gan_zhi": "甲辰",
+    "primary_element": "木土",
+    "strength": "旺",
+    "tenacity": 0.4,
+    "period": 3,
+    "description": "流年五行为木土，处于3运震卦（木）背景，形成“木运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2085": {
+    "gan_zhi": "乙巳",
+    "primary_element": "木火",
+    "strength": "旺",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为木火，处于3运震卦（木）背景，形成“木运同气共振”，机会与压力并存。节奏偏快，适合推进与扩张，但需控制边界。"
+  },
+  "2086": {
+    "gan_zhi": "丙午",
+    "primary_element": "火",
+    "strength": "平",
+    "tenacity": 0.95,
+    "period": 3,
+    "description": "流年五行为火，处于3运震卦（木）背景，形成“木运生火”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2087": {
+    "gan_zhi": "丁未",
+    "primary_element": "火土",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为火土，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2088": {
+    "gan_zhi": "戊申",
+    "primary_element": "土金",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为土金，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2089": {
+    "gan_zhi": "己酉",
+    "primary_element": "土金",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为土金，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2090": {
+    "gan_zhi": "庚戌",
+    "primary_element": "金土",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为金土，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2091": {
+    "gan_zhi": "辛亥",
+    "primary_element": "金水",
+    "strength": "弱",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为金水，处于3运震卦（木）背景，形成“金克木，年克运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2092": {
+    "gan_zhi": "壬子",
+    "primary_element": "水",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 3,
+    "description": "流年五行为水，处于3运震卦（木）背景，形成“水生木，年生运”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2093": {
+    "gan_zhi": "癸丑",
+    "primary_element": "水土",
+    "strength": "弱",
+    "tenacity": 0.4,
+    "period": 3,
+    "description": "流年五行为水土，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  },
+  "2094": {
+    "gan_zhi": "甲寅",
+    "primary_element": "木",
+    "strength": "极旺",
+    "tenacity": 0.95,
+    "period": 3,
+    "description": "流年五行为木，处于3运震卦（木）背景，形成“木运同气共振”，机会与压力并存。整体节奏极快，适合关键决策与集中突破。"
+  },
+  "2095": {
+    "gan_zhi": "乙卯",
+    "primary_element": "木",
+    "strength": "极旺",
+    "tenacity": 0.95,
+    "period": 3,
+    "description": "流年五行为木，处于3运震卦（木）背景，形成“木运同气共振”，机会与压力并存。整体节奏极快，适合关键决策与集中突破。"
+  },
+  "2096": {
+    "gan_zhi": "丙辰",
+    "primary_element": "火土",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为火土，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2097": {
+    "gan_zhi": "丁巳",
+    "primary_element": "火",
+    "strength": "平",
+    "tenacity": 0.95,
+    "period": 3,
+    "description": "流年五行为火，处于3运震卦（木）背景，形成“木运生火”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2098": {
+    "gan_zhi": "戊午",
+    "primary_element": "土火",
+    "strength": "平",
+    "tenacity": 0.8,
+    "period": 3,
+    "description": "流年五行为土火，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。节奏中性，适合稳步调整与结构优化。"
+  },
+  "2099": {
+    "gan_zhi": "己未",
+    "primary_element": "土",
+    "strength": "弱",
+    "tenacity": 0.95,
+    "period": 3,
+    "description": "流年五行为土，处于3运震卦（木）背景，形成“木运遇土，木破土”，机会与压力并存。外部阻力更显，适合守势布局与稳扎稳打。"
+  }
+}

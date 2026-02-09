@@ -50,6 +50,8 @@ export default function AnalysisPage() {
         label: t(`topics.${item.key}`),
         desc: t(`topics.${item.key}Desc`)
     }));
+    const activeTopic = ANALYSIS_TOPICS.find((item) => item.id === topic);
+    const topicLabel = activeTopic?.label || topic;
 
     const handleAnalysis = async (forceRefresh: boolean = false) => {
         if (!birthData) return;
@@ -180,7 +182,7 @@ export default function AnalysisPage() {
             <div className="page-shell">
                 <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-12">
                     {/* Left: Topics */}
-                    <div className="lg:col-span-5 space-y-8 animate-fade-in">
+                    <div className="lg:col-span-4 space-y-8 animate-fade-in">
                         <div className="space-y-4">
                             <h2 className="text-3xl font-light tracking-[0.3em] text-[#1A1A1A]">
                                 {t('title')}
@@ -264,7 +266,7 @@ export default function AnalysisPage() {
                     </div>
 
                     {/* Right: Results */}
-                    <div className="lg:col-span-7 space-y-8 h-full">
+                    <div className="lg:col-span-8 space-y-8 h-full">
                         {loading ? (
                             <div className="h-full flex flex-col items-center justify-center min-h-[400px] border border-[#1A1A1A]/5 rounded-3xl bg-[#F8F8F0]/50 animate-pulse">
                                 <LoadingSpinner text={t('calculating')} />
@@ -274,10 +276,10 @@ export default function AnalysisPage() {
                             </div>
                         ) : analysis ? (
                             <div className="zen-card p-8 md:p-12 space-y-10 animate-fade-in h-fit sticky top-24">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4 min-w-0">
                                         <BookOpen className="w-5 h-5 text-[#B8860B]" />
-                                        <span className="text-lg font-light tracking-[0.4em]">{topic}</span>
+                                        <span className="text-lg font-light tracking-[0.2em] sm:tracking-[0.4em] whitespace-nowrap">{topicLabel}</span>
                                         {fromCache && (
                                             <span className="text-xs text-[#B8860B]/60 tracking-widest">{t('cache')}</span>
                                         )}
@@ -337,7 +339,7 @@ export default function AnalysisPage() {
                 <ExportManager
                     isOpen={showExport}
                     onClose={() => setShowExport(false)}
-                    currentTopic={topic}
+                    currentTopic={topicLabel}
                     currentContent={analysis}
                 />
             )}

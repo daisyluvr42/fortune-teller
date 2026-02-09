@@ -1,6 +1,7 @@
 """
 八字工具类 - 合盘分析等
 """
+import re
 import svgwrite
 
 
@@ -165,8 +166,8 @@ def build_couple_prompt(person_a, person_b, comp_data, relation_type="恋人/伴
         prompt = f"""
 You are a co reader of the life chart, grounded in classical BaZi and Sanming Tonghui, with modern empathy. Write in a warm, plainspoken tone like a friend sitting side by side. Avoid formal or professional openers. Use gentle hedging such as may, might, or perhaps. Your task is to produce a deep compatibility report for two people using the data below.
 
-Partner A. Gender { _gender_label(person_a.get('gender', 'Unknown')) }. Four Pillars {person_a['year_pillar']} {person_a['month_pillar']} {person_a['day_pillar']} {person_a['hour_pillar']}. Core Pattern {person_a.get('pattern_name', 'Standard Pattern')}. Five Element Energy {person_a.get('strength', 'Unknown')}. Favorable Elements {person_a.get('joy_elements', 'Unknown')}. Na Yin imagery Year {person_a.get('nayin', {}).get('year', 'Unknown')}, Day {person_a.get('nayin', {}).get('day', 'Unknown')}. Personality snapshot should be one sentence based on Day Master and pattern.
-Partner B. Gender { _gender_label(person_b.get('gender', 'Unknown')) }. Four Pillars {person_b['year_pillar']} {person_b['month_pillar']} {person_b['day_pillar']} {person_b['hour_pillar']}. Core Pattern {person_b.get('pattern_name', 'Standard Pattern')}. Five Element Energy {person_b.get('strength', 'Unknown')}. Favorable Elements {person_b.get('joy_elements', 'Unknown')}. Na Yin imagery Year {person_b.get('nayin', {}).get('year', 'Unknown')}, Day {person_b.get('nayin', {}).get('day', 'Unknown')}. Personality snapshot should be one sentence based on Day Master and pattern.
+Partner A. Gender { _gender_label(person_a.get('gender', 'Unknown')) }. Four Pillars {person_a['year_pillar']} {person_a['month_pillar']} {person_a['day_pillar']} {person_a['hour_pillar']}. Core Pattern {person_a.get('pattern_name', 'Standard Pattern')}. Five Elements Energy {person_a.get('strength', 'Unknown')}. Favorable {person_a.get('joy_elements', 'Unknown')}. Na Yin imagery Year {person_a.get('nayin', {}).get('year', 'Unknown')}, Day {person_a.get('nayin', {}).get('day', 'Unknown')}. Personality snapshot should be one sentence based on Day Master and pattern.
+Partner B. Gender { _gender_label(person_b.get('gender', 'Unknown')) }. Four Pillars {person_b['year_pillar']} {person_b['month_pillar']} {person_b['day_pillar']} {person_b['hour_pillar']}. Core Pattern {person_b.get('pattern_name', 'Standard Pattern')}. Five Elements Energy {person_b.get('strength', 'Unknown')}. Favorable {person_b.get('joy_elements', 'Unknown')}. Na Yin imagery Year {person_b.get('nayin', {}).get('year', 'Unknown')}, Day {person_b.get('nayin', {}).get('day', 'Unknown')}. Personality snapshot should be one sentence based on Day Master and pattern.
 
 Relationship type {relation_type_display}. Gender pairing {_gender_label(person_a.get('gender', 'Unknown'))} and {_gender_label(person_b.get('gender', 'Unknown'))}. {role_instruction_en}
 
@@ -175,7 +176,7 @@ Hard evidence from calculation is {hard_evidence_text}
 User focus is {focus_text}. {focus_rule}
 
 
-Write four paragraphs in this order. The first gives an overall summary using a nature metaphor. The second explains deep chemistry, including personality collision, and must explicitly integrate the hard evidence. The third names the biggest hidden risk. The fourth gives two to three concrete suggestions and a luck boosting tip based on favorable elements.
+Write four paragraphs in this order. The first gives an overall summary using a nature metaphor. The second explains deep chemistry, including personality collision, and must explicitly integrate the hard evidence. The third names the biggest hidden risk. The fourth gives two to three concrete suggestions and a luck boosting tip based on Favorable elements.
 
 Do not claim destiny to divorce or break up. For clashes use phrasing like growth through friction or needs conscious effort. Use only the provided data. Output must be plain English text paragraphs with no headings, lists, bullets, emojis, brackets, or markdown symbols.
 
@@ -310,19 +311,225 @@ STEM_WUXING_MAP = {
 # 地支藏干权重表 (本气/中气/余气)
 # 格式: {地支: [(藏干, 权重), ...]}
 BRANCH_WEIGHT_MAP = {
-    "子": [("癸", 100)],
-    "丑": [("己", 60), ("癸", 30), ("辛", 10)],
-    "寅": [("甲", 60), ("丙", 30), ("戊", 10)],
-    "卯": [("乙", 100)],
-    "辰": [("戊", 60), ("乙", 30), ("癸", 10)],
-    "巳": [("丙", 60), ("戊", 30), ("庚", 10)],
-    "午": [("丁", 70), ("己", 30)],
-    "未": [("己", 60), ("丁", 30), ("乙", 10)],
-    "申": [("庚", 60), ("壬", 30), ("戊", 10)],
-    "酉": [("辛", 100)],
-    "戌": [("戊", 60), ("辛", 30), ("丁", 10)],
-    "亥": [("壬", 70), ("甲", 30)]
+    "子": [("癸", 15.0)],
+    "丑": [("己", 10.0), ("癸", 3.5), ("辛", 1.5)],
+    "寅": [("甲", 10.0), ("丙", 3.5), ("戊", 1.5)],
+    "卯": [("乙", 15.0)],
+    "辰": [("戊", 10.0), ("乙", 3.5), ("癸", 1.5)],
+    "巳": [("丙", 10.0), ("庚", 3.5), ("戊", 1.5)],
+    "午": [("丁", 10.0), ("己", 5.0)],
+    "未": [("己", 10.0), ("丁", 3.5), ("乙", 1.5)],
+    "申": [("庚", 10.0), ("壬", 3.5), ("戊", 1.5)],
+    "酉": [("辛", 15.0)],
+    "戌": [("戊", 10.0), ("辛", 3.5), ("丁", 1.5)],
+    "亥": [("壬", 10.0), ("甲", 5.0)]
 }
+
+BAZI_CONFIG = {
+    "STEM_COMBINATIONS": {
+        ("甲", "己"): "土",
+        ("乙", "庚"): "金",
+        ("丙", "辛"): "水",
+        ("丁", "壬"): "木",
+        ("戊", "癸"): "火"
+    },
+    "BRANCH_TRIPLE_COMBOS": {
+        ("申", "子", "辰"): "水",
+        ("寅", "午", "戌"): "火",
+        ("亥", "卯", "未"): "木",
+        ("巳", "酉", "丑"): "金"
+    },
+    "BRANCH_SIX_COMBOS": {
+        ("子", "丑"): "土",
+        ("寅", "亥"): "木",
+        ("卯", "戌"): "火",
+        ("辰", "酉"): "金",
+        ("巳", "申"): "水",
+        ("午", "未"): "火"
+    },
+    "ELEMENT_RESTRAINTS": {
+        "木": "土",
+        "土": "水",
+        "水": "火",
+        "火": "金",
+        "金": "木"
+    }
+}
+
+
+def _normalize_pillars(pillars):
+    if pillars is None:
+        return []
+    if isinstance(pillars, (list, tuple)):
+        cleaned = []
+        for item in pillars:
+            if not isinstance(item, str):
+                continue
+            item = item.strip()
+            if len(item) >= 2:
+                token = item[:2]
+                cleaned.append(token)
+        return cleaned
+    if isinstance(pillars, str):
+        chars = re.sub(r"[^甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥]", "", pillars)
+        return [chars[i:i + 2] for i in range(0, len(chars), 2) if i + 1 < len(chars)]
+    return []
+
+
+def _check_combinations(scores, stems, branches, branch_contribs, month_element):
+    used_stems = set()
+    used_branches = set()
+
+    stem_indices = {}
+    for idx, stem in stems:
+        stem_indices.setdefault(stem, []).append(idx)
+
+    def consume_stem(stem_char):
+        items = stem_indices.get(stem_char, [])
+        while items:
+            idx = items.pop(0)
+            if idx not in used_stems:
+                used_stems.add(idx)
+                return idx
+        return None
+
+    if month_element:
+        for pair, combo_element in BAZI_CONFIG["STEM_COMBINATIONS"].items():
+            if combo_element != month_element:
+                continue
+            a, b = pair
+            idx_a = consume_stem(a)
+            idx_b = consume_stem(b)
+            if idx_a is None or idx_b is None:
+                if idx_a is not None:
+                    used_stems.discard(idx_a)
+                if idx_b is not None:
+                    used_stems.discard(idx_b)
+                continue
+            scores[STEM_WUXING_MAP[a]] -= 10.0
+            scores[STEM_WUXING_MAP[b]] -= 10.0
+            scores[combo_element] += 20.0
+
+    branch_indices = {}
+    for idx, branch in branches:
+        branch_indices.setdefault(branch, []).append(idx)
+
+    def consume_branch(branch_char):
+        items = branch_indices.get(branch_char, [])
+        while items:
+            idx = items.pop(0)
+            if idx not in used_branches:
+                used_branches.add(idx)
+                return idx
+        return None
+
+    def remove_branch_contrib(idx):
+        contrib = branch_contribs.get(idx, {})
+        for element, value in contrib.items():
+            scores[element] -= value
+
+    for triple, combo_element in BAZI_CONFIG["BRANCH_TRIPLE_COMBOS"].items():
+        a, b, c = triple
+        available = [branch_indices.get(a, []), branch_indices.get(b, []), branch_indices.get(c, [])]
+        if month_element == combo_element and all(len(items) > 0 for items in available):
+            idxs = [consume_branch(a), consume_branch(b), consume_branch(c)]
+            if None not in idxs:
+                for idx in idxs:
+                    remove_branch_contrib(idx)
+                scores[combo_element] += 45.0
+                continue
+        present = [(a, branch_indices.get(a, [])), (b, branch_indices.get(b, [])), (c, branch_indices.get(c, []))]
+        present = [item for item in present if len(item[1]) > 0]
+        if len(present) >= 2:
+            idxs = []
+            for branch_char, _ in present[:2]:
+                idxs.append(consume_branch(branch_char))
+            if None not in idxs:
+                for idx in idxs:
+                    remove_branch_contrib(idx)
+                scores[combo_element] += 22.5
+
+    for pair, combo_element in BAZI_CONFIG["BRANCH_SIX_COMBOS"].items():
+        a, b = pair
+        if len(branch_indices.get(a, [])) == 0 or len(branch_indices.get(b, [])) == 0:
+            continue
+        idx_a = consume_branch(a)
+        idx_b = consume_branch(b)
+        if idx_a is None or idx_b is None:
+            if idx_a is not None:
+                used_branches.discard(idx_a)
+            if idx_b is not None:
+                used_branches.discard(idx_b)
+            continue
+        remove_branch_contrib(idx_a)
+        remove_branch_contrib(idx_b)
+        scores[combo_element] += 21.0
+
+
+def calculate_bazi_energy(pillars):
+    scores = {"金": 0.0, "木": 0.0, "水": 0.0, "火": 0.0, "土": 0.0}
+    normalized = _normalize_pillars(pillars)[:4]
+    if not normalized:
+        return {k: {"score": 0.0, "pct": 0.0, "percent": 0.0} for k in scores}
+
+    stems = []
+    branches = []
+    branch_contribs = {}
+
+    for idx, pillar in enumerate(normalized):
+        if len(pillar) != 2:
+            continue
+        stem, branch = pillar[0], pillar[1]
+        stems.append((idx, stem))
+        branches.append((idx, branch))
+        if stem in STEM_WUXING_MAP:
+            scores[STEM_WUXING_MAP[stem]] += 10.0
+        if branch in BRANCH_WEIGHT_MAP:
+            branch_contribs[idx] = {}
+            for hidden_stem, weight in BRANCH_WEIGHT_MAP[branch]:
+                element = STEM_WUXING_MAP.get(hidden_stem)
+                if element:
+                    scores[element] += weight
+                    branch_contribs[idx][element] = branch_contribs[idx].get(element, 0.0) + weight
+
+    month_branch = normalized[1][1] if len(normalized) > 1 and len(normalized[1]) == 2 else None
+    month_element = None
+    if month_branch in BRANCH_WEIGHT_MAP:
+        main_stem = BRANCH_WEIGHT_MAP[month_branch][0][0]
+        month_element = STEM_WUXING_MAP.get(main_stem)
+
+    _check_combinations(scores, stems, branches, branch_contribs, month_element)
+
+    if month_branch in BRANCH_WEIGHT_MAP:
+        main_element = month_element
+        if main_element:
+            controlled = BAZI_CONFIG["ELEMENT_RESTRAINTS"].get(main_element)
+            for element in list(scores.keys()):
+                if element == main_element:
+                    scores[element] *= 1.5
+                elif controlled and element == controlled:
+                    scores[element] *= 0.8
+
+    total = sum(scores.values())
+    if total <= 0:
+        return {k: {"score": 0.0, "pct": 0.0, "percent": 0.0} for k in scores}
+
+    raw_percent = {k: (v / total) * 100 for k, v in scores.items()}
+    rounded = {k: round(v, 2) for k, v in raw_percent.items()}
+    diff = round(100.0 - sum(rounded.values()), 2)
+    if abs(diff) >= 0.01:
+        target = max(scores.items(), key=lambda x: x[1])[0]
+        rounded[target] = round(rounded[target] + diff, 2)
+
+    result = {}
+    for element, score in scores.items():
+        percent = rounded[element]
+        result[element] = {
+            "score": round(score, 2),
+            "pct": round(percent / 100, 4),
+            "percent": percent
+        }
+    return result
 
 
 class BaziEnergyCalculator:
@@ -330,8 +537,9 @@ class BaziEnergyCalculator:
     五行能量计算器 - 基于四柱计算五行能量分布
     
     算法说明:
-    - 天干: 每个天干贡献 100 点到对应五行
-    - 地支藏干: 按本气(60-100)、中气(30)、余气(10)的权重分配
+    - 天干: 每个天干贡献 10 点
+    - 地支藏干: 按本气/中气/余气拆分
+    - 月令: 主气同类 *1.5，被克 *0.8
     """
     
     def __init__(self):
@@ -339,47 +547,7 @@ class BaziEnergyCalculator:
         self.branch_map = BRANCH_WEIGHT_MAP
     
     def calculate_energy(self, pillars):
-        """
-        计算五行能量分布
-        
-        :param pillars: 四柱列表, 如 ['甲子', '丙寅', '戊辰', '庚午']
-        :return: dict 包含每个五行的分数和百分比
-                 {'木': {'score': 250, 'pct': 0.25}, ...}
-        """
-        # 初始化五行分数
-        scores = {"木": 0, "火": 0, "土": 0, "金": 0, "水": 0}
-        
-        for pillar in pillars:
-            if len(pillar) != 2:
-                continue
-            
-            stem, branch = pillar[0], pillar[1]
-            
-            # 1. 天干贡献 100 点
-            if stem in self.stem_map:
-                wuxing = self.stem_map[stem]
-                scores[wuxing] += 100
-            
-            # 2. 地支藏干按权重贡献
-            if branch in self.branch_map:
-                for hidden_stem, weight in self.branch_map[branch]:
-                    if hidden_stem in self.stem_map:
-                        wuxing = self.stem_map[hidden_stem]
-                        scores[wuxing] += weight
-        
-        # 计算总分和百分比
-        total = sum(scores.values())
-        if total == 0:
-            total = 1  # 避免除零
-        
-        result = {}
-        for element, score in scores.items():
-            result[element] = {
-                "score": score,
-                "pct": round(score / total, 4)
-            }
-        
-        return result
+        return calculate_bazi_energy(pillars)
     
     def get_dominant_element(self, pillars):
         """

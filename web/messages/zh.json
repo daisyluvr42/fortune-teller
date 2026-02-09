@@ -34,6 +34,7 @@
         "saveProfileAutoLoad": "保存档案（下次自动加载）",
         "profileRestored": "已恢复您的档案",
         "calculatingChart": "正在演化命盘...",
+        "calculating": "推演中",
         "calculationFailed": "排盘失败",
         "reenter": "重新输入",
         "continueExplore": "继续探索",

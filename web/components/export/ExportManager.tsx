@@ -177,7 +177,7 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
             items.push({
                 id: `compatibility-${index}-${record.key}`,
                 type: "analysis",
-                title: record.language === "en" ? "Compatibility" : "合盘分析",
+                title: record.language === "en" ? "Relationship" : "合盘分析",
                 content: buildCompatibilityMarkdown(record),
             });
         });

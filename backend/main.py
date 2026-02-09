@@ -33,6 +33,7 @@ from logic import (
 from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt
 from credit_service import get_credit_manager, QuotaStatus
 from llm_client import get_llm_client
+from translations import translate_pattern, translate_strength, translate_element
 
 # Load .env from project root (parent of backend/)
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
@@ -730,13 +731,20 @@ async def get_bazi_chart(data: BirthData):
         strength = translate_strength(pattern_info.get("strength", {}).get("result", "未知"), lang)
         
         # Translate joy elements
-        joy_elements_raw = pattern_info.get("strength", {}).get("joy_elements", "未知")
-        if lang == "en" and joy_elements_raw != "未知":
-            # joy_elements might be like "水木" - translate each character
-            joy_translated = []
-            for char in joy_elements_raw:
-                joy_translated.append(translate_element(char, lang))
-            joy_elements = ", ".join(joy_translated) if joy_translated else joy_elements_raw
+        strength_info = pattern_info.get("strength", {})
+        joy_elements_raw = strength_info.get("joy_elements", "未知")
+        if lang == "en":
+            favorable_list = strength_info.get("favorable")
+            if isinstance(favorable_list, list) and favorable_list:
+                joy_elements = ", ".join([translate_element(e, lang) for e in favorable_list])
+            elif joy_elements_raw in ["中和", "未知"]:
+                joy_elements = "Balanced" if joy_elements_raw == "中和" else "Unknown"
+            else:
+                parts = [p for p in joy_elements_raw.replace(",", "、").split("、") if p]
+                if parts:
+                    joy_elements = ", ".join([translate_element(p, lang) for p in parts])
+                else:
+                    joy_elements = joy_elements_raw
         else:
             joy_elements = joy_elements_raw
         
@@ -972,7 +980,8 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
             current_time=current_time_str,
             birth_datetime=birth_dt_str,
             pattern_info=pattern_info,
-            birth_year=year
+            birth_year=year,
+            language=request.language
         )
         
         # Calculate Age for Thousand Faces Strategy
@@ -1156,6 +1165,32 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
             "joy_elements": pattern_b.get("strength", {}).get("joy_elements", "未知"),
             "nayin": pattern_b.get("auxiliary", {}).get("nayin", {})
         }
+
+        person_a_display = person_a
+        person_b_display = person_b
+        if request.language == "en":
+            def _translate_joy_elements(raw: str) -> str:
+                if not raw:
+                    return raw
+                if raw in ["中和", "未知"]:
+                    return "Balanced" if raw == "中和" else "Unknown"
+                parts = [p for p in raw.replace(",", "、").split("、") if p]
+                if not parts:
+                    return raw
+                return ", ".join(translate_element(p, "en") for p in parts)
+
+            person_a_display = {
+                **person_a,
+                "pattern_name": translate_pattern(person_a["pattern_name"], "en"),
+                "strength": translate_strength(person_a["strength"], "en"),
+                "joy_elements": _translate_joy_elements(person_a["joy_elements"]),
+            }
+            person_b_display = {
+                **person_b,
+                "pattern_name": translate_pattern(person_b["pattern_name"], "en"),
+                "strength": translate_strength(person_b["strength"], "en"),
+                "joy_elements": _translate_joy_elements(person_b["joy_elements"]),
+            }
         
         # Run compatibility analysis
         calculator = BaziCompatibilityCalculator()
@@ -1165,7 +1200,7 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
         if request.language == "en":
             joy_label = "Favorable"
             llm_unavailable_msg = "AI interpretation is temporarily unavailable. Please try again later."
-            quota_unavailable_msg = "Compatibility quota used up. Please recharge or upgrade to VIP."
+            quota_unavailable_msg = "Relationship quota used up. Please recharge or upgrade to VIP."
         else:
             joy_label = "喜"
             llm_unavailable_msg = "AI 解读暂时不可用，请稍后再试。"
@@ -1191,8 +1226,8 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
             else:
                 try:
                     prompt = build_couple_prompt(
-                        person_a=person_a,
-                        person_b=person_b,
+                        person_a=person_a_display,
+                        person_b=person_b_display,
                         comp_data=result,
                         relation_type=request.relation_type,
                         language=request.language,
@@ -1215,8 +1250,8 @@ async def get_compatibility(request: CompatibilityRequest, authorization: Option
                     print(f"[compatibility] LLM error: {e}")
                     analysis_error = llm_unavailable_msg
         
-        user_a_summary = f"{person_a['pattern_name']}, {person_a['strength']} ({joy_label}:{person_a['joy_elements']})"
-        user_b_summary = f"{person_b['pattern_name']}, {person_b['strength']} ({joy_label}:{person_b['joy_elements']})"
+        user_a_summary = f"{person_a_display['pattern_name']}, {person_a_display['strength']} ({joy_label}:{person_a_display['joy_elements']})"
+        user_b_summary = f"{person_b_display['pattern_name']}, {person_b_display['strength']} ({joy_label}:{person_b_display['joy_elements']})"
 
         if request.profile_id and user_id:
             record = {
