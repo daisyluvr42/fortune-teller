@@ -2002,11 +2002,21 @@ def calculate_fortune_cycles(
     ln_obj_map = {}
 
     if yun:
+        y = safe_call(yun, "getStartYear") or 0
+        m = safe_call(yun, "getStartMonth") or 0
+        d = safe_call(yun, "getStartDay") or 0
+        
+        age_str = f"{y}岁"
+        if m > 0:
+            age_str += f"{m}个月"
+        if d > 0:
+            age_str += f"{d}天"
+            
         result["start_info"] = {
-            "year": safe_call(yun, "getStartYear"),
-            "month": safe_call(yun, "getStartMonth"),
-            "day": safe_call(yun, "getStartDay"),
-            "age": safe_call(yun, "getStartAge"),
+            "year": y,
+            "month": m,
+            "day": d,
+            "age": age_str,
         }
 
         da_yun_list = safe_call(yun, "getDaYun") or safe_call(yun, "getDaYunList") or []
