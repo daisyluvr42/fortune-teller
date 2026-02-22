@@ -113,52 +113,54 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
             <div className={`zen-card overflow-hidden ${isExport ? 'border-none shadow-none bg-transparent' : ''}`}>
                 {/* Header Info */}
                 <div
-                    className="bg-[#F8F8F0] border-b border-[#1A1A1A]/5 p-4 flex flex-wrap items-center justify-between gap-4"
+                    className="bg-[#F8F8F0] border-b border-[#1A1A1A]/5 p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 sm:gap-4"
                     style={whenExport({ backgroundColor: EXPORT_COLORS.paper, borderColor: EXPORT_COLORS.ink05 })}
                 >
+                    {/* Time correction moves to its own visual line on mobile easily using flex-col on the outer container,
+                        but let's group to keep desktop as one line if possible, or top/bottom stack on mobile. */}
+                    {data.time_correction && (
+                        <div
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1A1A1A]/5 text-xs sm:text-sm text-[#1A1A1A]/70 w-fit"
+                            style={whenExport({ backgroundColor: EXPORT_COLORS.ink05, color: EXPORT_COLORS.ink70 })}
+                        >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>{data.time_correction}</span>
+                        </div>
+                    )}
+
                     <div
-                        className="flex items-center gap-4 text-sm text-[#1A1A1A]/70"
+                        className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-[#1A1A1A]/70 leading-relaxed"
                         style={whenExport({ color: EXPORT_COLORS.ink70 })}
                     >
-                        {data.time_correction && (
-                            <div
-                                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1A1A1A]/5"
-                                style={whenExport({ backgroundColor: EXPORT_COLORS.ink05 })}
-                            >
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>{data.time_correction}</span>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#1A1A1A]" style={whenExport({ color: EXPORT_COLORS.ink })}>
-                                {data.pattern_name}
-                            </span>
-                            <span className="w-px h-3 bg-[#1A1A1A]/20" style={whenExport({ backgroundColor: EXPORT_COLORS.ink20 })}></span>
-                            <span>{data.day_master}{t('dayMaster')} · {data.strength}</span>
-                            <span className="w-px h-3 bg-[#1A1A1A]/20" style={whenExport({ backgroundColor: EXPORT_COLORS.ink20 })}></span>
-                            <span>{t('favorable')}: {data.joy_elements}</span>
-                        </div>
+                        <span className="font-bold text-[#1A1A1A]" style={whenExport({ color: EXPORT_COLORS.ink })}>
+                            {data.pattern_name}
+                        </span>
+                        <span className="w-px h-3 bg-[#1A1A1A]/20" style={whenExport({ backgroundColor: EXPORT_COLORS.ink20 })}></span>
+                        <span>{data.day_master}{t('dayMaster')} · {data.strength}</span>
+                        <span className="w-px h-3 bg-[#1A1A1A]/20" style={whenExport({ backgroundColor: EXPORT_COLORS.ink20 })}></span>
+                        <span>{t('favorable')}: {data.joy_elements}</span>
                     </div>
                 </div>
 
                 {/* The Bazi Table */}
-                <div className={`${isExport ? '' : 'overflow-x-auto'}`}>
+                <div className={`${isExport ? '' : 'overflow-x-auto overflow-y-hidden w-full'}`}>
+                    {/* Remove min-w-[600px] and switch to w-full table-fixed to fit everything on mobile without scrolling */}
                     <table
-                        className="w-full min-w-[600px] border-collapse bg-white/50"
+                        className="w-full border-collapse bg-white/50 table-fixed"
                         style={whenExport({ backgroundColor: "rgba(255, 255, 255, 0.5)" })}
                     >
                         <thead>
                             <tr className="border-b border-[#1A1A1A]/5" style={whenExport({ borderColor: EXPORT_COLORS.ink05 })}>
                                 <th
-                                    className="p-4 w-24 text-xs text-[#1A1A1A]/40 font-normal uppercase tracking-widest text-left"
+                                    className="p-2 sm:p-4 w-12 sm:w-24 text-[10px] sm:text-xs text-[#1A1A1A]/40 font-normal uppercase tracking-widest text-left"
                                     style={whenExport({ color: EXPORT_COLORS.ink40 })}
                                 >
                                     {t('item')}
                                 </th>
                                 {pillars.map(p => (
-                                    <th key={p.key} className="p-4 text-center">
+                                    <th key={p.key} className="p-1 sm:p-4 text-center">
                                         <span
-                                            className="inline-block px-3 py-1 rounded-md bg-[#B8860B]/10 text-[#8B4513] text-sm font-medium"
+                                            className="inline-flex justify-center items-center px-1 sm:px-3 py-1 rounded-md bg-[#B8860B]/10 text-[#8B4513] text-[10px] sm:text-sm font-medium min-w-max w-full sm:w-auto"
                                             style={whenExport({ backgroundColor: EXPORT_COLORS.bronze10, color: "#8B4513" })}
                                         >
                                             {p.label}
@@ -174,7 +176,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                                 style={whenExport({ backgroundColor: EXPORT_COLORS.muted, borderColor: EXPORT_COLORS.ink05 })}
                             >
                                 <td
-                                    className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-xs text-[#1A1A1A]/40 font-medium"
                                     style={whenExport({ color: EXPORT_COLORS.ink40 })}
                                 >
                                     {t('tenGods')}
@@ -182,7 +184,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                                 {pillars.map(p => (
                                     <td
                                         key={p.key}
-                                        className="p-2 text-center text-xs text-[#1A1A1A]/50"
+                                        className="p-1 sm:p-2 text-center text-[10px] sm:text-xs text-[#1A1A1A]/50"
                                         style={whenExport({ color: EXPORT_COLORS.ink50 })}
                                     >
                                         {p.data.ten_god || "—"}
@@ -193,15 +195,15 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                             {/* Heavenly Stems */}
                             <tr className="border-b" style={whenExport({ borderColor: EXPORT_COLORS.ink05 })}>
                                 <td
-                                    className="p-3 pl-4 text-sm text-[#1A1A1A]/60 font-medium"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-xs sm:text-sm text-[#1A1A1A]/60 font-medium whitespace-nowrap"
                                     style={whenExport({ color: EXPORT_COLORS.ink60 })}
                                 >
                                     {t('heavenlyStems')}
                                 </td>
                                 {pillars.map(p => (
-                                    <td key={p.key} className="p-3 text-center">
+                                    <td key={p.key} className="p-1 sm:p-3 text-center">
                                         <span
-                                            className={`text-2xl font-bold ${isExport ? '' : getCharColorStyle(p.data.gan)} font-song`}
+                                            className={`text-xl sm:text-2xl font-bold ${isExport ? '' : getCharColorStyle(p.data.gan)} font-song`}
                                             style={isExport ? getCharColorInline(p.data.gan) : undefined}
                                         >
                                             {p.data.gan}
@@ -213,15 +215,15 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                             {/* Earthly Branches */}
                             <tr className="border-b" style={whenExport({ borderColor: EXPORT_COLORS.ink05 })}>
                                 <td
-                                    className="p-3 pl-4 text-sm text-[#1A1A1A]/60 font-medium"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-xs sm:text-sm text-[#1A1A1A]/60 font-medium whitespace-nowrap"
                                     style={whenExport({ color: EXPORT_COLORS.ink60 })}
                                 >
                                     {t('earthlyBranches')}
                                 </td>
                                 {pillars.map(p => (
-                                    <td key={p.key} className="p-3 text-center">
+                                    <td key={p.key} className="p-1 sm:p-3 text-center">
                                         <span
-                                            className={`text-2xl font-bold ${isExport ? '' : getCharColorStyle(p.data.zhi)} font-song`}
+                                            className={`text-xl sm:text-2xl font-bold ${isExport ? '' : getCharColorStyle(p.data.zhi)} font-song`}
                                             style={isExport ? getCharColorInline(p.data.zhi) : undefined}
                                         >
                                             {p.data.zhi}
@@ -236,16 +238,16 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                                 style={whenExport({ backgroundColor: "rgba(250, 250, 245, 0.5)", borderColor: EXPORT_COLORS.ink05 })}
                             >
                                 <td
-                                    className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-xs text-[#1A1A1A]/40 font-medium whitespace-nowrap"
                                     style={whenExport({ color: EXPORT_COLORS.ink40 })}
                                 >
                                     {t('hiddenStems')}
                                 </td>
                                 {pillars.map(p => (
-                                    <td key={p.key} className="p-3 text-center align-top">
-                                        <div className="flex flex-col items-center gap-1">
+                                    <td key={p.key} className="p-1 sm:p-3 text-center align-top">
+                                        <div className="flex flex-col items-center gap-0.5 sm:gap-1">
                                             {p.data.hidden_stems?.map((stem, idx) => (
-                                                <div key={idx} className="flex items-center gap-1 text-xs">
+                                                <div key={idx} className="flex items-center gap-1 text-[10px] sm:text-xs">
                                                     <span
                                                         className={`font-medium ${isExport ? '' : getCharColorStyle(stem)}`}
                                                         style={isExport ? getCharColorInline(stem) : undefined}
@@ -262,7 +264,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                             {/* Na Yin */}
                             <tr className="border-b" style={whenExport({ borderColor: EXPORT_COLORS.ink05 })}>
                                 <td
-                                    className="p-3 pl-4 text-xs text-[#1A1A1A]/40 font-medium"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-xs text-[#1A1A1A]/40 font-medium"
                                     style={whenExport({ color: EXPORT_COLORS.ink40 })}
                                 >
                                     {t('nayin')}
@@ -270,7 +272,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                                 {pillars.map(p => (
                                     <td
                                         key={p.key}
-                                        className="p-2 text-center text-xs text-[#1A1A1A]/60"
+                                        className="p-1 sm:p-2 text-center text-[10px] sm:text-xs text-[#1A1A1A]/60 max-w-[4rem] sm:max-w-none truncate sm:whitespace-normal"
                                         style={whenExport({ color: EXPORT_COLORS.ink60 })}
                                     >
                                         {p.nayin || "—"}
