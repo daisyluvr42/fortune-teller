@@ -294,6 +294,16 @@ export interface MembershipStatus {
     };
 }
 
+export interface CheckoutSessionRequest {
+    user_id: string;
+    analysis_type: string;
+}
+
+export interface CheckoutSessionResponse {
+    checkout_url: string;
+    session_id: string;
+}
+
 /**
  * Get membership status for the authenticated user
  */
@@ -306,6 +316,24 @@ export async function getMembershipStatus(token?: string): Promise<MembershipSta
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: "获取会员状态失败" }));
         throw new Error(error.detail || "获取会员状态失败");
+    }
+
+    return response.json();
+}
+
+/**
+ * Create Stripe checkout session
+ */
+export async function createCheckoutSession(payload: CheckoutSessionRequest): Promise<CheckoutSessionResponse> {
+    const response = await fetch(`${API_BASE}/create-checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "创建支付会话失败" }));
+        throw new Error(error.detail || "创建支付会话失败");
     }
 
     return response.json();
