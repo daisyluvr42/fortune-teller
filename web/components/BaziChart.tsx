@@ -116,18 +116,6 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                     className="bg-[#F8F8F0] border-b border-[#1A1A1A]/5 p-3 sm:p-4 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 sm:gap-4"
                     style={whenExport({ backgroundColor: EXPORT_COLORS.paper, borderColor: EXPORT_COLORS.ink05 })}
                 >
-                    {/* Time correction moves to its own visual line on mobile easily using flex-col on the outer container,
-                        but let's group to keep desktop as one line if possible, or top/bottom stack on mobile. */}
-                    {data.time_correction && (
-                        <div
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1A1A1A]/5 text-xs sm:text-sm text-[#1A1A1A]/70 w-fit"
-                            style={whenExport({ backgroundColor: EXPORT_COLORS.ink05, color: EXPORT_COLORS.ink70 })}
-                        >
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>{data.time_correction}</span>
-                        </div>
-                    )}
-
                     <div
                         className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-[#1A1A1A]/70 leading-relaxed"
                         style={whenExport({ color: EXPORT_COLORS.ink70 })}
@@ -140,6 +128,17 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                         <span className="w-px h-3 bg-[#1A1A1A]/20" style={whenExport({ backgroundColor: EXPORT_COLORS.ink20 })}></span>
                         <span>{t('favorable')}: {data.joy_elements}</span>
                     </div>
+
+                    {/* Time correction moves below pattern info */}
+                    {data.time_correction && (
+                        <div
+                            className="flex items-center gap-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-[#1A1A1A]/5 text-[10px] sm:text-sm text-[#1A1A1A]/50 sm:text-[#1A1A1A]/70 w-fit mt-2 sm:mt-0"
+                            style={whenExport({ backgroundColor: EXPORT_COLORS.ink05, color: EXPORT_COLORS.ink70 })}
+                        >
+                            <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                            <span>{data.time_correction}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* The Bazi Table */}
@@ -195,7 +194,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                             {/* Heavenly Stems */}
                             <tr className="border-b" style={whenExport({ borderColor: EXPORT_COLORS.ink05 })}>
                                 <td
-                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-xs sm:text-sm text-[#1A1A1A]/60 font-medium whitespace-nowrap"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-sm text-[#1A1A1A]/60 font-medium whitespace-normal sm:whitespace-nowrap break-words leading-tight"
                                     style={whenExport({ color: EXPORT_COLORS.ink60 })}
                                 >
                                     {t('heavenlyStems')}
@@ -215,7 +214,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                             {/* Earthly Branches */}
                             <tr className="border-b" style={whenExport({ borderColor: EXPORT_COLORS.ink05 })}>
                                 <td
-                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-xs sm:text-sm text-[#1A1A1A]/60 font-medium whitespace-nowrap"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-sm text-[#1A1A1A]/60 font-medium whitespace-normal sm:whitespace-nowrap break-words leading-tight"
                                     style={whenExport({ color: EXPORT_COLORS.ink60 })}
                                 >
                                     {t('earthlyBranches')}
@@ -238,7 +237,7 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                                 style={whenExport({ backgroundColor: "rgba(250, 250, 245, 0.5)", borderColor: EXPORT_COLORS.ink05 })}
                             >
                                 <td
-                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-xs text-[#1A1A1A]/40 font-medium whitespace-nowrap"
+                                    className="p-2 sm:p-3 pl-2 sm:pl-4 text-[10px] sm:text-xs text-[#1A1A1A]/40 font-medium whitespace-normal sm:whitespace-nowrap break-words leading-tight"
                                     style={whenExport({ color: EXPORT_COLORS.ink40 })}
                                 >
                                     {t('hiddenStems')}
@@ -386,13 +385,12 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                                 className="text-xs text-[#1A1A1A]/40 bg-[#1A1A1A]/5 px-2 py-1 rounded"
                                 style={whenExport({ color: EXPORT_COLORS.ink40, backgroundColor: EXPORT_COLORS.ink05 })}
                             >
-                                {t('startAge')}: {cycleData.start_info.age}
+                                {t('startAge')}: {cycleData.start_info?.age ?? "—"}
                             </span>
                         </div>
 
-                        {/* Da Yun List */}
-                        <div className={isExport ? "mb-6" : "mb-6 overflow-x-auto pb-2"}>
-                            <div className={isExport ? "grid grid-cols-8 gap-2" : "flex gap-2 min-w-max"}>
+                        <div className={isExport ? "mb-6" : "mb-6 pb-2"}>
+                            <div className={isExport ? "grid grid-cols-8 gap-2" : "grid grid-cols-4 sm:flex sm:gap-2 sm:min-w-max gap-2"}>
                                 {cycleData.da_yun.slice(0, 8).map((dy, idx) => (
                                     <div
                                         key={idx}
