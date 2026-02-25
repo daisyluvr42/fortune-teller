@@ -9,8 +9,7 @@ import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from lunar_python import Solar
-from llm_client import get_llm_client
-import svgwrite
+from typing import Optional, List, Any
 from bazi_utils import calculate_bazi_energy, BRANCH_WEIGHT_MAP, STEM_WUXING_MAP
 
 # Optional: Tavily for search (may not be installed on all deployments)
@@ -39,7 +38,7 @@ def _load_annual_energy() -> dict:
 
 ANNUAL_ENERGY = _load_annual_energy()
 
-def get_annual_energy(year: int) -> dict | None:
+def get_annual_energy(year: int) -> Optional[dict]:
     return ANNUAL_ENERGY.get(str(year))
 
 # Tavily Search API Key
@@ -1974,6 +1973,7 @@ def calculate_fortune_cycles(
         solar = Solar.fromYmdHms(year, month, day, hour, minute, 0)
         lunar = solar.getLunar()
         eight_char = lunar.getEightChar()
+        eight_char.setSect(1)  # 严格子初换日 (23:00换日柱)
     except Exception:
         return {"da_yun": [], "liu_nian": [], "liu_yue": [], "start_info": {}}
 
@@ -2110,6 +2110,7 @@ def calculate_bazi(year: int, month: int, day: int, hour: int, minute: int = 0, 
     solar = Solar.fromYmdHms(year, month, day, hour, minute, 0)
     lunar = solar.getLunar()
     eight_char = lunar.getEightChar()
+    eight_char.setSect(1)  # 严格子初换日 (23:00换日柱)
     
     year_pillar = eight_char.getYear()
     month_pillar = eight_char.getMonth()

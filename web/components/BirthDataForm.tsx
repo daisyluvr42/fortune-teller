@@ -123,11 +123,11 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
             setTimeMode('time');
         }
     }, [isZh, timeMode]);
-    const [shichen, setShichen] = useState<BirthData["shichen"]>(initialData?.shichen ?? "子时");
+    const [shichen, setShichen] = useState<BirthData["shichen"]>(initialData?.shichen ?? "早子时");
 
     const SHICHEN_OPTIONS: BirthData["shichen"][] = [
-        "子时", "丑时", "寅时", "卯时", "辰时", "巳时",
-        "午时", "未时", "申时", "酉时", "戌时", "亥时"
+        "早子时", "丑时", "寅时", "卯时", "辰时", "巳时",
+        "午时", "未时", "申时", "酉时", "戌时", "亥时", "晚子时"
     ];
 
     const lunarDayCount = useMemo(() => {

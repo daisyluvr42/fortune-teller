@@ -11,7 +11,7 @@ export interface BirthData {
     longitude?: number | null;
     is_lunar?: boolean;
     time_mode?: "time" | "shichen";
-    shichen?: "子时" | "丑时" | "寅时" | "卯时" | "辰时" | "巳时" | "午时" | "未时" | "申时" | "酉时" | "戌时" | "亥时";
+    shichen?: "早子时" | "丑时" | "寅时" | "卯时" | "辰时" | "巳时" | "午时" | "未时" | "申时" | "酉时" | "戌时" | "亥时" | "晚子时";
     language?: "zh" | "en";
 }
 
@@ -146,7 +146,7 @@ export interface CreditStatusResponse {
 }
 
 const SHICHEN_TO_HOUR: Record<NonNullable<BirthData["shichen"]>, number> = {
-    "子时": 23,
+    "早子时": 0,
     "丑时": 1,
     "寅时": 3,
     "卯时": 5,
@@ -158,6 +158,7 @@ const SHICHEN_TO_HOUR: Record<NonNullable<BirthData["shichen"]>, number> = {
     "酉时": 17,
     "戌时": 19,
     "亥时": 21,
+    "晚子时": 23,
 };
 
 export function normalizeBirthDataForApi(data: BirthData): BirthData {
