@@ -319,7 +319,7 @@ class CheckoutSessionRequest(BaseModel):
 app = FastAPI(
     title="命理大师 API",
     description="八字算命后端 API - 支持八字排盘、命理分析、合盘分析、周易起卦",
-    version="v0.8.0 beta"
+    version="1.2.0"
 )
 
 # Configure CORS for mobile/web access
@@ -622,7 +622,7 @@ def _get_stripe_price_id(analysis_type: str) -> str:
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "ok", "version": "v0.8.0 beta", "message": "命理大师 API is running"}
+    return {"status": "ok", "version": "1.2.0", "message": "命理大师 API is running"}
 
 
 @app.get("/api/credits/status", response_model=CreditStatusResponse)
