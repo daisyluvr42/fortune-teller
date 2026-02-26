@@ -5,6 +5,7 @@ MembershipService: VIP 会员管理服务
 支付接口预留供后续接入 Stripe/支付宝/微信。
 """
 import os
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Literal
 from fastapi import HTTPException
@@ -19,6 +20,7 @@ load_dotenv(project_root / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+logger = logging.getLogger(__name__)
 
 # ===== 价格配置 =====
 PRICING = {
@@ -79,7 +81,18 @@ class MembershipService:
 
     def get_membership(self, user_id: str) -> MembershipStatus:
         """获取用户会员状态"""
-        res = self.client.table("user_memberships").select("*").eq("user_id", user_id).execute()
+        try:
+            res = self.client.table("user_memberships").select("*").eq("user_id", user_id).execute()
+        except Exception as exc:
+            # Supabase 短时网络抖动时降级为 free，避免前端初始化链路被 500 打断。
+            logger.warning("membership lookup failed, fallback to free user_id=%s error=%s", user_id, exc)
+            return MembershipStatus(
+                membership_type="free",
+                expires_at=None,
+                days_remaining=None,
+                auto_renew=False,
+                quotas=QUOTA_CONFIG["free"],
+            )
         
         membership_type = "free"
         expires_at = None

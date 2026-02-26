@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { User, LogOut, ChevronDown, Trash2, Pencil, Coins, Download } from "lucide-react";
 import { Link, usePathname } from "@/i18n/routing";
+import Image from "next/image";
 import { useAuth } from "@/lib/AuthContext";
 import { useUserProfile } from "@/lib/context";
-import { getTotalCredits, getMembershipStatus, MembershipStatus, createCheckoutSession } from "@/lib/api";
+import { createCheckoutSession } from "@/lib/api";
+import { useUserStatus } from "@/lib/UserStatusContext";
 import { Crown } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useTranslations, useLocale } from 'next-intl';
@@ -14,14 +16,12 @@ import ExportManager from "@/components/export/ExportManager";
 export default function Header() {
     const t = useTranslations('Navbar');
     const locale = useLocale();
-    const { user, isAuthenticated, signOut, isLoading, session } = useAuth();
+    const { user, isAuthenticated, signOut, isLoading } = useAuth();
+    const { membership, totalCredits, isLoading: isUserStatusLoading, refreshStatus } = useUserStatus();
     const { profiles, activeProfileId, loadProfile, deleteProfile, renameProfile, isLoadingProfiles } = useUserProfile();
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showExport, setShowExport] = useState(false);
     const pathname = usePathname();
-    const [totalCredits, setTotalCredits] = useState<number | null>(null);
-    const [creditsLoading, setCreditsLoading] = useState(false);
-    const [membership, setMembership] = useState<MembershipStatus | null>(null);
     const [checkoutLoadingType, setCheckoutLoadingType] = useState<"vip" | "topup" | null>(null);
 
     const navLinkClass = (path: string) => {
@@ -33,38 +33,12 @@ export default function Header() {
     };
 
 
-    const fetchCreditsAndMembership = useCallback(async () => {
-        if (!isAuthenticated || !session?.access_token) {
-            setTotalCredits(null);
-            setMembership(null);
-            return;
-        }
-        setCreditsLoading(true);
-        try {
-            const [creditsResult, membershipResult] = await Promise.all([
-                getTotalCredits(session.access_token),
-                getMembershipStatus(session.access_token).catch(() => null),
-            ]);
-            setTotalCredits(creditsResult.total_credits);
-            setMembership(membershipResult);
-        } catch {
-            setTotalCredits(null);
-            setMembership(null);
-        } finally {
-            setCreditsLoading(false);
-        }
-    }, [isAuthenticated, session?.access_token]);
-
-    useEffect(() => {
-        void fetchCreditsAndMembership();
-    }, [fetchCreditsAndMembership]);
-
     // Refresh when menu opens
     useEffect(() => {
         if (showUserMenu) {
-            void fetchCreditsAndMembership();
+            void refreshStatus();
         }
-    }, [showUserMenu, fetchCreditsAndMembership]);
+    }, [refreshStatus, showUserMenu]);
 
     const handleSignOut = async () => {
         await signOut();
@@ -125,9 +99,11 @@ export default function Header() {
                 {/* 第一排：Logo & 语言切换 */}
                 <div className="flex items-center justify-between w-full md:w-auto md:flex-none">
                     <Link href="/" className="flex items-center gap-3 shrink-0">
-                        <img
+                        <Image
                             src="/brand/logo.svg"
                             alt="Destiny logo"
+                            width={32}
+                            height={32}
                             className="w-8 h-8"
                         />
                         <div>
@@ -214,7 +190,7 @@ export default function Header() {
                                                 <span className="flex items-center gap-1.5 text-xs text-[#1A1A1A]/60">
                                                     <Coins className="w-3.5 h-3.5 text-[#B8860B]" /> {t('totalCredits')}
                                                 </span>
-                                                {creditsLoading ? (
+                                                {isUserStatusLoading && totalCredits === null ? (
                                                     <span className="text-xs text-[#1A1A1A]/30 animate-pulse">...</span>
                                                 ) : (
                                                     <span className="text-sm text-[#B8860B] font-semibold">{totalCredits ?? 0}</span>
@@ -318,6 +294,9 @@ export default function Header() {
                     </Link>
                     <Link href="/oracle" className={navLinkClass("/oracle")}>
                         {t('oracle')}
+                    </Link>
+                    <Link href="/liuren" className={navLinkClass("/liuren")}>
+                        {t('liuren')}
                     </Link>
                 </nav>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabase";
 
@@ -21,14 +21,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    const supabase = useMemo(() => getSupabaseClient(), []);
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(() => !!supabase);
 
     useEffect(() => {
-        const supabase = getSupabaseClient();
         if (!supabase) {
-            setIsLoading(false);
             return;
         }
 
@@ -48,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
 
         return () => subscription.unsubscribe();
-    }, []);
+    }, [supabase]);
 
     const signUp = async (email: string, password: string) => {
         const supabase = getSupabaseClient();

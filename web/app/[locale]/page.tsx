@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from 'next-intl';
 import Header from "@/components/Header";
 import BirthDataForm from "@/components/BirthDataForm";
@@ -9,6 +8,7 @@ import BaziChart from "@/components/BaziChart";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { calculateBazi, getCycles, BirthData, ChartResponse, CycleResponse, normalizeBirthDataForApi } from "@/lib/api";
 import { useUserProfile } from "@/lib/context";
+import { useRouter } from "@/i18n/routing";
 import { AlertCircle, RotateCcw, Sparkles, Target, Users, Save } from "lucide-react";
 
 export default function Home() {
@@ -27,7 +27,6 @@ export default function Home() {
     saveProfile,
     clearProfile,
     createNewProfile,
-    hasProfile,
     profiles
   } = useUserProfile();
 
@@ -227,6 +226,7 @@ export default function Home() {
                 </p>
                 <div className="grid grid-cols-3 gap-4">
                   <button
+                    type="button"
                     onClick={() => handleNavigate('/analysis')}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl border border-[#1A1A1A]/5 hover:border-[#B8860B]/30 hover:bg-[#B8860B]/5 transition-all group"
                   >
@@ -234,6 +234,7 @@ export default function Home() {
                     <span className="text-xs tracking-widest text-[#1A1A1A]/60 group-hover:text-[#1A1A1A] transition-colors">{t('deepAnalysis')}</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleNavigate('/compatibility')}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl border border-[#1A1A1A]/5 hover:border-[#B8860B]/30 hover:bg-[#B8860B]/5 transition-all group"
                   >
@@ -241,6 +242,7 @@ export default function Home() {
                     <span className="text-xs tracking-widest text-[#1A1A1A]/60 group-hover:text-[#1A1A1A] transition-colors">{t('compatibility')}</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleNavigate('/oracle')}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl border border-[#1A1A1A]/5 hover:border-[#B8860B]/30 hover:bg-[#B8860B]/5 transition-all group"
                   >

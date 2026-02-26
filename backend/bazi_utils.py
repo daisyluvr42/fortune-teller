@@ -1,8 +1,38 @@
 """
 八字工具类 - 合盘分析等
 """
+import json
 import re
+from pathlib import Path
 import svgwrite
+
+LIUREN_DICTIONARY_PATH = Path(__file__).resolve().parent / "liuren_dictionary.json"
+
+
+def _load_liuren_dictionary():
+    try:
+        return json.loads(LIUREN_DICTIONARY_PATH.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[liuren_dictionary] load failed: {e}")
+        return {}
+
+
+LIUREN_DICTIONARY = _load_liuren_dictionary()
+
+
+def _to_json_text(payload):
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _normalize_liuren_dictionary(source):
+    data = source if isinstance(source, dict) else {}
+    return {
+        "dizhi": data.get("dizhi") or data.get("dizhi_nature") or {},
+        "tianjiang": data.get("tianjiang") or data.get("tianjiang_12") or {},
+        "liuqin": data.get("liuqin") or data.get("liuqin_relation") or {},
+        "shensha": data.get("shensha") or {},
+        "relationLogic": data.get("relationLogic") or data.get("relation_logic") or {},
+    }
 
 
 class BaziCompatibilityCalculator:
@@ -251,7 +281,6 @@ def build_oracle_prompt(user_question, hex_data, bazi_data, language="zh"):
     hex_info = f"""
 本卦 {hex_data['original_hex']}。变卦 {hex_data['future_hex']}。动爻 {', '.join(map(str, hex_data.get('changing_lines', [])))}。爻辞细节 {', '.join(hex_data.get('details', []))}。
     """
-
     # 3. 构建 Prompt
     if language == "en":
         prompt = f"""
@@ -280,19 +309,111 @@ Output must be plain English text paragraphs only. No Chinese.
 """
     else:
         prompt = f"""
-你是人生命盘的共读者，熟读周易六爻与子平八字，也懂现代心理学的表达方式，擅长将命理哲学与现实决策结合。语气要自然温暖，像朋友并肩而坐，不要用职业化或模板化开场，多用或许、可能、似乎保留空间。
+你是人生命盘的共读者，熟读周易六爻与子平八字。你擅长剥离命理的神秘感，将其转化为冷峻、客观的现实趋势推演。语气自然，像一位冷静客观的幕后智囊。
 
-数据输入如下。案主档案用于判断应对策略，内容为 {bazi_profile}
-占卜事项是用户当下的具体困惑，用户提问为 {user_question}。卦象信息如下。{hex_info}
+【绝对执行规则】
+1. 预测优先：永远把“直接回答用户问题”放在绝对第一位。如果用户问的是是非题（如：会加班吗？能过吗？），第一句话必须是明确的肯定或否定结论，绝不允许用“感觉你现在...”这种心理分析开场。
+2. 术语熔断：最终输出文本中，绝对禁止出现任何六爻与八字专有名词（如：本卦、动爻、官鬼、身强身弱、七杀等）。
+3. 量级匹配：必须根据用户提问的“事件大小”决定词汇轻重。问日常情绪/小事，用轻松的白描（如：最近精力条不太够）；问人生大抉择，调用深度的心理与现实博弈词汇（如：底层安全感的重构、核心资源的错配）。
+4. 戒除空泛：禁止使用“生命能量状态”、“外部环境带来的压力”等星座式的模糊套话。必须根据用户的具体问题，结合卦象吉凶，将其具象化为现实中的动作或阻力（例如：突发的任务叠加、流程上的卡顿、某人的阻挠）。
+5. 语言纯粹：追求简洁有力的白描。禁止使用“总之”、“综上所述”等总结词；禁止使用“赋能”、“抓手”等黑话。绝对禁止在结尾进行煽情或价值观升华。写完行动建议立刻停止。
+6. 格式要求：全文只用中文，字数控制在 400 到 600 字之间。
 
-请遵守权重原则。成败吉凶以卦象为准，即使八字显示运气不佳，卦象若为大吉也应断为吉。八字像气候，卦象像当下天气。策略与行动以八字为准，结合格局与强弱给出建议。若卦吉但身弱或七杀格，建议稳健合作与借力。若卦凶但身强或伤官格，提醒克制冲动，先忍耐再蓄势。
+【核心推演法则（后台静默执行，只输出翻译后的白话）】
+- 卦象断事：成败吉凶、事件走向完全以卦象（本卦与变卦的势能、动爻的突破口）为准。
+- 八字定策：将八字格局转化为当事人的行事风格与资源短板，以此作为给出具体行动建议的依据。若卦吉但八字偏弱/承压，建议借力；若卦凶但八字偏强/冲动，建议克制。
 
-输出分三段。第一段用一句话回答用户问题，直接判断吉凶或平稳，不要模棱两可。第二段解释本卦与变卦含义，并重点解读动爻的突破口。第三段结合八字格局给出一到两条具体行动建议。总字数控制在六百到八百字之间，言简意赅。
+【输入数据】
+- 案主档案：{bazi_profile}
+- 占卜事项：{user_question}
+- 卦象信息：{hex_info}
 
-安全合规。保持理性客观温暖。遇到凶卦，侧重避险或等待时机，给予希望，严禁制造恐慌。全文只用中文，不要出现英文或拼音。总回复不超过八百字。
+【输出结构】（严格分三段输出，直接开始，无开场白，不输出小标题）
+
+第一段：直击核心。结合卦象吉凶，用一句话直接、明确地回答用户的提问（定性）。
+
+第二段：趋势推演。将卦象的阻力或动力无痕翻译为该事项的具体现实场景。指出事情的起因、当前面临的最核心变量（动爻映射），以及它将如何导向最终的结果。用客观事实的口吻描述，摒弃心理侧写。
+
+第三段：针对性策略。结合案主档案中的行事风格，给出针对当前局面的 1 到 2 条具体行动建议（如：转移视线、主动沟通、切割止损等）。
     """
     
     return prompt
+
+
+def build_liuren_prompt(
+    user_intent,
+    four_lessons_data,
+    three_transmissions_data,
+    shensha_data,
+    benming=None,
+    xingnian=None,
+    json_dictionary=None,
+):
+    """
+    构建大六壬起课解析 Prompt。
+
+    :param user_intent: 占卜事由，允许为空
+    :param four_lessons_data: 四课数据
+    :param three_transmissions_data: 三传数据
+    :param shensha_data: 关键神煞数据
+    :param benming: 当事人本命（可选）
+    :param xingnian: 当前行年（可选）
+    :param json_dictionary: 映射字典（可选，不传则使用 backend/liuren_dictionary.json）
+    """
+    intent = (user_intent or "").strip()
+    benming_text = (benming or "").strip()
+    xingnian_text = (xingnian or "").strip()
+    benming_xingnian_text = (
+        f"当事人本命：{benming_text}，当前行年：{xingnian_text}"
+        if benming_text and xingnian_text
+        else ""
+    )
+    dictionary_payload = json_dictionary if isinstance(json_dictionary, dict) else LIUREN_DICTIONARY
+    normalized_dictionary = _normalize_liuren_dictionary(dictionary_payload)
+    four_lessons_text = _to_json_text(four_lessons_data)
+    three_transmissions_text = _to_json_text(three_transmissions_data)
+    shensha_text = _to_json_text(shensha_data)
+    dictionary_text = _to_json_text(normalized_dictionary)
+
+    prompt = f"""
+任务目标：基于输入数据完成六壬事项解析，并将推演结果无痕转化为现实白话。不要暴露术语、内部判定过程或推演步骤。
+
+【输入数据】
+- 占卜事由（user_intent）：{intent if intent else "（空，仅作当前时空能量盲测解析）"}
+- 本命行年（可选）：{benming_xingnian_text}
+- 排盘核心数据：
+  * 四课（four_lessons_data）：{four_lessons_text}
+  * 三传（three_transmissions_data）：{three_transmissions_text}
+  * 关键神煞（shensha_data）：{shensha_text}
+- 动态映射字典（json_dictionary）：{dictionary_text}
+
+【内部判定法则（若有本命/行年数据介入）】
+后台静默核对：盘面中的阻滞点（如空亡、刑害、或白虎等凶将）以及三传，是否落在了传入的【本命】或【行年】地支上。
+
+若命中锚点：在底层逻辑上断定危机或麻烦将对当事人产生不可避免的实质冲击。
+
+若未命中锚点：在底层逻辑上断定大环境虽动荡或有阻力，但当事人自身坐标相对安全。
+
+(警告：此判定仅供大模型后台推演，最终输出必须无痕转化为白话，绝对禁止向用户输出“本命”、“行年”等词汇！)
+
+【数据调用与演绎法则】（核心映射逻辑）
+1. 领域锚定：首先分析用户的“占卜事项”，判断其核心归属领域（如：感情、财富、健康、事物、或通用）。
+2. 靶向取词：在提供的【动态映射字典】中，严格按照判定好的领域，提取当前盘面四课、三传、神煞所对应的具体意象。
+3. 骨架发散：将字典中提取出的关键词作为叙事骨架，结合该领域的现实常识与心理动力学，将其丰满、发散为一个连贯的现实故事。绝不可生搬硬套。
+
+【正反例对照】（请严格学习这种转译方式）
+- 用户问：明天早餐吃得顺心吗？（遇驿马、空亡、刑害）
+- <Bad 错误示范>：“驿马”代表奔波，“空亡”说明预期落空，“刑害”预示着内部消耗，建议顺其自然不要陷入被动。
+- <Good 正确示范>：明天这顿早饭估计得折腾一下。可能临时要换地方，或者想吃的那家店正好关门扑了个空。没必要为了这顿饭扫兴，随便买点填饱肚子，把精力留给更重要的事情。
+
+【输出结构】（直接开始，无开场白，不输出小标题）
+直接输出三段自然流畅的文字：
+第一段：用一句生活化的话，直接定调这件事当下的客观状态和走向。
+第二段：结合四课三传的字典意象，重构这个具体事项的现实场景。说明事情的起因、中途遭遇的具体波折（结合量级匹配），以及最终的落脚点。描述趋势时多用“可能”、“也许”。
+第三段：结合神煞的字典意象，指出这件事中容易踩空的陷阱或变数。如果有本命/行年数据，需结合【内部判定法则】，明确告诉用户这股阻力是“直冲你来，必须提前应对”，还是“只是周遭环境折腾，你大可置身事外/静观其变”。 最后，给出一到两条极度具体、符合该事件量级的行动建议。
+"""
+
+    return prompt.strip()
 
 
 # ============================================================

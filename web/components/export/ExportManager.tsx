@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { FileImage, FileText, X, Loader2 } from "lucide-react";
@@ -43,12 +43,9 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
         refreshProfiles().catch(() => { });
     }, [isOpen, refreshProfiles]);
 
-    const analysisRecords = currentProfile?.analysisRecords || [];
-    const compatibilityRecords = currentProfile?.compatibilityRecords || [];
-    const oracleRecords = currentProfile?.oracleRecords || [];
     const isSingleAnalysisExport = !!currentTopic && typeof currentContent === "string" && currentContent.trim().length > 0;
 
-    const buildAnalysisMarkdown = (record: AnalysisRecord) => {
+    const buildAnalysisMarkdown = useCallback((record: AnalysisRecord) => {
         const parts = [];
         if (record.createdAt) {
             parts.push(`**生成时间**：${record.createdAt}`);
@@ -60,15 +57,15 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
         }
         parts.push(record.content || "");
         return parts.join("\n");
-    };
+    }, []);
 
-    const formatBirth = (data?: { birth_year?: number; month?: number; day?: number; hour?: number; minute?: number; gender?: string }) => {
+    const formatBirth = useCallback((data?: { birth_year?: number; month?: number; day?: number; hour?: number; minute?: number; gender?: string }) => {
         if (!data) return "";
         const minute = typeof data.minute === "number" ? String(data.minute).padStart(2, "0") : "00";
         return `${data.birth_year}年${data.month}月${data.day}日 ${data.hour}时${minute}分 · ${data.gender}`;
-    };
+    }, []);
 
-    const buildCompatibilityMarkdown = (record: CompatibilityRecord) => {
+    const buildCompatibilityMarkdown = useCallback((record: CompatibilityRecord) => {
         const isEn = record.language === "en";
         const lines = [
             isEn ? `**Relation**: ${record.relationType}` : `**关系类型**：${record.relationType}`,
@@ -90,9 +87,9 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
             lines.push("", isEn ? "**AI Interpretation**" : "**AI 解读**", record.analysisError);
         }
         return lines.join("\n");
-    };
+    }, [formatBirth]);
 
-    const buildOracleMarkdown = (record: OracleRecord) => {
+    const buildOracleMarkdown = useCallback((record: OracleRecord) => {
         const isEn = record.language === "en";
         const result = record.result;
         const lines = [
@@ -114,10 +111,13 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
             lines.push("", isEn ? "**Details**" : "**细节**", ...result.details.map((item) => `- ${item}`));
         }
         return lines.join("\n");
-    };
+    }, []);
 
     const pages = useMemo(() => {
         if (!birthData) return [];
+        const analysisRecords = currentProfile?.analysisRecords || [];
+        const compatibilityRecords = currentProfile?.compatibilityRecords || [];
+        const oracleRecords = currentProfile?.oracleRecords || [];
         const items: {
             id: string;
             type: "chart" | "analysis" | "oracle";
@@ -192,7 +192,7 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
         });
 
         return items;
-    }, [birthData, chartData, cycleData, isSingleAnalysisExport, currentTopic, currentContent, analysisRecords, compatibilityRecords, oracleRecords, exportMode, oracleRecordsOverride]);
+    }, [birthData, chartData, cycleData, isSingleAnalysisExport, currentTopic, currentContent, currentProfile?.analysisRecords, currentProfile?.compatibilityRecords, currentProfile?.oracleRecords, exportMode, oracleRecordsOverride, buildAnalysisMarkdown, buildCompatibilityMarkdown, buildOracleMarkdown]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -334,7 +334,7 @@ export default function ExportManager({ isOpen, onClose, currentTopic, currentCo
             canvases.forEach((canvas, index) => {
                 const imgData = canvas.toDataURL('image/png');
                 const imgWidth = pageWidth;
-                let imgHeight = (canvas.height * imgWidth) / canvas.width;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
                 let drawWidth = imgWidth;
                 let drawHeight = imgHeight;
                 if (imgHeight > pageHeight) {

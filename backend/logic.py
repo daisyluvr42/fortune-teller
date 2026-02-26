@@ -9,6 +9,8 @@ import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from lunar_python import Solar
+from llm_client import get_llm_client
+import svgwrite
 from typing import Optional, List, Any
 from bazi_utils import calculate_bazi_energy, BRANCH_WEIGHT_MAP, STEM_WUXING_MAP
 
@@ -2620,7 +2622,7 @@ def get_fortune_analysis(
     language: str = "zh",
     is_first_response: bool = True,
     conversation_history: list = None,
-    age: int = None
+    age: int = None,
 ):
     """
     Get fortune analysis from an LLM based on the selected topic.
@@ -2749,30 +2751,42 @@ Do not predict death. Avoid fatalism. Do not give gambling or speculation advice
 
 Output must be plain English text paragraphs only with no headings, lists, bullets, symbols, emojis, or markdown.
 """
-        else:
-            search_instruction = (
-                "如果用户问及现实世界的具体事物，必须联网搜索相关事物的当前动态，再结合用户运势给出建议。"
-                if enable_tools
-                else "如果用户问及现实世界具体事物，请避免编造最新动态，给出更通用、稳健的建议。"
-            )
-            custom_prompt = f"""请以人生命盘的共读者身份回答用户的自由提问，你熟读渊海子平与三命通会，也懂现代心理学的表达方式。
-
-无论用户问什么，请先看一眼他的八字，尝试从命盘里寻找答案的根源。不要讲大道理，要针对具体问题给出具体分析。
-{search_instruction}
-
-先用温暖的话语接住用户情绪，然后从命盘视角定性与判断时机，最后给出清晰可执行的建议。可以是心态调整、风水微调或现实选择建议。
-
-严禁预测死亡时间，严禁绝对宿命论，严禁博彩投机。禁止任何元语言或身份说明。
-
-输出必须为纯文本段落，不要标题、序号、列表、符号或表情。
-"""
-        question_label = "User question" if language == "en" else "用户的问题"
-        user_message = f"""{user_context}{history_summary}
+            question_label = "User question"
+            user_message = f"""{user_context}{history_summary}
 
 {custom_prompt}
 
 {question_label}：{custom_question}
 """.format(this_year=this_yr, next_year=next_yr)
+        else:
+            bazi_profile = user_context
+            custom_prompt = f"""你是人生命盘的共读者，熟读渊海子平与三命通会，也精通现代心理学与现实决策。你擅长将深奥的八字命理无痕转化为现实生活中的性格特质与周期规律，语气自然温暖，像朋友并肩而坐。
+
+【绝对执行规则】
+1. 术语熔断（核心铁律）：绝对禁止在输出文本中使用任何八字专有名词（如：七杀、伤官、比劫、偏财、身强身弱、用神忌神、大运流年、天干地支、刑冲合害等）。必须将它们全部无痕转译为心理学特征、资源禀赋或现实周期（例如把“走七杀大运”说成“目前处于高压与强制重塑的生命周期”；把“伤官见官”说成“内心的反叛渴望与现实规则发生了剧烈碰撞”）。
+2. 量级匹配：必须根据用户提问的“事件大小”决定词汇轻重。问日常情绪/小事，用轻松的白描（如：最近精力条不太够）；问人生大抉择，调用深度的心理与现实博弈词汇（如：底层安全感的重构、核心资源的错配）。
+3. 语言纯粹：追求简洁有力的叙事。禁止使用“总之”、“综上所述”等总结词；禁止使用“赋能”、“沉淀”、“抓手”等黑话。
+4. 杜绝说教：遇到运势低谷，客观指出底层原因与避险时机。绝对禁止在结尾进行任何形式的过度安慰、煽情或价值观升华。写完具体的行动建议立刻停止。
+5. 安全红线：严禁预测死亡时间，严禁绝对宿命论（要强调用性格与选择微调命运），严禁提供博彩或短期投机建议。禁止任何“作为AI”或“从命理上看”的元语言声明。
+6. 格式铁律：输出必须为连贯的纯文本段落（分为三自然段）。绝对禁止使用标题、序号、列表、特殊符号（如【】、-、*）或任何表情包。
+
+【输入数据】
+- 用户八字排盘与大运流年：{bazi_profile}
+- 用户提问：{custom_question}
+
+
+【输出结构】（直接开始输出三段纯文本，绝不输出任何小标题或序号）
+
+第一段：用一句自然温暖的话接住用户当下的情绪或困境，不要职业化开场。紧接着，跳出表象，直接用一句话给出基于其生命周期的本质定性。不模棱两可，让用户瞬间感到被理解。
+
+第二段：从命盘中寻找答案的根源。结合用户的先天禀赋（原局）与当下所处的生命节点（运势），解释为什么现在会面临这个问题。将命理的失衡转译为内心的冲突或外部资源的摩擦。告诉用户这个特定的周期状态大概会持续多久，未来的客观趋势是什么。多用“或许”、“似乎”保留现实博弈空间。
+
+第三段：基于其命盘的破局点（用神逻辑），给出一到两条极度清晰、可执行的建议。可以是对内部心态的重构提醒，也可以是对外部现实选择的偏向指导（例如当下该藏拙借力，还是该果断切割）。言简意赅，写完建议立刻停止，不留任何升华的尾巴。
+"""
+            user_message = f"""{history_summary}
+
+{custom_prompt}
+"""
     else:
         topic_prompt = ANALYSIS_PROMPTS.get(topic, "请进行综合命理分析。")
         if language == "en":

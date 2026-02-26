@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -12,14 +10,14 @@ const CoinTossScene = dynamic(() => import('@/components/CoinTossScene'), {
     ssr: false,
     loading: () => <div className="w-full h-full flex items-center justify-center text-[#B8860B]/50 animate-pulse">Loading 3D Scene...</div>
 });
-import { getOracle, getAnalysis, OracleResponse, normalizeBirthDataForApi, getCreditStatus, consumeCredit } from '@/lib/api';
+import { getOracle, getOracleInterpretation, OracleResponse, normalizeBirthDataForApi, getCreditStatus } from '@/lib/api';
 import { useUserProfile, OracleRecord } from '@/lib/context';
 import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
-import { useShakeTrigger } from '@/lib/useShakeTrigger';
 import { withAssetBase } from '@/lib/assets';
+import { useRouter } from '@/i18n/routing';
 import ReactMarkdown from 'react-markdown';
-import { Sparkles, History, HelpCircle, AlertTriangle, X } from 'lucide-react';
+import { HelpCircle, AlertTriangle, X } from 'lucide-react';
 import ExportManager from '@/components/export/ExportManager';
 
 const COIN_MODEL_URL = withAssetBase('/models/coin_optimized.glb');
@@ -44,8 +42,6 @@ export default function OraclePage() {
         is_change: boolean;
         coins: number[];
     }[]>([]);
-    const [shakeEnabled, setShakeEnabled] = useState(false);
-    const [shakeNotice, setShakeNotice] = useState<string | null>(null);
     const [isAnimating, setIsAnimating] = useState(false);
     const [showOracleExportPicker, setShowOracleExportPicker] = useState(false);
     const [showOracleExport, setShowOracleExport] = useState(false);
@@ -53,6 +49,7 @@ export default function OraclePage() {
     const [oracleExportRecords, setOracleExportRecords] = useState<OracleRecord[] | null>(null);
     const isAnimatingRef = useRef(false);
     const hasFinalizedRef = useRef(false);
+    const autoCastingTimerRef = useRef<number | null>(null);
     const { credits, updateCredit } = useUserStatus();
     // Use credit info from context
     const creditInfo = credits.oracle ? {
@@ -61,10 +58,10 @@ export default function OraclePage() {
         cycle_used: credits.oracle.cycle_used
     } : null;
 
-    const oracleRecords = currentProfile?.oracleRecords || [];
     const sortedOracleRecords = useMemo(() => {
+        const oracleRecords = currentProfile?.oracleRecords || [];
         return [...oracleRecords].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-    }, [oracleRecords]);
+    }, [currentProfile?.oracleRecords]);
 
     const formatRecordDate = (value?: string) => {
         if (!value) return '';
@@ -121,7 +118,6 @@ export default function OraclePage() {
                     return Math.hypot(dx, dy) >= minDistance;
                 });
                 if (ok) {
-                    const isBack = false;
                     positions.push({
                         top,
                         left,
@@ -169,81 +165,84 @@ export default function OraclePage() {
             gender: "男" as const
         };
 
-        const analysisRes = await getAnalysis({
+        const analysisRes = await getOracleInterpretation({
+            user_intent: question,
             user_data: normalizeBirthDataForApi(userData),
-            question_type: "大师解惑",
-            custom_question: question,
             oracle_data: data,
             language: locale,
         }, session?.access_token);
 
         setAnalysis(analysisRes.markdown_content);
-    }, [birthData, question]);
+    }, [birthData, locale, question, session?.access_token]);
 
 
-    const advanceCasting = useCallback(() => {
+    const startAutoCasting = useCallback((data: OracleResponse) => {
         if (isAnimatingRef.current) return;
-        if (!oracleData) return;
-        if (castingIndex >= 6) return;
-
-        const i = castingIndex;
-        const line = oracleData.lines?.[i];
-        const coins = line?.coins || oracleData.coins_detail?.[i] || [0, 0, 0];
-        const backCount = coins.filter((c) => c === 1).length;
-        const fallbackLineVal = backCount === 1 || backCount === 3 ? 1 : 0;
-        const fallbackIsChange = backCount === 0 || backCount === 3;
-        const lineSymbol = line?.line_symbol || (fallbackLineVal === 1 ? '⚊' : '⚋');
-        const isChange = line?.is_change ?? fallbackIsChange;
-
         isAnimatingRef.current = true;
-        setIsAnimating(true);
-        setCoinState({
-            seed: Date.now(),
-            positions: generateCoinPositions(),
-            faces: coins
-        });
 
-        const nextIndex = i + 1;
-        setCastingIndex(nextIndex);
-        setCastingLines(prev => ([
-            ...prev,
-            {
-                line_index: nextIndex,
-                line_symbol: lineSymbol,
-                is_change: isChange,
-                coins
+        const runStep = (index: number) => {
+            if (index >= 6) {
+                isAnimatingRef.current = false;
+                setIsAnimating(false);
+                autoCastingTimerRef.current = null;
+                void finalizeCasting(data);
+                return;
             }
-        ]));
 
-        window.setTimeout(() => {
-            isAnimatingRef.current = false;
-            setIsAnimating(false);
-            if (nextIndex >= 6) {
-                void finalizeCasting(oracleData);
-            }
-        }, 2600);
-    }, [castingIndex, finalizeCasting, oracleData]);
+            const line = data.lines?.[index];
+            const coins = line?.coins || data.coins_detail?.[index] || [0, 0, 0];
+            const backCount = coins.filter((c) => c === 1).length;
+            const fallbackLineVal = backCount === 1 || backCount === 3 ? 1 : 0;
+            const fallbackIsChange = backCount === 0 || backCount === 3;
+            const lineSymbol = line?.line_symbol || (fallbackLineVal === 1 ? '⚊' : '⚋');
+            const isChange = line?.is_change ?? fallbackIsChange;
+            const nextIndex = index + 1;
 
-    const shake = useShakeTrigger({
-        onTrigger: () => {
-            if (stage !== 'casting') return;
-            advanceCasting();
-        },
-        cooldownMs: 2000,
-        threshold: 18
-    });
+            setIsAnimating(true);
+            setCoinState({
+                seed: Date.now(),
+                positions: generateCoinPositions(),
+                faces: coins
+            });
+            setCastingIndex(nextIndex);
+            setCastingLines(prev => ([
+                ...prev,
+                {
+                    line_index: nextIndex,
+                    line_symbol: lineSymbol,
+                    is_change: isChange,
+                    coins
+                }
+            ]));
+
+            autoCastingTimerRef.current = window.setTimeout(() => {
+                runStep(nextIndex);
+            }, 2600);
+        };
+
+        runStep(0);
+    }, [finalizeCasting, generateCoinPositions]);
 
     useEffect(() => {
         if (stage !== 'casting') {
+            if (autoCastingTimerRef.current) {
+                window.clearTimeout(autoCastingTimerRef.current);
+                autoCastingTimerRef.current = null;
+            }
             isAnimatingRef.current = false;
             setIsAnimating(false);
             hasFinalizedRef.current = false;
-            if (shakeEnabled) {
-                shake.stop();
-                setShakeEnabled(false);
-            }
         }
-    }, [shake, shakeEnabled, stage]);
+    }, [stage]);
+
+    useEffect(() => {
+        return () => {
+            if (autoCastingTimerRef.current) {
+                window.clearTimeout(autoCastingTimerRef.current);
+                autoCastingTimerRef.current = null;
+            }
+        };
+    }, []);
 
     const handleCast = async () => {
         if (!isAuthenticated || !user) {
@@ -267,15 +266,6 @@ export default function OraclePage() {
             setCastingLines([]);
             setCoinState(null);
 
-            const credit = await consumeCredit("oracle", session.access_token);
-            if (!credit) {
-                setError(t('quotaUsed'));
-                setLoading(false);
-                return;
-            }
-            // Update global context with new credit status
-            updateCredit("oracle", credit);
-
             // 1. 先获取起卦结果，因为动画需要知道硬币的正反面
             const data = await getOracle({
                 question,
@@ -284,34 +274,26 @@ export default function OraclePage() {
                 profile_id: activeProfileId && activeProfileId !== "local" ? activeProfileId : undefined,
             }, session.access_token);
             setOracleData(data);
+            getCreditStatus("oracle", session.access_token).then(status => {
+                updateCredit("oracle", status);
+            });
 
-            // 2. 进入投掷阶段（每次由摇动或按钮触发）
+            // 2. 进入投掷阶段，并自动完成六次投掷
             setStage('casting');
-        } catch (err: any) {
-            setError(err.message || "起卦失败，请稍后重试");
+            startAutoCasting(data);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "起卦失败，请稍后重试";
+            const isQuotaErr = message.includes("次数已用完") || message.includes("quota used up");
+            if (isQuotaErr && session?.access_token) {
+                getCreditStatus("oracle", session.access_token).then(status => {
+                    updateCredit("oracle", status);
+                });
+            }
+            setError(isQuotaErr ? t('quotaUsed') : message);
             setStage('idle');
         } finally {
             setLoading(false);
         }
-    };
-
-
-    const toggleShake = async () => {
-        if (!shake.isSupported) return;
-        if (shakeEnabled) {
-            shake.stop();
-            setShakeEnabled(false);
-            setShakeNotice(null);
-            return;
-        }
-        const permission = await shake.requestPermission();
-        if (permission === "denied") {
-            setShakeNotice("未获得传感器权限，请在系统设置中允许访问“运动与方向”。");
-            return;
-        }
-        shake.start();
-        setShakeEnabled(true);
-        setShakeNotice(null);
     };
 
 
@@ -340,21 +322,21 @@ export default function OraclePage() {
                             </div>
                         )}
 
-                        <div className="relative max-w-lg mx-auto mt-8">
+                        <div className="max-w-lg mx-auto mt-8 space-y-3">
                             <input
                                 type="text"
                                 value={question}
                                 onChange={(e) => setQuestion(e.target.value)}
                                 placeholder={t('questionPlaceholder')}
-                                className="zen-input w-full pr-12 text-center"
+                                className="zen-input w-full text-center"
                                 disabled={loading || stage === 'casting' || !isAuthenticated}
                             />
                             <button
                                 onClick={handleCast}
-                                disabled={loading || !question.trim() || !isAuthenticated}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[#B8860B] hover:scale-110 transition-transform disabled:opacity-30"
+                                disabled={loading || stage === 'casting' || !question.trim() || !isAuthenticated}
+                                className="zen-button w-full disabled:opacity-40"
                             >
-                                <Sparkles className="w-5 h-5" />
+                                {stage === 'casting' ? t('tossing') : t('startToss')}
                             </button>
                         </div>
                         {error && <p className="text-red-800/60 text-xs tracking-widest">{error}</p>}
@@ -415,7 +397,7 @@ export default function OraclePage() {
 
                             <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center">
                                 <p className="text-xs text-[#1A1A1A]/60 tracking-[0.3em]">
-                                    第 {castingIndex} 次投掷 · 第 {castingIndex} 爻
+                                    {t('tossCount', { count: castingIndex })}
                                 </p>
                                 {castingLines.length > 0 && (
                                     <div className="mt-2 flex gap-2 items-center justify-center text-[10px] text-[#B8860B]/80 tracking-widest">
@@ -427,30 +409,9 @@ export default function OraclePage() {
                                     </div>
                                 )}
                             </div>
-
-                            <div className="absolute top-24 left-1/2 -translate-x-1/2 flex items-center gap-3 z-20">
-                                <button
-                                    onClick={toggleShake}
-                                    className="zen-button-ghost text-[10px] tracking-[0.2em]"
-                                >
-                                    {shakeEnabled ? "关闭摇一摇" : "启用摇一摇"}
-                                </button>
-                                <button
-                                    onClick={advanceCasting}
-                                    className="zen-button-ghost text-[10px] tracking-[0.2em]"
-                                    disabled={castingIndex >= 6 || isAnimating}
-                                >
-                                    {isAnimating ? "投掷中..." : (castingIndex === 0 ? "开始投掷" : "下一次投掷")}
-                                </button>
+                            <div className="absolute top-24 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.2em] text-[#1A1A1A]/50">
+                                {isAnimating ? t('tossing') : t('casting')}
                             </div>
-                            <div className="absolute top-36 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.2em] text-[#1A1A1A]/50">
-                                摇动手机可触发下一次投掷（需授权）
-                            </div>
-                            {shakeNotice && (
-                                <div className="absolute top-44 left-1/2 -translate-x-1/2 text-[10px] tracking-[0.2em] text-red-800/70">
-                                    {shakeNotice}
-                                </div>
-                            )}
 
                             <p className="absolute bottom-4 text-[#B8860B] tracking-[0.5em] text-sm animate-pulse font-song">
                                 {['乾', '坎', '艮', '震', '巽', '离', '坤', '兑'][Math.floor(Math.random() * 8)]}...
@@ -511,13 +472,13 @@ export default function OraclePage() {
                                     <div className="prose prose-stone max-w-none prose-p:font-light prose-p:tracking-wide prose-p:leading-relaxed prose-headings:font-normal prose-headings:tracking-widest">
                                         <ReactMarkdown
                                             components={{
-                                                h1: ({ node, ...props }) => <h3 className="text-xl font-medium mt-6 mb-4 text-[#B8860B]" {...props} />,
-                                                h2: ({ node, ...props }) => <h4 className="text-lg font-medium mt-5 mb-3 text-[#1A1A1A]" {...props} />,
-                                                h3: ({ node, ...props }) => <h5 className="text-base font-medium mt-4 mb-2 text-[#1A1A1A]" {...props} />,
-                                                strong: ({ node, ...props }) => <span className="font-medium text-[#B8860B]" {...props} />,
-                                                p: ({ node, ...props }) => <p className="mb-4 text-[#1A1A1A]/80 leading-loose" {...props} />,
-                                                ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
-                                                li: ({ node, ...props }) => <li className="text-[#1A1A1A]/80" {...props} />,
+                                                h1: ({ ...props }) => <h3 className="text-xl font-medium mt-6 mb-4 text-[#B8860B]" {...props} />,
+                                                h2: ({ ...props }) => <h4 className="text-lg font-medium mt-5 mb-3 text-[#1A1A1A]" {...props} />,
+                                                h3: ({ ...props }) => <h5 className="text-base font-medium mt-4 mb-2 text-[#1A1A1A]" {...props} />,
+                                                strong: ({ ...props }) => <span className="font-medium text-[#B8860B]" {...props} />,
+                                                p: ({ ...props }) => <p className="mb-4 text-[#1A1A1A]/80 leading-loose" {...props} />,
+                                                ul: ({ ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
+                                                li: ({ ...props }) => <li className="text-[#1A1A1A]/80" {...props} />,
                                             }}
                                         >
                                             {analysis}

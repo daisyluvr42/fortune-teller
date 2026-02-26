@@ -75,6 +75,7 @@ const ExportTemplate = forwardRef<HTMLDivElement, ExportTemplateProps>(
                 {/* === Header === */}
                 <div className="text-center mb-10 relative z-10">
                     <div className="flex items-center justify-center gap-3 mb-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src="/brand/logo.svg"
                             alt="Destiny logo"

@@ -12,11 +12,20 @@ import { LunarMonth } from 'lunar-javascript';
 import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
 
+const INITIAL_BIRTH_DATA: BirthData = {
+    birth_year: 1990,
+    month: 1,
+    day: 15,
+    hour: 8,
+    minute: 0,
+    gender: '男'
+};
+
 export default function CompatibilityPage() {
     const locale = useLocale() as 'en' | 'zh';
     const t = useTranslations('Compatibility');
     const { birthData: savedBirthData, activeProfileId, profiles } = useUserProfile();
-    const { isAuthenticated, isLoading: authLoading, session } = useAuth();
+    const { isAuthenticated, session } = useAuth();
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<CompatibilityResponse | null>(null);
     const [relationType, setRelationType] = useState('恋人/伴侣');
@@ -37,17 +46,8 @@ export default function CompatibilityPage() {
     } : null;
 
     // 默认初始数据
-    const initialBirthData: BirthData = {
-        birth_year: 1990,
-        month: 1,
-        day: 15,
-        hour: 8,
-        minute: 0,
-        gender: '男'
-    };
-
-    const [personA, setPersonA] = useState<BirthData>(savedBirthData || initialBirthData);
-    const [personB, setPersonB] = useState<BirthData>({ ...initialBirthData, gender: '女' });
+    const [personA, setPersonA] = useState<BirthData>(savedBirthData || INITIAL_BIRTH_DATA);
+    const [personB, setPersonB] = useState<BirthData>({ ...INITIAL_BIRTH_DATA, gender: '女' });
     const lunarErrorA = getLunarError(personA);
     const lunarErrorB = getLunarError(personB);
     const hasLunarError = !!(lunarErrorA || lunarErrorB);
@@ -61,7 +61,7 @@ export default function CompatibilityPage() {
         if (savedBirthData) {
             setPersonA({ ...savedBirthData });
         } else {
-            setPersonA({ ...initialBirthData });
+            setPersonA({ ...INITIAL_BIRTH_DATA });
         }
     }, [activeProfileId, profiles, savedBirthData]);
 
@@ -86,8 +86,8 @@ export default function CompatibilityPage() {
                     updateCredit("compatibility", status);
                 });
             }
-        } catch (err: any) {
-            setError(err.message || "合盘分析失败");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "合盘分析失败");
         } finally {
             setLoading(false);
         }
@@ -229,13 +229,13 @@ export default function CompatibilityPage() {
                                     <div className="prose prose-stone max-w-none prose-p:font-light prose-p:tracking-wide prose-p:leading-relaxed prose-headings:font-normal prose-headings:tracking-widest">
                                         <ReactMarkdown
                                             components={{
-                                                h1: ({ node, ...props }) => <h3 className="text-xl font-medium mt-6 mb-4 text-[#B8860B]" {...props} />,
-                                                h2: ({ node, ...props }) => <h4 className="text-lg font-medium mt-5 mb-3 text-[#1A1A1A]" {...props} />,
-                                                h3: ({ node, ...props }) => <h5 className="text-base font-medium mt-4 mb-2 text-[#1A1A1A]" {...props} />,
-                                                strong: ({ node, ...props }) => <span className="font-medium text-[#B8860B]" {...props} />,
-                                                p: ({ node, ...props }) => <p className="mb-4 text-[#1A1A1A]/80 leading-loose" {...props} />,
-                                                ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
-                                                li: ({ node, ...props }) => <li className="text-[#1A1A1A]/80" {...props} />,
+                                                h1: ({ ...props }) => <h3 className="text-xl font-medium mt-6 mb-4 text-[#B8860B]" {...props} />,
+                                                h2: ({ ...props }) => <h4 className="text-lg font-medium mt-5 mb-3 text-[#1A1A1A]" {...props} />,
+                                                h3: ({ ...props }) => <h5 className="text-base font-medium mt-4 mb-2 text-[#1A1A1A]" {...props} />,
+                                                strong: ({ ...props }) => <span className="font-medium text-[#B8860B]" {...props} />,
+                                                p: ({ ...props }) => <p className="mb-4 text-[#1A1A1A]/80 leading-loose" {...props} />,
+                                                ul: ({ ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
+                                                li: ({ ...props }) => <li className="text-[#1A1A1A]/80" {...props} />,
                                             }}
                                         >
                                             {result.analysis_markdown}
@@ -290,7 +290,7 @@ function BirthFormBrief({
     t: (key: string) => string;
 }) {
     const [isInternational, setIsInternational] = useState(false);
-    const update = (key: keyof BirthData, val: any) => setData({ ...data, [key]: val });
+    const update = <K extends keyof BirthData>(key: K, val: BirthData[K]) => setData({ ...data, [key]: val });
 
     // City groups (same as BirthDataForm)
     const CITY_GROUPS: Record<string, Record<string, number>> = {
@@ -365,6 +365,10 @@ function BirthFormBrief({
 
     const locale = useLocale();
     const showLunar = !(locale === 'en' && isInternational);
+    const genderOptions: Array<{ val: BirthData["gender"]; label: string }> = [
+        { val: '男', label: t('male') },
+        { val: '女', label: t('female') },
+    ];
 
     return (
         <div className="space-y-4">
@@ -464,7 +468,7 @@ function BirthFormBrief({
             <div className="space-y-1 text-center">
                 <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block mb-2">{t('gender')}</label>
                 <div className="flex justify-center gap-4">
-                    {[{ val: '男', label: t('male') }, { val: '女', label: t('female') }].map(g => (
+                    {genderOptions.map((g) => (
                         <button
                             key={g.val}
                             type="button"

@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -9,6 +8,7 @@ import { getAnalysis, normalizeBirthDataForApi, getCreditStatus } from '@/lib/ap
 import { useUserProfile } from '@/lib/context';
 import { useAuth } from '@/lib/AuthContext';
 import { useUserStatus } from '@/lib/UserStatusContext';
+import { useRouter } from '@/i18n/routing';
 import { BookOpen, Target, Heart, Coins, Activity, Crown, ArrowLeft, AlertCircle, RefreshCw, Sparkles, Download } from 'lucide-react';
 import ExportManager from '@/components/export/ExportManager';
 
@@ -25,7 +25,6 @@ const ANALYSIS_TOPICS_IDS = [
 export default function AnalysisPage() {
     const router = useRouter();
     const t = useTranslations('Analysis');
-    const commonT = useTranslations('Common');
     const locale = useLocale() as 'en' | 'zh';
     const { birthData, hasProfile, activeProfileId } = useUserProfile();
     const { isAuthenticated, isLoading: authLoading, session } = useAuth();
@@ -113,7 +112,7 @@ export default function AnalysisPage() {
                     updateCredit("analysis", status);
                 });
             }
-        } catch (err: any) {
+        } catch {
             setError(t('analysisError'));
         } finally {
             setLoading(false);

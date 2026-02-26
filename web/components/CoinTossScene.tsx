@@ -2,9 +2,8 @@
 
 import React, { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
-// @ts-ignore
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import type { Group, Object3D } from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { Group, Object3D, Material, Texture } from "three";
 import { SRGBColorSpace } from "three";
 
 type CoinSpec = {
@@ -77,15 +76,26 @@ function Coins({ modelUrl, coins, seed }: CoinTossSceneProps) {
   const lastSeedRef = useRef<number | null>(null);
   const models = useMemo(
     () => positionedCoins.map(() => gltf.scene.clone(true)),
-    [gltf.scene, positionedCoins.length]
+    [gltf.scene, positionedCoins]
   );
 
-  useMemo(() => {
-    gltf.scene.traverse((obj: any) => {
-      if (obj.material && obj.material.map) {
-        obj.material.map.colorSpace = SRGBColorSpace;
-        obj.material.map.needsUpdate = true;
+  useEffect(() => {
+    const applyTextureSpace = (material: Material | Material[] | undefined) => {
+      if (!material) return;
+      if (Array.isArray(material)) {
+        material.forEach((m) => applyTextureSpace(m));
+        return;
       }
+      const maybe = material as Material & { map?: Texture | null };
+      if (maybe.map) {
+        maybe.map.colorSpace = SRGBColorSpace;
+        maybe.map.needsUpdate = true;
+      }
+    };
+
+    gltf.scene.traverse((obj: Object3D) => {
+      const material = (obj as Object3D & { material?: Material | Material[] }).material;
+      applyTextureSpace(material);
     });
   }, [gltf.scene]);
 

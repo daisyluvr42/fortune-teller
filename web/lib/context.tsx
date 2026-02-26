@@ -10,8 +10,24 @@ import { getSupabaseClient } from './supabase';
 // ============================================
 
 const STORAGE_KEY = 'fortune_teller_profile';
-const PROFILES_KEY = 'fortune_teller_profiles';
 const ACTIVE_PROFILE_KEY = 'fortune_teller_active_profile';
+
+type JsonRecord = Record<string, unknown>;
+
+const asRecord = (value: unknown): JsonRecord =>
+    value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
+
+const asString = (value: unknown, fallback = ""): string =>
+    typeof value === "string" ? value : fallback;
+
+const asNumber = (value: unknown, fallback = 0): number => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    return fallback;
+};
 
 // 单个档案数据
 export interface AnalysisRecord {
@@ -54,6 +70,61 @@ export interface OracleRecord {
     };
     userData?: BirthData | null;
 }
+
+const asAnalyses = (value: unknown): Record<string, AnalysisRecord | string> => {
+    const source = asRecord(value);
+    return Object.fromEntries(
+        Object.entries(source).map(([key, raw]) => {
+            if (typeof raw === "string") return [key, raw];
+            const record = asRecord(raw);
+            if (Object.keys(record).length === 0) return [key, ""];
+            return [key, {
+                key: asString(record.key, key),
+                topic: asString(record.topic, key),
+                content: asString(record.content, ""),
+                createdAt: typeof record.created_at === "string"
+                    ? record.created_at
+                    : (typeof record.createdAt === "string" ? record.createdAt : undefined),
+                customQuestion: typeof record.custom_question === "string"
+                    ? record.custom_question
+                    : (typeof record.customQuestion === "string" ? record.customQuestion : null),
+            } as AnalysisRecord];
+        })
+    );
+};
+
+const asCompatibilityRecord = (raw: unknown, fallbackKey = ""): CompatibilityRecord => {
+    const record = asRecord(raw);
+    const details = Array.isArray(record.details) ? record.details.map((item) => String(item)) : [];
+    return {
+        key: asString(record.key, fallbackKey),
+        createdAt: typeof record.created_at === "string"
+            ? record.created_at
+            : (typeof record.createdAt === "string" ? record.createdAt : undefined),
+        relationType: asString(record.relation_type, asString(record.relationType, "")),
+        language: record.language === "zh" || record.language === "en" ? record.language : undefined,
+        userAData: asRecord(record.user_a_data ?? record.userAData) as unknown as BirthData,
+        userBData: asRecord(record.user_b_data ?? record.userBData) as unknown as BirthData,
+        baseScore: asNumber(record.base_score ?? record.baseScore, 0),
+        details,
+        userASummary: asString(record.user_a_summary, asString(record.userASummary, "")),
+        userBSummary: asString(record.user_b_summary, asString(record.userBSummary, "")),
+        analysisMarkdown: typeof record.analysis_markdown === "string"
+            ? record.analysis_markdown
+            : (typeof record.analysisMarkdown === "string" ? record.analysisMarkdown : null),
+        analysisFromLlm: Boolean(record.analysis_from_llm ?? record.analysisFromLlm),
+        analysisError: typeof record.analysis_error === "string"
+            ? record.analysis_error
+            : (typeof record.analysisError === "string" ? record.analysisError : null),
+    };
+};
+
+const asCompatibilityCache = (value: unknown): Record<string, CompatibilityRecord> => {
+    const source = asRecord(value);
+    return Object.fromEntries(
+        Object.entries(source).map(([key, raw]) => [key, asCompatibilityRecord(raw, key)])
+    );
+};
 
 export interface UserProfile {
     id?: string;  // Supabase UUID
@@ -149,7 +220,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     const readStoredActiveProfileId = (userId?: string | null) => {
         try {
             return localStorage.getItem(getActiveProfileStorageKey(userId));
-        } catch (e) {
+        } catch {
             return null;
         }
     };
@@ -162,7 +233,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 return;
             }
             localStorage.setItem(key, profileId);
-        } catch (e) {
+        } catch {
             // ignore storage errors
         }
     };
@@ -184,77 +255,75 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
 
             if (error) throw error;
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const loadedProfiles: UserProfile[] = (data || []).map((row: any) => {
-                const sessionData = row.session_data || {};
-                const rawAnalyses = sessionData.analyses || {};
+            const loadedProfiles: UserProfile[] = ((Array.isArray(data) ? data : []) as unknown[]).map((rowRaw) => {
+                const row = asRecord(rowRaw);
+                const sessionData = asRecord(row.session_data);
+                const sessionBirthData = asRecord(sessionData.birthData);
+                const rawAnalyses = asRecord(sessionData.analyses);
+                const parsedAnalyses = asAnalyses(sessionData.analyses);
                 const rawAnalysisRecords = Array.isArray(sessionData.analysis_records) ? sessionData.analysis_records : [];
                 const analysisRecords: AnalysisRecord[] = rawAnalysisRecords.length > 0
-                    ? rawAnalysisRecords.map((record: any) => ({
-                        key: record.key || record.topic || "analysis",
-                        topic: record.topic || record.key || "分析",
-                        content: record.content || "",
-                        createdAt: record.created_at,
-                        customQuestion: record.custom_question ?? null,
-                    }))
-                    : Object.entries(rawAnalyses).map(([key, value]: [string, any]) => ({
-                        key,
-                        topic: typeof value === "object" && value?.topic ? value.topic : key,
-                        content: typeof value === "object" && value?.content ? value.content : String(value || ""),
-                        createdAt: typeof value === "object" ? value?.created_at : undefined,
-                        customQuestion: typeof value === "object" ? value?.custom_question ?? null : null,
-                    }));
+                    ? rawAnalysisRecords.map((recordRaw) => {
+                        const record = asRecord(recordRaw);
+                        return {
+                            key: asString(record.key, asString(record.topic, "analysis")),
+                            topic: asString(record.topic, asString(record.key, "分析")),
+                            content: asString(record.content, ""),
+                            createdAt: typeof record.created_at === "string" ? record.created_at : undefined,
+                            customQuestion: typeof record.custom_question === "string" ? record.custom_question : null,
+                        };
+                    })
+                    : Object.entries(rawAnalyses).map(([key, value]) => {
+                        const valueRecord = asRecord(value);
+                        const hasObjectValue = Object.keys(valueRecord).length > 0;
+                        return {
+                            key,
+                            topic: hasObjectValue ? asString(valueRecord.topic, key) : key,
+                            content: hasObjectValue ? asString(valueRecord.content, "") : String(value ?? ""),
+                            createdAt: hasObjectValue && typeof valueRecord.created_at === "string" ? valueRecord.created_at : undefined,
+                            customQuestion: hasObjectValue && typeof valueRecord.custom_question === "string" ? valueRecord.custom_question : null,
+                        };
+                    });
 
-                const rawCompatibilityCache = sessionData.compatibility_cache || {};
-                const compatibilityRecords: CompatibilityRecord[] = Object.values(rawCompatibilityCache).map((record: any) => ({
-                    key: record.key || "",
-                    createdAt: record.created_at,
-                    relationType: record.relation_type,
-                    language: record.language,
-                    userAData: record.user_a_data,
-                    userBData: record.user_b_data,
-                    baseScore: record.base_score ?? 0,
-                    details: record.details || [],
-                    userASummary: record.user_a_summary || "",
-                    userBSummary: record.user_b_summary || "",
-                    analysisMarkdown: record.analysis_markdown ?? null,
-                    analysisFromLlm: record.analysis_from_llm ?? false,
-                    analysisError: record.analysis_error ?? null,
-                }));
+                const compatibilityCache = asCompatibilityCache(sessionData.compatibility_cache);
+                const compatibilityRecords: CompatibilityRecord[] = Object.values(compatibilityCache);
 
                 const oracleRecords: OracleRecord[] = Array.isArray(sessionData.oracle_records)
-                    ? sessionData.oracle_records.map((record: any) => ({
-                        createdAt: record.created_at,
-                        question: record.question || "",
-                        language: record.language,
-                        result: record.result,
-                        userData: record.user_data || null,
-                    }))
+                    ? sessionData.oracle_records.map((recordRaw) => {
+                        const record = asRecord(recordRaw);
+                        return {
+                            createdAt: typeof record.created_at === "string" ? record.created_at : undefined,
+                            question: asString(record.question, ""),
+                            language: record.language === "zh" || record.language === "en" ? record.language : undefined,
+                            result: asRecord(record.result) as unknown as OracleRecord["result"],
+                            userData: asRecord(record.user_data) as unknown as BirthData,
+                        };
+                    })
                     : [];
 
                 return {
-                    id: row.id,
-                    profileName: row.profile_name,
+                    id: typeof row.id === "string" ? row.id : undefined,
+                    profileName: asString(row.profile_name, "档案"),
                     birthData: {
-                        birth_year: row.birth_year,
-                        month: row.birth_month,
-                        day: row.birth_day,
-                        hour: row.birth_hour ? parseInt(row.birth_hour) : 12,
-                        minute: sessionData?.birthData?.minute ?? 0,
-                        gender: row.gender === 'female' ? '女' : '男',
-                        is_lunar: row.is_lunar ? true : (sessionData?.birthData?.is_lunar ?? false),
-                        time_mode: sessionData?.birthData?.time_mode ?? "time",
-                        shichen: sessionData?.birthData?.shichen ?? undefined,
+                        birth_year: asNumber(row.birth_year, 1990),
+                        month: asNumber(row.birth_month, 1),
+                        day: asNumber(row.birth_day, 1),
+                        hour: row.birth_hour ? Number.parseInt(asString(row.birth_hour, "12"), 10) : 12,
+                        minute: asNumber(sessionBirthData.minute, 0),
+                        gender: row.gender === "female" ? "女" : "男",
+                        is_lunar: Boolean(row.is_lunar) ? true : Boolean(sessionBirthData.is_lunar),
+                        time_mode: sessionBirthData.time_mode === "shichen" ? "shichen" : "time",
+                        shichen: typeof sessionBirthData.shichen === "string" ? (sessionBirthData.shichen as BirthData["shichen"]) : undefined,
                     } as BirthData,
-                    chartData: sessionData?.chartData || null,
-                    cycleData: sessionData?.cycleData || null,
-                    analyses: rawAnalyses,
+                    chartData: (sessionData.chartData as ChartResponse | null) ?? null,
+                    cycleData: (sessionData.cycleData as CycleResponse | null) ?? null,
+                    analyses: parsedAnalyses,
                     analysisRecords,
-                    compatibilityCache: rawCompatibilityCache,
+                    compatibilityCache,
                     compatibilityRecords,
                     oracleRecords,
-                    createdAt: row.created_at,
-                    updatedAt: row.updated_at,
+                    createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
+                    updatedAt: typeof row.updated_at === "string" ? row.updated_at : undefined,
                 };
             });
 

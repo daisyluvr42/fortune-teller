@@ -87,6 +87,18 @@ export interface OracleResponse {
     svg: string;
 }
 
+export interface OracleInterpretRequest {
+    user_intent?: string;
+    user_data?: BirthData;
+    oracle_data: OracleResponse;
+    language?: "zh" | "en";
+}
+
+export interface OracleInterpretResponse {
+    topic: string;
+    markdown_content: string;
+}
+
 export interface CycleItem {
     gan_zhi: string;
     year?: number;
@@ -114,7 +126,6 @@ export interface AnalysisRequest {
     question_type: string;
     custom_question?: string;
     birthplace?: string;
-    oracle_data?: OracleResponse;
     profile_id?: string;
     force_refresh?: boolean;
     language?: string;
@@ -127,7 +138,25 @@ export interface AnalysisResponse {
     remaining_credits?: number;
 }
 
-export type CreditType = "oracle" | "compatibility" | "analysis";
+export interface LiurenInterpretRequest {
+    user_intent: string;
+    four_lessons_data: unknown;
+    three_transmissions_data: unknown;
+    shensha_data: unknown;
+    birth_year?: number;
+    gender?: "male" | "female";
+    json_dictionary?: Record<string, unknown>;
+    language?: "zh" | "en";
+}
+
+export interface LiurenInterpretResponse {
+    topic: string;
+    markdown_content: string;
+    benming?: string | null;
+    xingnian?: string | null;
+}
+
+export type CreditType = "oracle" | "liuren" | "compatibility" | "analysis";
 
 export interface CreditStatusResponse {
     credit_type: CreditType;
@@ -229,7 +258,7 @@ export interface CompatibilityResponse {
 }
 
 // API Base URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 function authHeaders(token?: string): Record<string, string> {
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -402,6 +431,24 @@ export async function getOracle(request: OracleRequest, token?: string): Promise
 }
 
 /**
+ * Get AI-powered Zhouyi Oracle interpretation
+ */
+export async function getOracleInterpretation(request: OracleInterpretRequest, token?: string): Promise<OracleInterpretResponse> {
+    const response = await fetch(`${API_BASE}/api/oracle/interpret`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "六爻解卦失败" }));
+        throw new Error(error.detail || "六爻解卦失败");
+    }
+
+    return response.json();
+}
+
+/**
  * Calculate fortune cycles (DaYun and LiuNian)
  */
 export async function getCycles(data: BirthData): Promise<CycleResponse> {
@@ -432,6 +479,24 @@ export async function getAnalysis(request: AnalysisRequest, token?: string): Pro
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: "分析失败" }));
         throw new Error(error.detail || "命理分析请求失败");
+    }
+
+    return response.json();
+}
+
+/**
+ * Get AI-powered Da Liu Ren interpretation
+ */
+export async function getLiurenInterpretation(request: LiurenInterpretRequest, token?: string): Promise<LiurenInterpretResponse> {
+    const response = await fetch(`${API_BASE}/api/liuren/interpret`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "六壬解读失败" }));
+        throw new Error(error.detail || "六壬解读失败");
     }
 
     return response.json();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { BirthData } from "@/lib/api";
 import { LunarMonth } from "lunar-javascript";
 import { useTranslations, useLocale } from 'next-intl';
@@ -114,15 +114,9 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
     const [isInternational, setIsInternational] = useState(false);
     const [isLunar, setIsLunar] = useState<boolean>(initialData?.is_lunar ?? false);
     const [timeMode, setTimeMode] = useState<"time" | "shichen">(
-        initialData?.time_mode ?? (isZh ? "time" : "time")
+        initialData?.time_mode ?? "time"
     );
-
-    // Force time mode if not Chinese
-    useEffect(() => {
-        if (!isZh && timeMode === 'shichen') {
-            setTimeMode('time');
-        }
-    }, [isZh, timeMode]);
+    const effectiveTimeMode: "time" | "shichen" = isZh ? timeMode : "time";
     const [shichen, setShichen] = useState<BirthData["shichen"]>(initialData?.shichen ?? "早子时");
 
     const SHICHEN_OPTIONS: BirthData["shichen"][] = [
@@ -155,8 +149,8 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
             gender,
             longitude: CITIES_FLAT[city] || 120.0,
             is_lunar: isLunar,
-            time_mode: timeMode,
-            shichen: timeMode === "shichen" ? shichen : undefined,
+            time_mode: effectiveTimeMode,
+            shichen: effectiveTimeMode === "shichen" ? shichen : undefined,
         });
     };
 
@@ -239,7 +233,7 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
 
                     {/* Row 2: Hour & Minute & Toggle */}
                     <div className="grid grid-cols-3 gap-3">
-                        {timeMode === "shichen" ? (
+                        {effectiveTimeMode === "shichen" ? (
                             <>
                                 <div className="col-span-2 space-y-1">
                                     <label className="text-[10px] tracking-widest text-[#1A1A1A]/40 block text-center uppercase">
@@ -294,10 +288,10 @@ export default function BirthDataForm({ onSubmit, isLoading, initialData }: Birt
                             {isZh && (
                                 <button
                                     type="button"
-                                    onClick={() => setTimeMode(timeMode === "time" ? "shichen" : "time")}
+                                    onClick={() => setTimeMode(effectiveTimeMode === "time" ? "shichen" : "time")}
                                     className="text-[10px] text-[#B8860B] tracking-widest hover:underline whitespace-nowrap"
                                 >
-                                    {timeMode === "time" ? "切换到时辰" : "切换到时间"}
+                                    {effectiveTimeMode === "time" ? "切换到时辰" : "切换到时间"}
                                 </button>
                             )}
                         </div>

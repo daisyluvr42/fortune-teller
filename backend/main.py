@@ -8,16 +8,20 @@ import json
 import hashlib
 from pathlib import Path
 from datetime import datetime, date
+import asyncio
 import uuid
 import re
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Literal
 
-from fastapi import FastAPI, HTTPException, Header
+import stripe
+from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import create_client
+from openai import APIConnectionError, APITimeoutError, APIStatusError, RateLimitError
 
 # Import core logic
 from logic import (
@@ -30,7 +34,8 @@ from logic import (
     SYSTEM_INSTRUCTION,
     get_optimal_temperature
 )
-from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt
+from bazi_utils import BaziCompatibilityCalculator, build_couple_prompt, build_liuren_prompt, build_oracle_prompt
+from liuren_benming import calculate_benming_xingnian
 from credit_service import get_credit_manager, QuotaStatus
 from llm_client import get_llm_client
 from translations import translate_pattern, translate_strength, translate_element
@@ -41,9 +46,24 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
 PAYMENT_WEBHOOK_SECRET = os.getenv("PAYMENT_WEBHOOK_SECRET")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+STRIPE_SUCCESS_URL = os.getenv(
+    "STRIPE_SUCCESS_URL",
+    "http://localhost:3000/zh/payment/success?session_id={CHECKOUT_SESSION_ID}"
+)
+STRIPE_CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "http://localhost:3000/zh")
+STRIPE_PRICE_IDS = {
+    "basic": os.getenv("STRIPE_PRICE_ID_BASIC"),
+    "deep": os.getenv("STRIPE_PRICE_ID_DEEP"),
+    "yearly": os.getenv("STRIPE_PRICE_ID_YEARLY"),
+}
 # Anonymous users are not allowed to access LLM analysis.
 ALLOW_ANON_ANALYSIS = False
 RAW_CORS_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "")
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 def _log_supabase_env_status() -> None:
     def _status(key: str) -> str:
@@ -199,7 +219,6 @@ class AnalysisRequest(BaseModel):
     question_type: str = Field(..., description="Analysis topic (e.g., 整体命格, 事业运势)")
     custom_question: Optional[str] = Field(None, description="Custom question for 大师解惑")
     birthplace: Optional[str] = Field("未指定", description="Birthplace name")
-    oracle_data: Optional[OracleResponse] = None  # To support Oracle + Bazi combined analysis
     profile_id: Optional[str] = Field(None, description="Profile UUID for caching")
     force_refresh: bool = Field(False, description="Force regenerate even if cached")
     language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
@@ -211,6 +230,40 @@ class AnalysisResponse(BaseModel):
     markdown_content: str
     from_cache: bool = False
     remaining_credits: Optional[int] = None
+
+
+class OracleInterpretRequest(BaseModel):
+    """Request for /api/oracle/interpret endpoint."""
+    user_intent: Optional[str] = Field(None, description="占问事项")
+    user_data: Optional[BirthData] = None
+    oracle_data: OracleResponse
+    language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
+
+
+class OracleInterpretResponse(BaseModel):
+    """Response for /api/oracle/interpret endpoint."""
+    topic: str
+    markdown_content: str
+
+
+class LiurenInterpretRequest(BaseModel):
+    """Request for /api/liuren/interpret endpoint."""
+    user_intent: Optional[str] = Field(None, description="占卜事项")
+    four_lessons_data: Any = Field(default_factory=dict, description="四课数据")
+    three_transmissions_data: Any = Field(default_factory=dict, description="三传数据")
+    shensha_data: Any = Field(default_factory=dict, description="关键神煞数据")
+    birth_year: Optional[int] = Field(None, ge=1900, le=2100, description="出生年份（可选）")
+    gender: Optional[Literal["male", "female"]] = Field(None, description="生理性别（可选）")
+    json_dictionary: Optional[dict[str, Any]] = Field(None, description="映射字典")
+    language: str = Field("zh", pattern="^(zh|en)$", description="Response language (zh/en)")
+
+
+class LiurenInterpretResponse(BaseModel):
+    """Response for /api/liuren/interpret endpoint."""
+    topic: str
+    markdown_content: str
+    benming: Optional[str] = None
+    xingnian: Optional[str] = None
 
 
 class CompatibilityRequest(BaseModel):
@@ -236,7 +289,7 @@ class CompatibilityResponse(BaseModel):
 
 class CreditConsumeRequest(BaseModel):
     """Request to consume a credit."""
-    credit_type: str = Field(..., pattern="^(oracle|compatibility|analysis)$")
+    credit_type: str = Field(..., pattern="^(oracle|liuren|compatibility|analysis)$")
 
 
 class CreditStatusResponse(BaseModel):
@@ -255,12 +308,18 @@ class CreditStatusResponse(BaseModel):
     extra_credits: Optional[int] = None
 
 
+class CheckoutSessionRequest(BaseModel):
+    """Request for Stripe Checkout session creation."""
+    user_id: str = Field(..., min_length=1, description="User ID")
+    analysis_type: str = Field(..., min_length=1, description="测算类型，例如 basic/deep/yearly")
+
+
 # --- FastAPI App Initialization ---
 
 app = FastAPI(
     title="命理大师 API",
     description="八字算命后端 API - 支持八字排盘、命理分析、合盘分析、周易起卦",
-    version="v0.7.0 beta"
+    version="v0.8.0 beta"
 )
 
 # Configure CORS for mobile/web access
@@ -300,7 +359,7 @@ def extract_pillar_data(pillar_str: str, day_master: str, hidden_stems_list: Lis
 
 
 SHICHEN_TO_HOUR = {
-    "子时": 23,
+    "早子时": 0,
     "丑时": 1,
     "寅时": 3,
     "卯时": 5,
@@ -312,6 +371,9 @@ SHICHEN_TO_HOUR = {
     "酉时": 17,
     "戌时": 19,
     "亥时": 21,
+    "晚子时": 23,
+    # 兼容旧版：如果前端传来旧的 "子时"，默认按晚子时处理
+    "子时": 23,
 }
 
 
@@ -398,21 +460,6 @@ def _hash_payload(payload: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def _oracle_cache_signature(oracle: Optional[OracleResponse]) -> Optional[dict]:
-    if not oracle:
-        return None
-    return {
-        "original_hex": oracle.original_hex,
-        "original_short": oracle.original_short,
-        "original_meaning": oracle.original_meaning,
-        "original_binary": oracle.original_binary,
-        "future_hex": oracle.future_hex,
-        "future_short": oracle.future_short,
-        "changing_lines": oracle.changing_lines,
-        "details": oracle.details,
-    }
-
-
 def _update_profile_session_data(profile_id: str, user_id: str, update_fn) -> dict:
     supabase = get_supabase_admin()
     resp = supabase.table("bazi_profiles").select("session_data,user_id").eq("id", profile_id).eq("user_id", user_id).execute()
@@ -474,6 +521,23 @@ def consume_oracle_credit(user_id: str) -> CreditStatusResponse:
     )
 
 
+def consume_liuren_credit(user_id: str) -> CreditStatusResponse:
+    """Consume liuren credit using unified CreditManager."""
+    cm = get_credit_manager()
+    status = cm.consume(user_id, "liuren")
+    return CreditStatusResponse(
+        credit_type="liuren",
+        remaining=status.remaining,
+        cycle_limit=status.cycle_limit,
+        cycle_used=status.cycle_used,
+        extra_balance=status.extra_balance,
+        cycle_type=status.cycle_type,
+        daily_limit=status.cycle_limit,
+        daily_used=status.cycle_used,
+        extra_credits=status.extra_balance,
+    )
+
+
 def consume_compatibility_credit(user_id: str) -> CreditStatusResponse:
     """Consume compatibility credit using unified CreditManager."""
     cm = get_credit_manager()
@@ -510,7 +574,7 @@ def consume_analysis_credit(user_id: str) -> CreditStatusResponse:
 
 def get_credit_status(user_id: str, credit_type: str) -> CreditStatusResponse:
     """Get credit status using unified CreditManager."""
-    if credit_type not in ("oracle", "compatibility", "analysis"):
+    if credit_type not in ("oracle", "liuren", "compatibility", "analysis"):
         raise HTTPException(status_code=400, detail="Invalid credit type")
     
     cm = get_credit_manager()
@@ -526,7 +590,7 @@ def get_credit_status(user_id: str, credit_type: str) -> CreditStatusResponse:
         cycle_type=status.cycle_type,
         extra_credits=status.extra_balance,
     )
-    if credit_type == "oracle" or credit_type == "analysis":
+    if credit_type in ("oracle", "liuren", "analysis"):
         resp.daily_limit = status.cycle_limit
         resp.daily_used = status.cycle_used
     elif credit_type == "compatibility":
@@ -542,18 +606,29 @@ def _ensure_credit_available(user_id: str, credit_type: str) -> CreditStatusResp
     return status
 
 
+def _get_stripe_price_id(analysis_type: str) -> str:
+    analysis_key = analysis_type.strip().lower()
+    price_id = STRIPE_PRICE_IDS.get(analysis_key)
+    if price_id:
+        return price_id
+
+    valid_types = sorted([k for k, v in STRIPE_PRICE_IDS.items() if v])
+    hint = f"Valid types: {', '.join(valid_types)}" if valid_types else "No Stripe price IDs configured"
+    raise HTTPException(status_code=400, detail=f"Unsupported analysis_type: {analysis_type}. {hint}")
+
+
 # --- API Endpoints ---
 
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "ok", "version": "v0.7.0 beta", "message": "命理大师 API is running"}
+    return {"status": "ok", "version": "v0.8.0 beta", "message": "命理大师 API is running"}
 
 
 @app.get("/api/credits/status", response_model=CreditStatusResponse)
 async def credit_status(credit_type: str, authorization: Optional[str] = Header(None)):
     """
-    Get credit status for oracle or compatibility.
+    Get credit status for oracle/liuren/compatibility/analysis.
     """
     user_id = get_user_id_from_auth(authorization)
     return get_credit_status(user_id, credit_type)
@@ -562,11 +637,13 @@ async def credit_status(credit_type: str, authorization: Optional[str] = Header(
 @app.post("/api/credits/consume", response_model=CreditStatusResponse)
 async def credit_consume(request: CreditConsumeRequest, authorization: Optional[str] = Header(None)):
     """
-    Consume one credit for oracle, compatibility, or analysis.
+    Consume one credit for oracle/liuren/compatibility/analysis.
     """
     user_id = get_user_id_from_auth(authorization)
     if request.credit_type == "oracle":
         return consume_oracle_credit(user_id)
+    if request.credit_type == "liuren":
+        return consume_liuren_credit(user_id)
     if request.credit_type == "compatibility":
         return consume_compatibility_credit(user_id)
     if request.credit_type == "analysis":
@@ -598,6 +675,77 @@ async def get_membership_status(authorization: Optional[str] = Header(None)):
     from membership_service import get_membership_service
     service = get_membership_service()
     return service.get_membership(user_id)
+
+
+@app.post("/create-checkout-session")
+async def create_checkout_session(payload: CheckoutSessionRequest):
+    """
+    Create Stripe Checkout session and return the hosted payment page URL.
+    """
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="STRIPE_SECRET_KEY is not configured")
+
+    price_id = _get_stripe_price_id(payload.analysis_type)
+
+    try:
+        session = await run_in_threadpool(
+            lambda: stripe.checkout.Session.create(
+                mode="payment",
+                line_items=[{"price": price_id, "quantity": 1}],
+                success_url=STRIPE_SUCCESS_URL,
+                cancel_url=STRIPE_CANCEL_URL,
+                metadata={
+                    "user_id": payload.user_id,
+                    "analysis_type": payload.analysis_type,
+                },
+            )
+        )
+    except stripe.error.StripeError as exc:
+        detail = getattr(exc, "user_message", None) or str(exc)
+        raise HTTPException(status_code=502, detail=f"Stripe checkout session creation failed: {detail}")
+
+    if not session.url:
+        raise HTTPException(status_code=500, detail="Stripe session created without checkout URL")
+
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    """
+    Handle Stripe webhook notifications and verify signature.
+    """
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=500, detail="STRIPE_WEBHOOK_SECRET is not configured")
+
+    signature = request.headers.get("stripe-signature")
+    if not signature:
+        raise HTTPException(status_code=400, detail="Missing Stripe signature header")
+
+    payload = await request.body()
+
+    try:
+        event = await run_in_threadpool(
+            lambda: stripe.Webhook.construct_event(
+                payload=payload,
+                sig_header=signature,
+                secret=STRIPE_WEBHOOK_SECRET,
+            )
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid Stripe payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature")
+
+    if event.get("type") == "checkout.session.completed":
+        session = event.get("data", {}).get("object", {})
+        metadata = session.get("metadata") or {}
+        user_id = metadata.get("user_id")
+        if user_id:
+            # Trigger_Bazi_Analysis(user_id)
+            pass
+
+    return {"received": True}
 
 
 @app.post("/api/payment/create")
@@ -794,7 +942,15 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
     user_id = get_user_id_from_auth(authorization)
     if request.profile_id and not user_id:
         raise HTTPException(status_code=401, detail="Authentication required for profile record")
-    consume_oracle_credit(user_id)
+
+    try:
+        _ensure_credit_available(user_id, "oracle")
+    except HTTPException as e:
+        if e.status_code == 403:
+            detail = "今日问卜次数已用完" if request.language == "zh" else "Daily oracle quota used up"
+            raise HTTPException(status_code=403, detail=detail)
+        raise
+
     try:
         from logic import ZhouyiCalculator
         from bazi_utils import draw_hexagram_svg
@@ -815,6 +971,15 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
             lines=result.get("lines"),
             svg=draw_hexagram_svg(result["original_binary"])
         )
+
+        try:
+            consume_oracle_credit(user_id)
+        except HTTPException as e:
+            if e.status_code == 403:
+                detail = "今日问卜次数已用完" if request.language == "zh" else "Daily oracle quota used up"
+                raise HTTPException(status_code=403, detail=detail)
+            raise
+
         if request.profile_id and user_id:
             record = {
                 "created_at": datetime.utcnow().isoformat(),
@@ -851,6 +1016,109 @@ async def get_oracle(request: OracleRequest, authorization: Optional[str] = Head
         raise HTTPException(status_code=500, detail=f"Oracle error: {str(e)}")
 
 
+@app.post("/api/oracle/interpret", response_model=OracleInterpretResponse)
+async def interpret_oracle(request: OracleInterpretRequest, authorization: Optional[str] = Header(None)):
+    """
+    Get AI-powered interpretation for Zhouyi oracle data.
+    Kept independent from /api/analysis so Oracle and Deep Analysis remain separate modules.
+    """
+    _ = get_user_id_from_auth(authorization)
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    safe_intent = _ensure_safe_text(request.user_intent, "user_intent", max_len=1200) or "请解一卦"
+    oracle_details = _ensure_safe_text_list(
+        request.oracle_data.details,
+        "oracle_data.details",
+        max_len=300,
+        max_items=6,
+    )
+    hex_data = {
+        "original_hex": request.oracle_data.original_hex,
+        "future_hex": request.oracle_data.future_hex,
+        "changing_lines": request.oracle_data.changing_lines,
+        "details": oracle_details,
+    }
+
+    bazi_data = {
+        "day_pillar": ("甲", "子"),
+        "pattern_name": "普通格局",
+        "strength": "未知",
+        "joy_elements": "未知",
+    }
+    if request.user_data:
+        year, month, day, hour, minute, longitude = normalize_birth_data(request.user_data)
+        _bazi_str, _time_info, pattern_info = calculate_bazi(
+            year=year,
+            month=month,
+            day=day,
+            hour=hour,
+            minute=minute,
+            longitude=longitude,
+        )
+        bazi_data = {
+            "day_pillar": (pattern_info["day_pillar"][0], pattern_info["day_pillar"][1]),
+            "pattern_name": pattern_info.get("pattern", "普通格局"),
+            "strength": pattern_info.get("strength", {}).get("result", "未知"),
+            "joy_elements": pattern_info.get("strength", {}).get("joy_elements", "未知"),
+        }
+
+    prompt = build_oracle_prompt(safe_intent, hex_data, bazi_data, language=request.language)
+
+    client = get_llm_client(api_key, "https://generativelanguage.googleapis.com/v1beta/openai")
+    response = None
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            response = client.chat.completions.create(
+                model="gemini-2.0-flash",
+                messages=[
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=get_optimal_temperature("gemini-2.0-flash"),
+            )
+            break
+        except (APIConnectionError, APITimeoutError) as e:
+            if attempt >= max_attempts - 1:
+                detail = (
+                    "六爻解析失败：无法连接模型服务，请检查网络后重试"
+                    if request.language == "zh"
+                    else "Oracle interpretation error: unable to reach model service, please retry later"
+                )
+                raise HTTPException(status_code=502, detail=detail) from e
+            await asyncio.sleep(0.8 * (attempt + 1))
+        except RateLimitError as e:
+            detail = (
+                "六爻解析失败：模型服务繁忙，请稍后再试"
+                if request.language == "zh"
+                else "Oracle interpretation error: model service is rate-limited, please retry later"
+            )
+            raise HTTPException(status_code=429, detail=detail) from e
+        except APIStatusError as e:
+            status_code = e.status_code if isinstance(e.status_code, int) and e.status_code > 0 else 502
+            detail = (
+                f"六爻解析失败：模型服务返回异常状态({status_code})"
+                if request.language == "zh"
+                else f"Oracle interpretation error: model service returned status {status_code}"
+            )
+            raise HTTPException(status_code=status_code, detail=detail) from e
+
+    if response is None:
+        raise HTTPException(status_code=502, detail="Oracle interpretation error: model response unavailable")
+
+    markdown_content = response.choices[0].message.content or ""
+    markdown_content = _sanitize_llm_output(markdown_content)
+    if not markdown_content.strip():
+        raise HTTPException(status_code=500, detail="Oracle interpretation error: empty response")
+
+    return OracleInterpretResponse(
+        topic="六爻",
+        markdown_content=markdown_content,
+    )
+
+
 @app.post("/api/cycles", response_model=CycleResponse)
 async def get_cycles(data: BirthData):
     """
@@ -875,6 +1143,128 @@ async def get_cycles(data: BirthData):
         raise HTTPException(status_code=500, detail=f"Cycles calculation error: {str(e)}")
 
 
+@app.post("/api/liuren/interpret", response_model=LiurenInterpretResponse, response_model_exclude_none=True)
+async def interpret_liuren(request: LiurenInterpretRequest, authorization: Optional[str] = Header(None)):
+    """
+    Get AI-powered interpretation for Da Liu Ren casting data.
+    """
+    # 与双人合盘一致：起课计算可匿名，AI 解析需登录。
+    user_id = get_user_id_from_auth(authorization)
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    # Liu Ren has an independent quota type with same tier limits as oracle.
+    try:
+        _ensure_credit_available(user_id, "liuren")
+    except HTTPException as e:
+        if e.status_code == 403:
+            detail = (
+                "六壬解析次数已用完，请明日再试或充值"
+                if request.language == "zh"
+                else "Liu Ren quota used up. Please retry tomorrow or recharge."
+            )
+            raise HTTPException(status_code=403, detail=detail)
+        raise
+
+    safe_intent = _ensure_safe_text(request.user_intent, "user_intent", max_len=1200) or ""
+    benming: Optional[str] = None
+    xingnian: Optional[str] = None
+    if request.birth_year is not None and request.gender is not None:
+        try:
+            benming_xingnian = calculate_benming_xingnian(
+                birth_year=request.birth_year,
+                gender=request.gender,
+                current_year=datetime.now().year,
+            )
+            benming = benming_xingnian["benming"]
+            xingnian = benming_xingnian["xingnian"]
+        except Exception as benming_err:
+            # Benming/Xingnian is optional; computation failure should not block interpretation flow.
+            print(f"[liuren] benming/xingnian skipped: {benming_err}")
+
+    try:
+        prompt = build_liuren_prompt(
+            user_intent=safe_intent,
+            four_lessons_data=request.four_lessons_data,
+            three_transmissions_data=request.three_transmissions_data,
+            shensha_data=request.shensha_data,
+            benming=benming or "",
+            xingnian=xingnian or "",
+            json_dictionary=request.json_dictionary,
+        )
+        client = get_llm_client(api_key, "https://generativelanguage.googleapis.com/v1beta/openai")
+        response = None
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                response = client.chat.completions.create(
+                    model="gemini-2.0-flash",
+                    messages=[
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=get_optimal_temperature("gemini-2.0-flash"),
+                )
+                break
+            except (APIConnectionError, APITimeoutError) as e:
+                if attempt >= max_attempts - 1:
+                    detail = (
+                        "Liuren interpretation error: 无法连接模型服务，请检查网络后重试"
+                        if request.language == "zh"
+                        else "Liuren interpretation error: unable to reach model service, please retry later"
+                    )
+                    raise HTTPException(status_code=502, detail=detail) from e
+                await asyncio.sleep(0.8 * (attempt + 1))
+            except RateLimitError as e:
+                detail = (
+                    "Liuren interpretation error: 模型服务繁忙，请稍后再试"
+                    if request.language == "zh"
+                    else "Liuren interpretation error: model service is rate-limited, please retry later"
+                )
+                raise HTTPException(status_code=429, detail=detail) from e
+            except APIStatusError as e:
+                status_code = e.status_code if isinstance(e.status_code, int) and e.status_code > 0 else 502
+                detail = (
+                    f"Liuren interpretation error: 模型服务返回异常状态({status_code})"
+                    if request.language == "zh"
+                    else f"Liuren interpretation error: model service returned status {status_code}"
+                )
+                raise HTTPException(status_code=status_code, detail=detail) from e
+
+        if response is None:
+            raise HTTPException(status_code=502, detail="Liuren interpretation error: model response unavailable")
+
+        markdown_content = response.choices[0].message.content or ""
+        markdown_content = _sanitize_llm_output(markdown_content)
+        if not markdown_content.strip():
+            raise HTTPException(status_code=500, detail="Liuren interpretation error: empty response")
+
+        # Consume only after successful LLM output
+        try:
+            consume_liuren_credit(user_id)
+        except HTTPException as e:
+            if e.status_code == 403:
+                detail = (
+                    "六壬解析次数已用完，请明日再试或充值"
+                    if request.language == "zh"
+                    else "Liu Ren quota used up. Please retry tomorrow or recharge."
+                )
+                raise HTTPException(status_code=403, detail=detail)
+            raise
+
+        return LiurenInterpretResponse(
+            topic="六壬",
+            markdown_content=markdown_content,
+            benming=benming,
+            xingnian=xingnian,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Liuren interpretation error: {str(e)}")
+
+
 @app.post("/api/analysis", response_model=AnalysisResponse)
 async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = Header(None)):
     """
@@ -886,18 +1276,11 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
     
     from logic import is_safe_input, calculate_bazi, build_user_context, get_fortune_analysis
-    from bazi_utils import build_oracle_prompt
     
     # Safety check
     question_type = _ensure_safe_text(request.question_type, "question_type", max_len=80) or request.question_type
     custom_question_clean = _ensure_safe_text(request.custom_question, "custom_question", max_len=1200)
     birthplace = _ensure_safe_text(request.birthplace or "未指定", "birthplace", max_len=80) or "未指定"
-    oracle_details = _ensure_safe_text_list(
-        request.oracle_data.details if request.oracle_data else None,
-        "oracle_data.details",
-        max_len=300,
-        max_items=6,
-    )
     text_to_check = (custom_question_clean or "") + question_type + birthplace
     if not is_safe_input(text_to_check):
         raise HTTPException(status_code=400, detail="Invalid input detected")
@@ -922,7 +1305,6 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
         "language": request.language,
         "birthplace": birthplace,
         "user_data": _normalize_birth_data_for_cache(request.user_data),
-        "oracle": _oracle_cache_signature(request.oracle_data),
     }
     analysis_key = f"{question_type}|{_hash_payload(analysis_key_payload)}"
 
@@ -988,23 +1370,8 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
         current_year = datetime.now().year
         age = current_year - year
         
-        # Special handling for Oracle + Bazi combined analysis
+        # Custom question for 大师解惑 (no oracle-specific prompt injection)
         custom_question = custom_question_clean
-        if question_type == "大师解惑" and request.oracle_data:
-            # Reconstruct Oracle data for build_oracle_prompt
-            hex_data = {
-                "original_hex": request.oracle_data.original_hex,
-                "future_hex": request.oracle_data.future_hex,
-                "changing_lines": request.oracle_data.changing_lines,
-                "details": oracle_details
-            }
-            bazi_data = {
-                "day_pillar": (pattern_info["day_pillar"][0], pattern_info["day_pillar"][1]),
-                "pattern_name": pattern_info.get("pattern", "普通格局"),
-                "strength": pattern_info.get("strength", {}).get("result", "未知"),
-                "joy_elements": pattern_info.get("strength", {}).get("joy_elements", "未知")
-            }
-            custom_question = build_oracle_prompt(custom_question or "请解一卦", hex_data, bazi_data, language=request.language)
 
         # Collect streamed response
         full_response = ""
@@ -1018,7 +1385,7 @@ async def get_analysis(request: AnalysisRequest, authorization: Optional[str] = 
             language=request.language,
             is_first_response=True,
             conversation_history=None,
-            age=age
+            age=age,
         ):
             full_response += chunk
         full_response = _sanitize_llm_output(full_response)

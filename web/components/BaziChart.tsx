@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { ChartResponse, CycleResponse } from "@/lib/api";
-import { Clock, Zap, TrendingUp, Info } from "lucide-react";
+import { Clock, Zap, TrendingUp } from "lucide-react";
 import { useTranslations } from 'next-intl';
 
 interface BaziChartProps {
@@ -84,7 +84,6 @@ const EXPORT_WUXING_BG_COLORS: Record<string, string> = {
 
 export default function BaziChart({ data, cycleData, isExport = false }: BaziChartProps) {
     const t = useTranslations('BaziChart');
-    const commonT = useTranslations('Common');
     const whenExport = (style: CSSProperties) => (isExport ? style : undefined);
     const getCharColorInline = (char: string) => {
         const wuxing = CHAR_TO_WUXING[char];
@@ -389,12 +388,12 @@ export default function BaziChart({ data, cycleData, isExport = false }: BaziCha
                             </span>
                         </div>
 
-                        <div className={isExport ? "mb-6" : "mb-6 pb-2"}>
-                            <div className={isExport ? "grid grid-cols-8 gap-2" : "grid grid-cols-4 sm:flex sm:gap-2 sm:min-w-max gap-2"}>
+                        <div className={isExport ? "mb-6" : "mb-6 overflow-x-auto pb-2"}>
+                            <div className={isExport ? "grid grid-cols-8 gap-2" : "grid grid-cols-4 sm:grid-cols-8 gap-2"}>
                                 {cycleData.da_yun.slice(0, 8).map((dy, idx) => (
                                     <div
                                         key={idx}
-                                        className={`flex flex-col items-center space-y-1 p-2 rounded-lg border border-[#1A1A1A]/5 bg-[#FAFAF5] ${isExport ? "w-full min-w-0" : "min-w-[3.5rem]"}`}
+                                        className={`flex flex-col items-center space-y-1 p-2 rounded-lg border border-[#1A1A1A]/5 bg-[#FAFAF5] ${isExport ? "w-full min-w-0" : "min-w-0"}`}
                                         style={whenExport({ borderColor: EXPORT_COLORS.ink05, backgroundColor: EXPORT_COLORS.muted })}
                                     >
                                         <span className="text-xs text-[#1A1A1A]/40 font-mono" style={whenExport({ color: EXPORT_COLORS.ink40 })}>

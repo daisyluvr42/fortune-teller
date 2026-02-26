@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import Header from "@/components/Header";
 import { Mail, Lock, ArrowRight, UserPlus, LogIn, AlertCircle, CheckCircle } from "lucide-react";
 import { useTranslations } from 'next-intl';
+import { useRouter } from "@/i18n/routing";
 
 type Mode = "login" | "register";
 

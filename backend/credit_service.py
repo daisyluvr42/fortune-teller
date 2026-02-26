@@ -3,6 +3,7 @@ CreditManager: Unified Credit/Quota Management Service
 
 Handles all quota checks and consumption for:
 - oracle (daily limit = 1)
+- liuren (daily limit = 1)
 - compatibility (lifetime limit = 3)
 - analysis (daily limit = 10)
 """
@@ -22,6 +23,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 # Default quota configurations (Free Tier)
 DEFAULT_QUOTAS = {
     "oracle": {"cycle_type": "daily", "cycle_limit": 1},
+    "liuren": {"cycle_type": "daily", "cycle_limit": 1},
     "compatibility": {"cycle_type": "daily", "cycle_limit": 2},
     "analysis": {"cycle_type": "daily", "cycle_limit": 10},
 }
@@ -29,11 +31,12 @@ DEFAULT_QUOTAS = {
 # VIP quota configurations
 VIP_QUOTAS = {
     "oracle": {"cycle_type": "daily", "cycle_limit": 20},
+    "liuren": {"cycle_type": "daily", "cycle_limit": 20},
     "compatibility": {"cycle_type": "daily", "cycle_limit": 30},  # VIP: daily reset
     "analysis": {"cycle_type": "daily", "cycle_limit": 100},
 }
 
-FeatureKey = Literal["oracle", "compatibility", "analysis"]
+FeatureKey = Literal["oracle", "liuren", "compatibility", "analysis"]
 
 
 class QuotaStatus(BaseModel):
